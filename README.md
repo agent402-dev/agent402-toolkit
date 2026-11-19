@@ -6,8 +6,8 @@ It does not judge or rate tokens and gives no investment advice. Every result ca
 > Factual information from public on-chain data. Not investment advice.
 > 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
 
-This repository is the open-source check engine of [A402 Check](https://a402-check.agent402-ebc.workers.dev).
-The hosted API, payment code and operating settings are not part of it.
+This repository is the open-source check engine of [A402 Check](https://a402-check.agent402-ebc.workers.dev). The hosted API at that address (it returns a JSON list of endpoints) currently offers only the free summary (items 1–4, `GET /v1/check/{mint}/summary`, 20 calls per IP per day).
+The hosted API, payment code and operating settings are not part of this repository.
 
 ## What it checks
 | # | Check | Returns |
@@ -53,8 +53,13 @@ const report = await checkFull('<mint>', reader); // items 1-8
 - Item 8 walks the pool's history back to its creation; very long histories are reported as unverifiable, and large opening windows as partial.
 - Liquidity on unsupported DEXs and locks in other programs are not included (reported as unverifiable).
 
-## Using the hosted paid report
-If you let an AI agent pay for the hosted full report (x402, 0.02 USDC per call), use a **small, dedicated wallet** that holds only what you are willing to spend, and keep per-payment and daily limits on. Never use a wallet that holds other funds.
+## Hosted paid report — not yet available (coming soon)
+The hosted full report (items 1–8) is **not yet available**: payments are switched off, and the endpoint `GET /v1/check/{mint}` currently answers `coming_soon`. No payment is taken.
+Planned price: 0.02 USDC per call via x402 (planned, may change before launch).
+
+> 호스팅 유료 리포트(항목 1~8)는 아직 제공하지 않습니다 (준비 중, 결제 꺼짐). 가격 0.02 USDC 는 예정 값입니다.
+
+When it becomes available and you let an AI agent pay for it, use a **small, dedicated wallet** that holds only what you are willing to spend, and keep per-payment and daily limits on. Never use a wallet that holds other funds.
 
 ## License
 [Apache License 2.0](LICENSE). See [NOTICE](NOTICE).
