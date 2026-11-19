@@ -1,6 +1,7 @@
 {
   "name": "a402-pay-mcp",
   "version": "0.1.0",
+  "mcpName": "io.github.agent402-dev/a402-pay-mcp",
   "private": true,
   "description": "MCP server that lets an AI agent pay x402 APIs (USDC, A402) from the user's own wallet within spend limits and allowlists.",
   "author": "Agent402",

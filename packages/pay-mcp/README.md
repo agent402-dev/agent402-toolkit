@@ -6,7 +6,7 @@ Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit)
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
 
 > It pays only what you allow and gives no opinion on any API or token. Not investment advice.
-> 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
+> 허용한 만큼만 결제하며 API나 토큰에 대한 의견을 주지 않습니다. 투자 권유가 아닙니다.
 
 ## Rules checked before signing
 Nothing is signed unless every rule passes. **With no configuration, every payment is refused.**
@@ -31,6 +31,7 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 - Redirects are followed manually and each hop must be an allowed domain; a disallowed hop is not contacted.
 - Pass `quoteId` from `x402_quote` to `x402_fetch` to refuse if the amount, asset or recipient changed.
 - Daily totals count every payment this server signed, whatever the result.
+- Daily limits are counted from the local payment log file (`X402_HISTORY_PATH`). Deleting or moving that file resets the daily totals.
 
 Other settings: `X402_KEYPAIR_PATH` (wallet key file, Solana CLI JSON; without it nothing is paid), `X402_NETWORK` (`mainnet` | `devnet`), `X402_RPC_URL`, `X402_PAY_WITH` (`USDC` | `A402`), `X402_HISTORY_PATH` (default `~/.agent402/payments.jsonl`).
 

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.agent402-dev/a402-check-mcp",
+  "description": "Solana token mint facts from public on-chain data, with evidence addresses. Not investment advice.",
+  "repository": {
+    "url": "https://github.com/agent402-dev/agent402-toolkit",
+    "source": "github",
+    "subfolder": "packages/check-mcp"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "a402-check-mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "A402_CHECK_RPC_URL",
+          "description": "Your Solana mainnet RPC URL for the full report (token_check). Runs on your machine.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "A402_CHECK_API",
+          "description": "Hosted API base URL for token_check_summary (default: the A402 Check API)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

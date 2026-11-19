@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.agent402-dev/a402-pay-mcp",
+  "description": "Pay x402 APIs on Solana (USDC, A402) from your own wallet within your limits. Refuses by default.",
+  "repository": {
+    "url": "https://github.com/agent402-dev/agent402-toolkit",
+    "source": "github",
+    "subfolder": "packages/pay-mcp"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "a402-pay-mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        { "name": "X402_KEYPAIR_PATH", "description": "Path to the payment wallet key file (Solana CLI JSON). Without it nothing is paid.", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_ALLOWED_DOMAINS", "description": "Allowed domains, comma-separated. Empty: every payment refused.", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_TRUSTED_PAY_TO", "description": "Trusted recipient addresses, comma-separated. Empty: every payment refused.", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_ALLOWED_ASSETS", "description": "USDC (default) or USDC,A402", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_MAX_USD", "description": "Max USDC per payment in USD (default 0.05)", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_MAX_USD_PER_DAY", "description": "Max USDC per UTC day in USD (default 1)", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_MAX_PAYMENTS_PER_DAY", "description": "Max payments per UTC day (default 20)", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_MAX_A402_ATOMIC", "description": "Max A402 per payment, in A402 smallest units (1 A402 = 1,000,000). Not set: A402 refused.", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_MAX_A402_PER_DAY_ATOMIC", "description": "Max A402 per UTC day, in A402 smallest units (1 A402 = 1,000,000). Not set: A402 refused.", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_CONFIRM_ABOVE_USD", "description": "Ask a human at or above this USDC amount (USD). Default off.", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_CONFIRM_ABOVE_A402_ATOMIC", "description": "Ask a human at or above this A402 amount (A402 smallest units). Default off.", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_NETWORK", "description": "mainnet or devnet", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_RPC_URL", "description": "Solana RPC URL used to build payment transactions", "isRequired": false, "format": "string", "isSecret": true },
+        { "name": "X402_PAY_WITH", "description": "Preferred asset: USDC or A402", "isRequired": false, "format": "string", "isSecret": false },
+        { "name": "X402_HISTORY_PATH", "description": "Local payment log (JSONL). Daily limits are counted from this file.", "isRequired": false, "format": "string", "isSecret": false }
+      ]
+    }
+  ]
+}
