@@ -1,0 +1,18 @@
+{
+  "name": "a402-pay-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server-side helpers for x402 on Solana: accept USDC and A402 (Token-2022) with a median daily rate and liquidity guards, via standard facilitators.",
+  "author": "Agent402",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "@x402/core": "2.31.0",
+    "@x402/svm": "2.31.0"
+  }
+}

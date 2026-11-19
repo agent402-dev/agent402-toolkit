@@ -1,0 +1,17 @@
+{
+  "name": "a402-check-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server (stdio) returning factual on-chain information about Solana token mints, with evidence addresses. No judgments or investment advice.",
+  "author": "Agent402",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "a402-check-engine": "0.1.0",
+    "zod": "^4.6.7"
+  }
+}

@@ -31,9 +31,13 @@ export interface FullReportLimits {
 }
 
 /**
- * 유료 API 기본 상한 (2026-11-19 사용자 결정: Workers 무료 플랜 요청당 외부 호출 50개 안에 결제까지 들어가도록 깊이 축소)
+ * 얕은 상한 — 요청당 외부 호출 수가 작은 환경(예: Workers 무료 플랜 50개)용. 기본값
  */
 export const API_LIMITS: FullReportLimits = { maxTransactions: 50, maxSignaturePages: 3, maxPositionsShown: 2 };
+/**
+ * 로컬 실행 상한 — 사용자 자신의 RPC 로 돌릴 때 (a402-check-mcp token_check). 더 깊게 보되 끝이 있게
+ */
+export const LOCAL_LIMITS: FullReportLimits = { maxTransactions: 200, maxSignaturePages: 10, maxPositionsShown: 10 };
 /** @deprecated API_LIMITS 를 쓰세요 */
 export const API_EARLYBUYS_LIMITS = { maxTransactions: API_LIMITS.maxTransactions, maxSignaturePages: API_LIMITS.maxSignaturePages } as const;
 

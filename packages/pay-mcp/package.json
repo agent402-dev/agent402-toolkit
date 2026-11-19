@@ -1,0 +1,20 @@
+{
+  "name": "a402-pay-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that lets an AI agent pay x402 APIs (USDC, A402) from the user's own wallet within spend limits and allowlists.",
+  "author": "Agent402",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@solana/kit": "8.6.0",
+    "@x402/core": "2.31.0",
+    "@x402/fetch": "2.31.0",
+    "@x402/svm": "2.31.0",
+    "zod": "^4.6.7"
+  }
+}

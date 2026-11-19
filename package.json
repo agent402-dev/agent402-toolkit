@@ -2,7 +2,7 @@
   "name": "agent402-toolkit",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent402 toolkit for Solana: factual token checks and x402 payments in USDC and A402.",
+  "description": "Agent402 toolkit for Solana: factual token checks, and x402 payments in USDC and A402.",
   "author": "Agent402",
   "license": "Apache-2.0",
   "type": "module",
@@ -10,14 +10,16 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --pool=threads --maxWorkers=1",
     "typecheck": "tsc --noEmit",
     "check": "tsx packages/check-engine/scripts/check.ts",
     "holders": "tsx packages/check-engine/scripts/holders.ts",
     "earlybuys": "tsx packages/check-engine/scripts/earlybuys.ts"
   },
   "devDependencies": {
+    "@meteora-ag/cp-amm-sdk": "^1.5.1",
     "@types/node": "^22.20.5",
+    "bn.js": "^5.2.5",
     "dotenv": "^16.6.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",

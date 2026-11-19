@@ -1,4 +1,4 @@
-# A402 Check — token check engine
+# a402-check-engine
 
 Reads public Solana on-chain data for a token mint and returns **facts with evidence addresses**.
 It does not judge or rate tokens and gives no investment advice. Every result carries this note:
@@ -6,8 +6,24 @@ It does not judge or rate tokens and gives no investment advice. Every result ca
 > Factual information from public on-chain data. Not investment advice.
 > 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
 
-This package is the open-source check engine of [A402 Check](https://a402-check.agent402-ebc.workers.dev). The hosted API at that address (it returns a JSON list of endpoints) currently offers only the free summary (items 1–4, `GET /v1/check/{mint}/summary`, 20 calls per IP per day).
-The hosted API and its operating settings are not part of this repository.
+Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit) (Solana). Free and open source.
+Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
+
+## Install
+```bash
+npm install a402-check-engine
+```
+Node 20+. ESM only.
+
+## Use
+```ts
+import { checkFull } from 'a402-check-engine/full';
+import { fetchChainReader } from 'a402-check-engine/rpc-lite';
+// individual checks: checkSummary, checkHolders, checkLiquidity, checkLocks, checkEarlyBuys from 'a402-check-engine'
+
+const reader = fetchChainReader(process.env.RPC_URL!); // your Solana mainnet RPC
+const report = await checkFull('<mint>', reader);       // items 1-8
+```
 
 ## What it checks
 | # | Check | Returns |
@@ -23,11 +39,24 @@ The hosted API and its operating settings are not part of this repository.
 
 Each section explains how values are calculated in its `notes`, and marks anything it cannot verify as unverifiable instead of guessing.
 Item 8 reports timing facts only — it does not say whether a wallet is automated or related to another.
+Token amounts are in the token's smallest unit (raw integer) unless the field says otherwise; `uiAmount` fields are in whole tokens (using the mint's `decimals`).
 
 Supported programs: SPL Token, Token-2022, Metaplex Token Metadata, Meteora DAMM v2, Raydium CPMM (and Raydium AMM v4 / CLMM for holder classification), Streamflow.
 
-## Usage
-From the repository root:
+A public RPC works for items 1–4. Items 5–8 use `getTokenLargestAccounts` and `getProgramAccounts`, which public endpoints often throttle; for these, use an RPC with an API key.
+
+## Limits
+- Tokens with more than ~10 million token accounts (e.g. USDC): RPCs refuse largest-holder queries, so item 5 is unavailable.
+- Item 8 walks the pool's history back to its creation; very long histories are reported as unverifiable, and large opening windows as partial.
+- Liquidity on unsupported DEXs and locks in other programs are not included (reported as unverifiable).
+
+## Free: the full report runs on your machine
+A402 Check is free. The hosted A402 Check API (`https://a402-check.agent402-ebc.workers.dev`) serves only the summary (items 1–4, `GET /v1/check/{mint}/summary`, 20 calls per IP per day). The full report (items 1–8) is not served by the API (`GET /v1/check/{mint}` answers `410` with these instructions); run it with your own Solana RPC, either with this library (`checkFull`) or with the [`a402-check-mcp`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/check-mcp) tool `token_check`.
+
+> A402 Check 는 무료입니다. 전체 리포트(항목 1~8)는 자신의 RPC 로 이 컴퓨터에서 실행합니다.
+
+## From source
+In the [repository](https://github.com/agent402-dev/agent402-toolkit), from the root:
 ```bash
 npm install
 cp .env.example .env   # set RPC_URL (Solana mainnet)
@@ -37,33 +66,12 @@ npm run earlybuys -- <mint>    # item 8
 npm test                       # offline, uses recorded public mainnet data
 ```
 
-A public RPC works for items 1–4. Items 5–8 use `getTokenLargestAccounts` and `getProgramAccounts`, which public endpoints often throttle, so an RPC with an API key is recommended.
-
-As a library:
-```ts
-import { checkFull } from 'a402-check-engine/full';
-import { fetchChainReader } from 'a402-check-engine/rpc-lite';
-// individual checks: checkSummary, checkHolders, checkLiquidity, checkLocks, checkEarlyBuys from 'a402-check-engine'
-
-const reader = fetchChainReader(process.env.RPC_URL!);
-const report = await checkFull('<mint>', reader); // items 1-8
-```
-
-## Limits
-- Tokens with more than ~10 million token accounts (e.g. USDC): RPCs refuse largest-holder queries, so item 5 is unavailable.
-- Item 8 walks the pool's history back to its creation; very long histories are reported as unverifiable, and large opening windows as partial.
-- Liquidity on unsupported DEXs and locks in other programs are not included (reported as unverifiable).
-
-## Hosted paid report — not yet available (coming soon)
-The hosted full report (items 1–8) is **not yet available**: payments are switched off, and the endpoint `GET /v1/check/{mint}` currently answers `coming_soon`. No payment is taken.
-Planned price: 0.02 USDC per call via x402 (planned, may change before launch).
-
-> 호스팅 유료 리포트(항목 1~8)는 아직 제공하지 않습니다 (준비 중, 결제 꺼짐). 가격 0.02 USDC 는 예정 값입니다.
-
-When it becomes available and you let an AI agent pay for it, use a **small, dedicated wallet** that holds only what you are willing to spend, and keep per-payment and daily limits on. Never use a wallet that holds other funds.
+## What it does not do
+- It **does not judge, score or rate tokens** and gives no investment advice. It returns facts and evidence addresses.
+- It **does not operate a facilitator**, **does not hold funds**, **does not exchange** currencies, and **does not accept or send payments on anyone's behalf**. It only reads public chain data.
 
 ## License
-[Apache License 2.0](../../LICENSE). See [NOTICE](../../NOTICE).
+Apache-2.0. See [LICENSE](https://github.com/agent402-dev/agent402-toolkit/blob/main/LICENSE) and [NOTICE](https://github.com/agent402-dev/agent402-toolkit/blob/main/NOTICE).
 
 ---
 Factual information from public on-chain data. Not investment advice. / 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
