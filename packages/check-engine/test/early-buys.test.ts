@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   analyzeSwap, checkEarlyBuys,
   type ChainReader, type HistoryReader, type PoolSide, type SignatureInfo, type TxRecord,
-} from '../src/engine/index.js';
-import { guardrailViolations } from '../src/engine/guardrail.js';
-import { DAMM_V2_PROGRAM } from '../src/engine/liquidity/meteora-damm-v2.js';
-import { SPL_TOKEN_PROGRAM } from '../src/engine/programs.js';
+} from 'a402-check-engine/index';
+import { guardrailViolations } from 'a402-check-engine/guardrail';
+import { DAMM_V2_PROGRAM } from 'a402-check-engine/liquidity/meteora-damm-v2';
+import { SPL_TOKEN_PROGRAM } from 'a402-check-engine/programs';
 
 // ---------- 메인넷 픽스처 재생 ----------
 interface Rec {

@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
-import { checkLiquidity, checkLocks, firstUnlock, uiAmount, type ChainReader } from '../src/engine/index.js';
-import { guardrailViolations } from '../src/engine/guardrail.js';
-import { decodeStreamflowContract, isGenuineStreamflowContract } from '../src/engine/locks/streamflow.js';
-import { streamflowEscrow } from '../src/engine/holders/registry.js';
+import { checkLiquidity, checkLocks, firstUnlock, uiAmount, type ChainReader } from 'a402-check-engine/index';
+import { guardrailViolations } from 'a402-check-engine/guardrail';
+import { decodeStreamflowContract, isGenuineStreamflowContract } from 'a402-check-engine/locks/streamflow';
+import { streamflowEscrow } from 'a402-check-engine/holders/registry';
 
 // ---------- 메인넷 픽스처 재생 ----------
 interface Rec {

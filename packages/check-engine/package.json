@@ -1,0 +1,16 @@
+{
+  "name": "a402-check-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Factual on-chain checks for Solana token mints: authorities, Token-2022 extensions, holder concentration, liquidity locks, operator locks, early buys. Facts and evidence addresses only.",
+  "author": "Agent402",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.99.0"
+  }
+}

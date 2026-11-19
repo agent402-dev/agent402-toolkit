@@ -1,6 +1,6 @@
 // 사용법: npm run earlybuys -- <민트 주소> [분=5] [--pool <풀 주소>]
 import 'dotenv/config';
-import { checkEarlyBuys, makeConnection, rpcChainReader, rpcHistoryReader } from '../src/engine/index.js';
+import { checkEarlyBuys, makeConnection, rpcChainReader, rpcHistoryReader } from 'a402-check-engine/index';
 
 const [mint, minutes] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const poolIdx = process.argv.indexOf('--pool');

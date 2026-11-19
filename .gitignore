@@ -2,5 +2,6 @@ node_modules/
 .env
 keys/
 out/
+dist/
 *.log
 .a402-export

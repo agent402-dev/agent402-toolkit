@@ -13,8 +13,8 @@
     ]
   },
   "include": [
-    "src",
-    "scripts",
-    "test"
+    "packages/*/src",
+    "packages/*/scripts",
+    "packages/*/test"
   ]
 }

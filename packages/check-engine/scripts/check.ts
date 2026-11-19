@@ -1,6 +1,6 @@
 // 사용법: npm run check -- <민트 주소>
 import 'dotenv/config';
-import { checkSummary, makeConnection, rpcFetcher } from '../src/engine/index.js';
+import { checkSummary, makeConnection, rpcFetcher } from 'a402-check-engine/index';
 
 const mint = process.argv[2];
 if (!mint) {

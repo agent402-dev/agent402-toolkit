@@ -1,26 +1,26 @@
 {
-  "name": "a402-check-engine",
-  "version": "0.1.0",
+  "name": "agent402-toolkit",
+  "version": "0.0.0",
   "private": true,
-  "description": "Factual on-chain checks for Solana token mints: authorities, Token-2022 extensions, holder concentration, liquidity locks, operator locks, early buys. Facts and evidence addresses only.",
+  "description": "Agent402 toolkit for Solana: factual token checks and x402 payments in USDC and A402.",
   "author": "Agent402",
   "license": "Apache-2.0",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "check": "tsx scripts/check.ts",
-    "holders": "tsx scripts/holders.ts",
-    "earlybuys": "tsx scripts/earlybuys.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@solana/web3.js": "^1.98.0",
-    "dotenv": "^16.4.5"
+    "typecheck": "tsc --noEmit",
+    "check": "tsx packages/check-engine/scripts/check.ts",
+    "holders": "tsx packages/check-engine/scripts/holders.ts",
+    "earlybuys": "tsx packages/check-engine/scripts/earlybuys.ts"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.0",
-    "vitest": "^3.2.4"
+    "@types/node": "^22.20.5",
+    "dotenv": "^16.6.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }
