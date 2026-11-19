@@ -1,4 +1,4 @@
-# a402-pay-server
+# @agent402-dev/pay-server
 
 Server helpers for [x402](https://github.com/coinbase/x402) payments on Solana that accept **USDC** and, optionally, **A402** (a Token-2022 token) through standard x402 facilitators.
 
@@ -41,10 +41,16 @@ When A402 is not offered, the 402 response lists it under `notOffered` with the 
 
 These are observations from one day. Facilitator policies and balances change; `KNOWN_FACILITATORS` only provides defaults that you can override.
 
+## Install
+```bash
+npm install @agent402-dev/pay-server
+```
+Node 20+ or Cloudflare Workers (`nodejs_compat`). ESM only.
+
 ## Usage
 ```ts
 import { createPaymentGate, rpcChain, KNOWN_FACILITATORS, SOLANA_MAINNET, USDC_MAINNET, A402_MAINNET,
-  createRateBook, memoryRateStore } from 'a402-pay-server';
+  createRateBook, memoryRateStore } from '@agent402-dev/pay-server';
 
 const rates = createRateBook({ store: memoryRateStore(), fetcher: rpcChain(RPC_URL).accounts });
 const gate = createPaymentGate({
@@ -62,7 +68,7 @@ export default {
 };
 // call rates.record() hourly (cron) to collect samples
 ```
-Rate stores: `memoryRateStore()` (default, tests), `fileRateStore(path)` from `a402-pay-server/rates-file` (Node), or your own `RateStore` (for example a Cloudflare Durable Object; see the [Workers example](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/cloudflare-worker)). A Node example is in [`examples/node-server`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/node-server).
+Rate stores: `memoryRateStore()` (default, tests), `fileRateStore(path)` from `@agent402-dev/pay-server/rates-file` (Node), or your own `RateStore` (for example a Cloudflare Durable Object; see the [Workers example](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/cloudflare-worker)). A Node example is in [`examples/node-server`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/node-server).
 
 ## License
 Apache-2.0. See [LICENSE](https://github.com/agent402-dev/agent402-toolkit/blob/main/LICENSE) and [NOTICE](https://github.com/agent402-dev/agent402-toolkit/blob/main/NOTICE).

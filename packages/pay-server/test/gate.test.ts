@@ -1,4 +1,4 @@
-// a402-pay-server SDK (createPaymentGate) — 2주차 설계 5가지 + 기본 흐름 고정
+// @agent402-dev/pay-server SDK (createPaymentGate) — 2주차 설계 5가지 + 기본 흐름 고정
 import { readFileSync } from 'node:fs';
 import { Keypair } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
@@ -8,9 +8,9 @@ import type { PaymentRequirements, SettleResponse, SupportedResponse } from '@x4
 import {
   createPaymentGate, isFacilitatorSideFailure, KNOWN_FACILITATORS, SOLANA_DEVNET,
   type ChainReader, type ChainTx, type DailyRate, type FacilitatorSpec, type GateConfig,
-} from 'a402-pay-server';
-import { clearSupportedCache, presentSignatures } from 'a402-pay-server/x402';
-import { ataOf, SPL_TOKEN, TOKEN_2022 } from 'a402-pay-server/chain';
+} from '@agent402-dev/pay-server';
+import { clearSupportedCache, presentSignatures } from '@agent402-dev/pay-server/x402';
+import { ataOf, SPL_TOKEN, TOKEN_2022 } from '@agent402-dev/pay-server/chain';
 
 const pk = () => Keypair.generate().publicKey.toBase58();
 const PAY_TO = pk();

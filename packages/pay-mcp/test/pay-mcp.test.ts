@@ -1,4 +1,4 @@
-// a402-pay-mcp: 정책(기본 전부 거절)·사람 확인·결제 기록·공격 시나리오 (단위). 실제 서명은 로컬 Surfpool 리허설로 확인 (개발 저장소)
+// @agent402-dev/pay-mcp: 정책(기본 전부 거절)·사람 확인·결제 기록·공격 시나리오 (단위). 실제 서명은 로컬 Surfpool 리허설로 확인 (개발 저장소)
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,12 +9,12 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { encodePaymentRequiredHeader, encodePaymentResponseHeader } from '@x402/core/http';
 import type { PaymentRequirements } from '@x402/core/types';
-import { createAgent, type ConfirmAnswer } from 'a402-pay-mcp/agent';
-import { jsonlHistory } from 'a402-pay-mcp/history';
-import { domainCheck, evaluate, NETWORKS, policyFromEnv, type PolicyEnv } from 'a402-pay-mcp/policy';
-import { createPayServer } from 'a402-pay-mcp/tools';
-import { formatUnits, withSmallest } from 'a402-pay-mcp/units';
-import type { Wallet } from 'a402-pay-mcp/wallet';
+import { createAgent, type ConfirmAnswer } from '@agent402-dev/pay-mcp/agent';
+import { jsonlHistory } from '@agent402-dev/pay-mcp/history';
+import { domainCheck, evaluate, NETWORKS, policyFromEnv, type PolicyEnv } from '@agent402-dev/pay-mcp/policy';
+import { createPayServer } from '@agent402-dev/pay-mcp/tools';
+import { formatUnits, withSmallest } from '@agent402-dev/pay-mcp/units';
+import type { Wallet } from '@agent402-dev/pay-mcp/wallet';
 
 const pk = () => Keypair.generate().publicKey.toBase58();
 const TRUSTED = pk();

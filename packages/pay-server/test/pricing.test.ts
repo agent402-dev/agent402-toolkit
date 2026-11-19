@@ -4,7 +4,7 @@ import { getPriceFromSqrtPrice } from '@meteora-ag/cp-amm-sdk';
 import {
   a402Amount, dammV2Price, DEFAULT_GUARDS, decodePythPriceUpdate, fixRate, median, pythPriceAccount, PYTH_SOL_USD_FEED,
   type PriceSample,
-} from 'a402-pay-server/pricing';
+} from '@agent402-dev/pay-server/pricing';
 
 describe('가격 계산', () => {
   it('DAMM v2 sqrt_price → 가격: Meteora SDK getPriceFromSqrtPrice 와 일치', () => {

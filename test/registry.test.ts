@@ -5,14 +5,16 @@ import { describe, expect, it } from 'vitest';
 const json = (p: string) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
 
 describe.each([
-  ['check-mcp', 'a402-check-mcp'],
-  ['pay-mcp', 'a402-pay-mcp'],
-])('Registry %s', (dir, npmName) => {
+  ['check-mcp', '@agent402-dev/check-mcp', 'io.github.agent402-dev/a402-check-mcp'],
+  ['pay-mcp', '@agent402-dev/pay-mcp', 'io.github.agent402-dev/a402-pay-mcp'],
+])('Registry %s', (dir, npmName, mcpName) => {
   const pkg = json(`../packages/${dir}/package.json`);
   const server = json(`../packages/${dir}/server.json`);
   const src = ['server.ts', 'tools.ts', 'policy.ts'].map((f) => { try { return readFileSync(new URL(`../packages/${dir}/src/${f}`, import.meta.url), 'utf8'); } catch { return ''; } }).join('\n');
   it('이름·버전·패키지 일치', () => {
-    expect(pkg.mcpName).toBe(`io.github.agent402-dev/${npmName}`);
+    expect(pkg.name).toBe(npmName);
+    expect(pkg.publishConfig).toEqual({ access: 'public' });
+    expect(pkg.mcpName).toBe(mcpName);
     expect(server.name).toBe(pkg.mcpName);
     expect(server.version).toBe(pkg.version);
     expect(server.packages).toHaveLength(1);

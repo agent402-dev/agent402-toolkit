@@ -1,4 +1,4 @@
-// a402-pay-server 의 바깥 API: createPaymentGate(config).withPayment(handler)
+// @agent402-dev/pay-server 의 바깥 API: createPaymentGate(config).withPayment(handler)
 // 표준 Request → Response. Cloudflare Workers·Node 20+(fetch API)·Hono 등에서 그대로 씀.
 //
 // 순서: 402 → (결제 헤더) 공식 서버로 조건 맞추기·verify → 핸들러 (제한 시간) → 성공(<400)일 때만 settle → 체인 재확인

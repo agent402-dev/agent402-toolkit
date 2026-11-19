@@ -1,10 +1,10 @@
-// a402-pay-server: 환율 저장소 어댑터(메모리·파일) + RateBook + rpcChain
+// @agent402-dev/pay-server: 환율 저장소 어댑터(메모리·파일) + RateBook + rpcChain
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { a402AmountFor, createRateBook, memoryRateStore, rpcChain, type PriceSample, type RateStore } from 'a402-pay-server';
-import { fileRateStore } from 'a402-pay-server/rates-file';
+import { a402AmountFor, createRateBook, memoryRateStore, rpcChain, type PriceSample, type RateStore } from '@agent402-dev/pay-server';
+import { fileRateStore } from '@agent402-dev/pay-server/rates-file';
 
 const sample = (at: string, a402Usd: number, depth = 200): PriceSample => ({
   at, a402Sol: a402Usd / 150, solUsd: 150, solUsdConf: 0.05, a402Usd, poolSolSideUsd: depth, slot: 1, pythPublishTime: Date.parse(at) / 1000,

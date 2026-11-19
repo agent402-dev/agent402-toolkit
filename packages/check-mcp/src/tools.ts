@@ -3,10 +3,10 @@
 //  - token_check: 사용자 자신의 Solana RPC 로 로컬에서 전체 리포트 (항목 1~8). 결제 없음
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ChainReader, HistoryReader } from 'a402-check-engine/chain';
-import { checkFull, LOCAL_LIMITS } from 'a402-check-engine/full';
-import { MintNotFoundError } from 'a402-check-engine/summary';
-import { NotAMintError } from 'a402-check-engine/mint';
+import type { ChainReader, HistoryReader } from '@agent402-dev/check-engine/chain';
+import { checkFull, LOCAL_LIMITS } from '@agent402-dev/check-engine/full';
+import { MintNotFoundError } from '@agent402-dev/check-engine/summary';
+import { NotAMintError } from '@agent402-dev/check-engine/mint';
 
 export const DEFAULT_API = 'https://a402-check.agent402-ebc.workers.dev';
 const DISCLAIMER = '공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다. / Factual information from public on-chain data. Not investment advice.';

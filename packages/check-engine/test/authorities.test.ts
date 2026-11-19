@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
-import { checkSummary, DISCLAIMER_KO, NotAMintError, type AccountFetcher } from 'a402-check-engine/index';
-import { guardrailViolations } from 'a402-check-engine/guardrail';
-import { metaplexMetadataPda, METAPLEX_METADATA_PROGRAM, SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM } from 'a402-check-engine/programs';
+import { checkSummary, DISCLAIMER_KO, NotAMintError, type AccountFetcher } from '@agent402-dev/check-engine/index';
+import { guardrailViolations } from '@agent402-dev/check-engine/guardrail';
+import { metaplexMetadataPda, METAPLEX_METADATA_PROGRAM, SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM } from '@agent402-dev/check-engine/programs';
 
 // ---------- 실제 메인넷 픽스처 (npm run verify:week1 로 저장) ----------
 interface Fixture {

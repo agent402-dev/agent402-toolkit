@@ -1,4 +1,4 @@
-// a402-pay-server 예제: Cloudflare Worker. 환율 기록은 Durable Object(RateStore) 에, 매시간 cron 으로 기록.
+// @agent402-dev/pay-server 예제: Cloudflare Worker. 환율 기록은 Durable Object(RateStore) 에, 매시간 cron 으로 기록.
 // wrangler.toml 예:
 //   main = "index.ts"
 //   compatibility_flags = ["nodejs_compat"]
@@ -12,7 +12,7 @@ import { DurableObject } from 'cloudflare:workers';
 import {
   A402_MAINNET, createPaymentGate, createRateBook, KNOWN_FACILITATORS, rpcChain, SOLANA_MAINNET, USDC_MAINNET,
   type DailyRate, type PriceSample, type RateStore,
-} from 'a402-pay-server';
+} from '@agent402-dev/pay-server';
 
 interface Env { PAY_TO: string; RPC_URL: string; RATES: DurableObjectNamespace<RateStoreDO> }
 

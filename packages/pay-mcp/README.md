@@ -1,4 +1,4 @@
-# a402-pay-mcp
+# @agent402-dev/pay-mcp
 
 MCP server (stdio) that lets an AI agent call [x402](https://github.com/coinbase/x402) paid APIs on Solana and pay in **USDC** (or, if you allow it, **A402**) from **your own wallet on your machine**, only within the rules you set.
 
@@ -34,6 +34,21 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 - Daily limits are counted from the local payment log file (`X402_HISTORY_PATH`). Deleting or moving that file resets the daily totals.
 
 Other settings: `X402_KEYPAIR_PATH` (wallet key file, Solana CLI JSON; without it nothing is paid), `X402_NETWORK` (`mainnet` | `devnet`), `X402_RPC_URL`, `X402_PAY_WITH` (`USDC` | `A402`), `X402_HISTORY_PATH` (default `~/.agent402/payments.jsonl`).
+
+## Connect
+Claude Code (example — set your own allowlists and limits):
+```bash
+claude mcp add a402-pay \
+  -e X402_KEYPAIR_PATH=<path to a small, dedicated wallet key file> \
+  -e X402_ALLOWED_DOMAINS=<api.example.com> \
+  -e X402_TRUSTED_PAY_TO=<recipient address> \
+  -- npx -y @agent402-dev/pay-mcp
+```
+Claude Desktop (`claude_desktop_config.json`):
+```json
+{ "mcpServers": { "a402-pay": { "command": "npx", "args": ["-y", "@agent402-dev/pay-mcp"], "env": { "X402_KEYPAIR_PATH": "<key file>", "X402_ALLOWED_DOMAINS": "<api.example.com>", "X402_TRUSTED_PAY_TO": "<recipient address>" } } } }
+```
+Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment is refused; without `X402_KEYPAIR_PATH` only `x402_quote` and `wallet_status` are useful.
 
 ## Tools
 | Tool | What it does |

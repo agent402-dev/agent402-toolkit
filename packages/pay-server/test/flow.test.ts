@@ -1,13 +1,13 @@
-// a402-pay-server 결제 처리 흐름 (이전 test/x402.test.ts 를 Worker 유료 경로 대신 SDK createPaymentGate 로 옮김)
+// @agent402-dev/pay-server 결제 처리 흐름 (이전 test/x402.test.ts 를 Worker 유료 경로 대신 SDK createPaymentGate 로 옮김)
 // 검증 → 핸들러 → 정산, 재사용 방지 장부, 정산 실패·결과 모름 시 체인 판정, 결제 조건 변조
 import { Keypair } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader, encodePaymentSignatureHeader } from '@x402/core/http';
 import type { FacilitatorClient } from '@x402/core/server';
 import type { PaymentRequirements, SettleResponse, SupportedResponse } from '@x402/core/types';
-import { createPaymentGate, SETTLE_UNKNOWN_EXPIRY_MS, SOLANA_DEVNET, type ChainReader, type ChainTx } from 'a402-pay-server';
-import { clearSupportedCache, presentSignatures } from 'a402-pay-server/x402';
-import { ataOf, SPL_TOKEN, TOKEN_2022 } from 'a402-pay-server/chain';
+import { createPaymentGate, SETTLE_UNKNOWN_EXPIRY_MS, SOLANA_DEVNET, type ChainReader, type ChainTx } from '@agent402-dev/pay-server';
+import { clearSupportedCache, presentSignatures } from '@agent402-dev/pay-server/x402';
+import { ataOf, SPL_TOKEN, TOKEN_2022 } from '@agent402-dev/pay-server/chain';
 
 const pk = () => Keypair.generate().publicKey.toBase58();
 const PAY_TO = pk();

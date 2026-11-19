@@ -1,11 +1,11 @@
-// a402-check-mcp (무료): token_check_summary (호스팅) + token_check (사용자 RPC 로 로컬 1~8)
+// @agent402-dev/check-mcp (무료): token_check_summary (호스팅) + token_check (사용자 RPC 로 로컬 1~8)
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createServer, type ToolDeps } from 'a402-check-mcp/tools';
-import { guardrailViolations } from 'a402-check-engine/guardrail';
-import type { AccountFetcher } from 'a402-check-engine/summary';
+import { createServer, type ToolDeps } from '@agent402-dev/check-mcp/tools';
+import { guardrailViolations } from '@agent402-dev/check-engine/guardrail';
+import type { AccountFetcher } from '@agent402-dev/check-engine/summary';
 
 const MINT = 'GC8VRpVFheTb8Ep53MihEDfLmTfFR5TEP4B2eGG6ny5X';
 const fx = JSON.parse(readFileSync(new URL('../../check-engine/test/fixtures/A402.json', import.meta.url), 'utf8')) as {
@@ -45,10 +45,10 @@ describe('MCP 도구 목록 (무료)', () => {
   });
   it('패키지가 결제 코드에 기대지 않음 (pay-mcp·x402 의존 없음)', () => {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    expect(Object.keys(pkg.dependencies)).not.toContain('a402-pay-mcp');
+    expect(Object.keys(pkg.dependencies)).not.toContain('@agent402-dev/pay-mcp');
     expect(Object.keys(pkg.dependencies).some((k) => k.startsWith('@x402/'))).toBe(false);
     for (const f of ['tools.ts', 'server.ts']) {
-      expect(readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')).not.toMatch(/a402-pay-mcp|@x402\//);
+      expect(readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')).not.toMatch(/@agent402-dev\/pay-mcp|a402-pay-mcp|@x402\//);
     }
   });
 });

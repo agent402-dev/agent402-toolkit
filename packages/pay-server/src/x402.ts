@@ -1,4 +1,4 @@
-// 표준 x402 v2 (exact, Solana) — 리소스 서버 쪽 처리 단계 (a402-pay-server 내부, gate.ts 가 씀).
+// 표준 x402 v2 (exact, Solana) — 리소스 서버 쪽 처리 단계 (@agent402-dev/pay-server 내부, gate.ts 가 씀).
 //
 // 흐름: 검증 → (호출자의 작업) → 정산
 //  - verifyPaymentHeader: 결제가 고른 조건(accepted)이 지금 조건과 같은지(공식 매칭), resource 경로, 장부에서 잡기, facilitator verify

@@ -42,6 +42,9 @@ describe.each(Object.entries(files))('README %s', (_name, path) => {
       expect(line).toMatch(/smallest unit/);
     }
   });
+  it('패키지 이름은 스코프 이름만 (예전 a402-* npm 이름 없음)', () => {
+    expect(md).not.toMatch(/(^|[^\/.\w-])a402-(check-engine|check-mcp|pay-server|pay-mcp)\b/m);
+  });
   it('개인 정보·오래된 저장소 이름 없음', () => {
     expect(md).not.toMatch(/github\.com\/agent402-dev\/a402-check-engine/);
     expect(md).not.toMatch(/[A-Za-z]:\\Users\\/);

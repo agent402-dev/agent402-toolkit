@@ -1,4 +1,4 @@
-// a402-pay-mcp 도구 4개: x402_fetch, x402_quote, wallet_status, payment_history
+// @agent402-dev/pay-mcp 도구 4개: x402_fetch, x402_quote, wallet_status, payment_history
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createAgent, type ConfirmAnswer } from './agent.js';

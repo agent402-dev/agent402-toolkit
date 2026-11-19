@@ -10,10 +10,10 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 ## Packages
 | Package | What it is |
 |---|---|
-| [`a402-check-engine`](packages/check-engine) | Reads public on-chain data for a token mint and returns facts with evidence addresses (authorities, Token-2022 extensions, holders, liquidity locks, operator locks, early buys) |
-| [`a402-check-mcp`](packages/check-mcp) | MCP server for the checks. Free: summary from the hosted API, full report on your machine with your own RPC |
-| [`a402-pay-server`](packages/pay-server) | Server helpers to accept x402 payments in USDC and, optionally, A402 through external facilitators (verify → your handler → settle) |
-| [`a402-pay-mcp`](packages/pay-mcp) | MCP server that lets an AI agent pay x402 APIs from your own wallet, on your machine, within limits and allowlists you set (with no configuration, every payment is refused) |
+| [`@agent402-dev/check-engine`](packages/check-engine) | Reads public on-chain data for a token mint and returns facts with evidence addresses (authorities, Token-2022 extensions, holders, liquidity locks, operator locks, early buys) |
+| [`@agent402-dev/check-mcp`](packages/check-mcp) | MCP server for the checks. Free: summary from the hosted API, full report on your machine with your own RPC |
+| [`@agent402-dev/pay-server`](packages/pay-server) | Server helpers to accept x402 payments in USDC and, optionally, A402 through external facilitators (verify → your handler → settle) |
+| [`@agent402-dev/pay-mcp`](packages/pay-mcp) | MCP server that lets an AI agent pay x402 APIs from your own wallet, on your machine, within limits and allowlists you set (with no configuration, every payment is refused) |
 
 ## What this toolkit does not do
 - It **does not operate a facilitator.** Payment verification and settlement are done by external x402 facilitators (for example PayAI).

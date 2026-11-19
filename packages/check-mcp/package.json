@@ -1,5 +1,5 @@
 {
-  "name": "a402-check-mcp",
+  "name": "@agent402-dev/check-mcp",
   "version": "0.1.0",
   "mcpName": "io.github.agent402-dev/a402-check-mcp",
   "private": true,
@@ -10,9 +10,12 @@
   "exports": {
     "./*": "./src/*.ts"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "a402-check-engine": "0.1.0",
+    "@agent402-dev/check-engine": "0.1.0",
     "zod": "^4.6.7"
   }
 }

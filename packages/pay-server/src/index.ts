@@ -1,4 +1,4 @@
-// a402-pay-server — 공개 API
+// @agent402-dev/pay-server — 공개 API
 export {
   createPaymentGate, isFacilitatorSideFailure, KNOWN_FACILITATORS, SOLANA_MAINNET, SOLANA_DEVNET, USDC_MAINNET, A402_MAINNET,
   type AssetSymbol, type FacilitatorSpec, type GateConfig, type PaymentGate, type PaymentInfo, type ReceivingAccount,

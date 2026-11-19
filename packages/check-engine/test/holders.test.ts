@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
-import { checkHolders, DISCLAIMER_KO, percentOf, type HolderReader } from 'a402-check-engine/index';
-import { guardrailViolations } from 'a402-check-engine/guardrail';
+import { checkHolders, DISCLAIMER_KO, percentOf, type HolderReader } from '@agent402-dev/check-engine/index';
+import { guardrailViolations } from '@agent402-dev/check-engine/guardrail';
 import {
   METEORA_DAMM_V2_POOL_AUTHORITY,
   RAYDIUM_CLMM_PROGRAM,
@@ -11,8 +11,8 @@ import {
   STREAMFLOW_MINT_OFFSET,
   STREAMFLOW_PROGRAM,
   streamflowEscrow,
-} from 'a402-check-engine/holders/registry';
-import { SPL_TOKEN_PROGRAM } from 'a402-check-engine/programs';
+} from '@agent402-dev/check-engine/holders/registry';
+import { SPL_TOKEN_PROGRAM } from '@agent402-dev/check-engine/programs';
 
 describe('registry: PDA 계산값', () => {
   it('Meteora DAMM v2 풀 권한 = A402 풀 금고의 실제 소유자', () => {

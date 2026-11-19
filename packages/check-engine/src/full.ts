@@ -35,7 +35,7 @@ export interface FullReportLimits {
  */
 export const API_LIMITS: FullReportLimits = { maxTransactions: 50, maxSignaturePages: 3, maxPositionsShown: 2 };
 /**
- * 로컬 실행 상한 — 사용자 자신의 RPC 로 돌릴 때 (a402-check-mcp token_check). 더 깊게 보되 끝이 있게
+ * 로컬 실행 상한 — 사용자 자신의 RPC 로 돌릴 때 (@agent402-dev/check-mcp token_check). 더 깊게 보되 끝이 있게
  */
 export const LOCAL_LIMITS: FullReportLimits = { maxTransactions: 200, maxSignaturePages: 10, maxPositionsShown: 10 };
 /** @deprecated API_LIMITS 를 쓰세요 */

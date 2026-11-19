@@ -1,4 +1,4 @@
-# a402-check-engine
+# @agent402-dev/check-engine
 
 Reads public Solana on-chain data for a token mint and returns **facts with evidence addresses**.
 It does not judge or rate tokens and gives no investment advice. Every result carries this note:
@@ -11,15 +11,15 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 
 ## Install
 ```bash
-npm install a402-check-engine
+npm install @agent402-dev/check-engine
 ```
 Node 20+. ESM only.
 
 ## Use
 ```ts
-import { checkFull } from 'a402-check-engine/full';
-import { fetchChainReader } from 'a402-check-engine/rpc-lite';
-// individual checks: checkSummary, checkHolders, checkLiquidity, checkLocks, checkEarlyBuys from 'a402-check-engine'
+import { checkFull } from '@agent402-dev/check-engine/full';
+import { fetchChainReader } from '@agent402-dev/check-engine/rpc-lite';
+// individual checks: checkSummary, checkHolders, checkLiquidity, checkLocks, checkEarlyBuys from '@agent402-dev/check-engine'
 
 const reader = fetchChainReader(process.env.RPC_URL!); // your Solana mainnet RPC
 const report = await checkFull('<mint>', reader);       // items 1-8
@@ -51,7 +51,7 @@ A public RPC works for items 1–4. Items 5–8 use `getTokenLargestAccounts` an
 - Liquidity on unsupported DEXs and locks in other programs are not included (reported as unverifiable).
 
 ## Free: the full report runs on your machine
-A402 Check is free. The hosted A402 Check API (`https://a402-check.agent402-ebc.workers.dev`) serves only the summary (items 1–4, `GET /v1/check/{mint}/summary`, 20 calls per IP per day). The full report (items 1–8) is not served by the API (`GET /v1/check/{mint}` answers `410` with these instructions); run it with your own Solana RPC, either with this library (`checkFull`) or with the [`a402-check-mcp`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/check-mcp) tool `token_check`.
+A402 Check is free. The hosted A402 Check API (`https://a402-check.agent402-ebc.workers.dev`) serves only the summary (items 1–4, `GET /v1/check/{mint}/summary`, 20 calls per IP per day). The full report (items 1–8) is not served by the API (`GET /v1/check/{mint}` answers `410` with these instructions); run it with your own Solana RPC, either with this library (`checkFull`) or with the [`@agent402-dev/check-mcp`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/check-mcp) tool `token_check`.
 
 > A402 Check 는 무료입니다. 전체 리포트(항목 1~8)는 자신의 RPC 로 이 컴퓨터에서 실행합니다.
 

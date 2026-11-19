@@ -1,11 +1,11 @@
-// a402-pay-server 예제: Node HTTP 서버 하나에 유료 경로 하나 (USDC, 조건이 맞으면 A402).
+// @agent402-dev/pay-server 예제: Node HTTP 서버 하나에 유료 경로 하나 (USDC, 조건이 맞으면 A402).
 // 실행: PAY_TO=<수령 공개 주소> RPC_URL=<메인넷 RPC> npx tsx examples/node-server/server.ts
 // 서버에는 수령 지갑의 공개 주소만 들어감 (개인키 없음). 수령 지갑에 USDC·A402 토큰 계정이 미리 있어야 함.
 import { createServer } from 'node:http';
 import {
   A402_MAINNET, createPaymentGate, createRateBook, KNOWN_FACILITATORS, rpcChain, SOLANA_MAINNET, USDC_MAINNET,
-} from 'a402-pay-server';
-import { fileRateStore } from 'a402-pay-server/rates-file';
+} from '@agent402-dev/pay-server';
+import { fileRateStore } from '@agent402-dev/pay-server/rates-file';
 import { nodeHandler } from './node-adapter.js';
 
 const PORT = Number(process.env.PORT ?? 8080);

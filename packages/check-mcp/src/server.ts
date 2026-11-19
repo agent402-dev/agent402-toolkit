@@ -4,7 +4,7 @@
 //   A402_CHECK_RPC_URL — 자신의 Solana 메인넷 RPC — token_check (로컬 전체 리포트). 없으면 설정 방법만 안내
 // 결제 기능 없음. RPC 주소·키는 출력하지 않음 (stdout 은 MCP 프로토콜 전용)
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { fetchChainReader } from 'a402-check-engine/rpc-lite';
+import { fetchChainReader } from '@agent402-dev/check-engine/rpc-lite';
 import { createServer, DEFAULT_API } from './tools.js';
 
 const rpcUrl = (process.env.A402_CHECK_RPC_URL ?? '').trim();

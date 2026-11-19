@@ -1,4 +1,4 @@
-// node:http 요청 ↔ 표준 Request/Response (Node 20+ 의 fetch API 사용). 프레임워크 없이 a402-pay-server 를 쓰는 최소 연결
+// node:http 요청 ↔ 표준 Request/Response (Node 20+ 의 fetch API 사용). 프레임워크 없이 @agent402-dev/pay-server 를 쓰는 최소 연결
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export function nodeHandler(fetchHandler: (req: Request) => Promise<Response>, origin: string) {
