@@ -41,7 +41,7 @@ export interface FacilitatorSpec {
   * Facilitator defaults. Policies and status can change, so these are only defaults and can be overridden in config.
   *  - USDC: confirmed with mainnet verify and settle on 2026-11-19 (PayAI, Dexter)
   *  - A402 (v1, deprecated): record of a check on PayAI on 2026-11-19
-  *  - PREQ: listed for PayAI, which accepts Token-2022 tokens. **To be confirmed with mainnet verify and settle after the PREQ launch**
+  *  - PREQ: listed for PayAI (no asset restriction for Solana exact in /supported). Verified and settled in a local mainnet-fork rehearsal on 2026-11-22; not yet checked on a hosted facilitator
  */
 export const KNOWN_FACILITATORS = {
   payai: { name: 'payai', url: 'https://facilitator.payai.network', assets: ['USDC', 'PREQ', 'A402'] as AssetSymbol[] },

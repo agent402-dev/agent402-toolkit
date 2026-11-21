@@ -268,7 +268,8 @@ describe('design 5: facts stated in the README', () => {
     // Table columns: | facilitator | USDC | A402 |
     expect(row('PayAI')[3]).toMatch(/verify and settle succeeded/);
     expect(row('Dexter')[3]).toContain('policy:asset_not_allowed');
-    expect(readme).toMatch(/PREQ has not been checked with any facilitator yet/);
+    expect(readme).toMatch(/PREQ has not been checked on a hosted facilitator yet/);
+    expect(readme).toMatch(/local mainnet-fork rehearsal/);
   });
   it('example price is labeled as "example setting"; no discount in the example (default 0)', () => {
     expect(readme).not.toMatch(/discountPercent: \d/);

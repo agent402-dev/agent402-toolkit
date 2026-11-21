@@ -44,7 +44,9 @@ When PREQ is not offered, the 402 response lists it under `notOffered` with the 
 | PayAI `https://facilitator.payai.network` | verify and settle succeeded | verify and settle succeeded (fee paid by the facilitator's fee payer) |
 | Dexter `https://x402.dexter.cash` | listed in `/supported`; at the time of the check, verify returned `transaction_simulation_failed` because its fee payer account held 0.000656 SOL | verify returned `policy:asset_not_allowed` (A402 is not in its asset allowlist) |
 
-PREQ has not been checked with any facilitator yet; it will be checked on mainnet after the PREQ launch. `KNOWN_FACILITATORS.payai` lists PREQ because it accepted a Token-2022 token in the check above. These are observations from one day. Facilitator policies and balances change; `KNOWN_FACILITATORS` only provides defaults that you can override.
+PREQ has not been checked on a hosted facilitator yet. On 2026-11-22 a PREQ payment was verified and settled end to end in a local mainnet-fork rehearsal (Surfpool, with the official x402 facilitator code `@x402/svm` exact scheme and the real PREQ mint). `KNOWN_FACILITATORS.payai` lists PREQ because PayAI's `/supported` shows no asset restriction for the Solana `exact` scheme and it accepted a Token-2022 token in the check above. These are observations from one day. Facilitator policies and balances change; `KNOWN_FACILITATORS` only provides defaults that you can override.
+
+**Facilitator fees.** As of 2026-11-22, PayAI's documentation describes a free tier of up to 10,000 settlements per month without an API key, and paid credits with an API key beyond that. Check the facilitator's current terms before production use.
 
 ## Install
 ```bash
