@@ -10,6 +10,7 @@ import { HTTPFacilitatorClient, type FacilitatorClient } from '@x402/core/server
 import type { PaymentRequirements } from '@x402/core/types';
 import { ataOf, type ChainReader } from './chain.js';
 import { tokenAmountFor, type DailyRate } from './pricing.js';
+import { RECEIPT_HEADER, sha256Hex, signReceipt, type ReceiptSigner } from './receipt.js';
 import { A402_DEPRECATION_WARNING, PREQ_DECIMALS, PREQ_MAINNET_MINT, PREQ_TOKEN_PROGRAM } from './preq.js';
 import {
   buildRequirements, chooseFacilitator, memoryX402Ledger, paymentResponseHeader, settleVerified, verifyPaymentHeader,
@@ -88,6 +89,11 @@ export interface GateConfig {
   now?: () => number;
   /** Retry intervals for the on-chain recheck (default 1, 2, 4 s) */
   confirmDelaysMs?: number[];
+  /**
+    * Signed receipts (optional): after a settled payment, adds the X-Agent402-Receipt header signed with this key.
+    * Use a key made only for receipts (receiptSignerFromBytes), never the receiving wallet's key
+   */
+  receipts?: { signer: ReceiptSigner };
 }
 
 export interface ReceivingAccount { asset: AssetSymbol; mint: string; tokenAccount: string; exists: boolean }
@@ -248,6 +254,8 @@ export function createPaymentGate(c: GateConfig): PaymentGate {
 
       // 2) Handler (time limit). No settlement on failure, timeout, or a 4xx/5xx response
       const payment = v.payment;
+      // Copy of the request for the receipt's request body hash (the handler may read the original body)
+      const reqCopy = c.receipts && req.body ? req.clone() : null;
       const info: PaymentInfo = { asset: payment.accepted.asset, amount: payment.accepted.amount, payTo: payment.accepted.payTo, network: payment.accepted.network };
       let res: Response;
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -279,7 +287,22 @@ export function createPaymentGate(c: GateConfig): PaymentGate {
       h.set('payment-response', paymentResponseHeader(s.settlement));
       h.set('x-payment-confirmation', s.confirmation);
       h.set('access-control-expose-headers', 'PAYMENT-RESPONSE, X-Payment-Confirmation');
-      return new Response(res.body, { status: res.status, headers: h });
+      if (!c.receipts) return new Response(res.body, { status: res.status, headers: h });
+      const body = await res.arrayBuffer();
+      try {
+        const reqBody = reqCopy ? await reqCopy.arrayBuffer() : null;
+        const token = await signReceipt(c.receipts.signer, {
+          issuedAt: new Date(now()).toISOString(),
+          request: { method: req.method, path: `${url.pathname}${url.search}`, bodySha256: reqBody && reqBody.byteLength ? await sha256Hex(reqBody) : null },
+          response: { status: res.status, bodySha256: await sha256Hex(body) },
+          payment: { network: info.network, asset: info.asset, amount: info.amount, payTo: info.payTo, transaction: s.settlement.transaction || null },
+        });
+        h.set(RECEIPT_HEADER, token);
+        h.set('access-control-expose-headers', 'PAYMENT-RESPONSE, X-Payment-Confirmation, X-Agent402-Receipt');
+      } catch {
+        // Receipts are optional: the paid resource is still delivered without one
+      }
+      return new Response(body, { status: res.status, headers: h });
     };
   }
 

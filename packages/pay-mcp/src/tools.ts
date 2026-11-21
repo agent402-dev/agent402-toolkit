@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createAgent, type ConfirmAnswer } from './agent.js';
 import type { History } from './history.js';
-import { tokenEnv, type PayPolicy, type TokenSymbol } from './policy.js';
+import { historyToCsv } from './csv.js';
+import { nearLimits, tokenEnv, type PayPolicy, type TokenSymbol } from './policy.js';
 import { formatUnits } from './units.js';
 import type { Wallet } from './wallet.js';
 
@@ -49,7 +50,7 @@ function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown>
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.2.0' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.3.0' });
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!server.server.getClientCapabilities()?.elicitation) return 'unsupported';
     const r = await server.server.elicitInput({
@@ -78,7 +79,9 @@ export function createPayServer(d: PayServerDeps): McpServer {
     'Payment wallet address, network, USDC and PREQ balances, payments signed today, and the configured limits and allowlists.',
     {},
     async () => {
-      const { preq, a402, ...today } = d.history.today(d.now?.());
+      const usage = d.history.today(d.now?.());
+      const { preq, a402, ...today } = usage;
+      const near = nearLimits(d.policy, usage);
       const balances = d.wallet ? await d.wallet.balances() : null;
       // A402 (v1) is deprecated: shown only if allowed explicitly or if spent today
       const showA402 = d.policy.allowedAssets.includes('A402') || a402 > 0n;
@@ -96,21 +99,26 @@ export function createPayServer(d: PayServerDeps): McpServer {
       limits: {
         maxUsdPerPayment: d.policy.maxUsdPerPayment, maxUsdPerDay: d.policy.maxUsdPerDay, maxPaymentsPerDay: d.policy.maxPaymentsPerDay,
         confirmAboveUsd: d.policy.confirmAboveUsd,
+        maxUsdPerRecipientPerDay: d.policy.maxUsdPerRecipientPerDay,
+        maxPreqPerRecipientPerDayAtomic: d.policy.maxPreqPerRecipientPerDay,
         ...tokenLimitFields(d.policy, 'PREQ'),
         ...(showA402 ? tokenLimitFields(d.policy, 'A402') : {}),
         units: '…Usd = US dollars (USDC); …Atomic = token smallest unit (1 PREQ = 1,000,000)',
       },
       allowedDomains: d.policy.allowedDomains, trustedPayTo: d.policy.trustedPayTo, allowedAssets: d.policy.allowedAssets,
-      ...(d.policy.warnings.length ? { warnings: d.policy.warnings } : {}),
+      ...(d.policy.warnings.length || near.length ? { warnings: [...d.policy.warnings, ...near] } : {}),
       ...(d.wallet ? {} : { note: 'No wallet configured (X402_KEYPAIR_PATH): x402_fetch will not pay.' }),
       }));
     },
   );
   server.tool(
     'payment_history',
-    'Recent payment records from the local JSONL log (time, URL, asset, amount, recipient, result, settlement transaction id). Keys and signed payment payloads are never stored.',
-    { limit: z.number().int().min(1).max(500).optional() },
-    async ({ limit }) => out(withUnits(d.history.list(limit ?? 20))),
+    'Recent payment records from the local JSONL log (time, URL, asset, amount, recipient, result, settlement transaction id). Keys and signed payment payloads are never stored. format "csv" returns the records as CSV text (oldest first).',
+    { limit: z.number().int().min(1).max(500).optional(), format: z.enum(['json', 'csv']).optional() },
+    async ({ limit, format }) => {
+      const xs = d.history.list(limit ?? 20);
+      return format === 'csv' ? { content: [{ type: 'text' as const, text: historyToCsv([...xs].reverse()) }] } : out(withUnits(xs));
+    },
   );
   return server;
 }

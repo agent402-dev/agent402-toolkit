@@ -13,6 +13,11 @@ import { createAgent, type ConfirmAnswer } from '@agent402-dev/pay-mcp/agent';
 import { jsonlHistory } from '@agent402-dev/pay-mcp/history';
 import { A402_DEPRECATION_WARNING, domainCheck, evaluate, NETWORKS, policyFromEnv, PREQ_MAINNET_MINT as PAY_MCP_PREQ_MINT, symbolOf, type PolicyEnv } from '@agent402-dev/pay-mcp/policy';
 import { createPayServer } from '@agent402-dev/pay-mcp/tools';
+import { csvField, historyToCsv, CSV_COLUMNS } from '@agent402-dev/pay-mcp/csv';
+import { initWallet } from '@agent402-dev/pay-mcp/init';
+import { nearLimits } from '@agent402-dev/pay-mcp/policy';
+import { RECEIPT_HEADER } from '@agent402-dev/pay-mcp/receipt';
+import { receiptSignerFromBytes, sha256Hex, signReceipt } from '@agent402-dev/pay-server/receipt';
 import { formatUnits, withSmallest } from '@agent402-dev/pay-mcp/units';
 import type { Wallet } from '@agent402-dev/pay-mcp/wallet';
 
@@ -379,5 +384,131 @@ describe('PREQ switch: empty mint is an error, A402 (v1) only when enabled expli
     const st = JSON.parse(((await client.callTool({ name: 'wallet_status', arguments: {} })) as { content: { text: string }[] }).content[0].text);
     expect(st.warnings).toEqual([A402_DEPRECATION_WARNING]);
     expect(st.limits.maxA402PerPaymentAtomic).toContain('not set (X402_MAX_A402_ATOMIC) — A402 payments refused');
+  });
+});
+describe('spending controls: per-recipient daily caps and near-limit warnings', () => {
+  const TRUSTED2 = pk();
+  const two = { ...BASE, X402_TRUSTED_PAY_TO: `${TRUSTED},${TRUSTED2}` };
+  const routes = { [`${HOST}/a`]: (r: Request) => (r.headers.get('payment-signature') ? paidOk() : r402([req()], `https://${HOST}/a`)),
+    [`${HOST}/b`]: (r: Request) => (r.headers.get('payment-signature') ? paidOk() : r402([req({ payTo: TRUSTED2 })], `https://${HOST}/b`)) };
+  it('default: no per-recipient cap (null), only the overall caps apply', () => {
+    expect(policyFromEnv(BASE)).toMatchObject({ maxUsdPerRecipientPerDay: null, maxPreqPerRecipientPerDay: null });
+  });
+  it('USDC per-recipient cap: the same recipient is refused once its own daily total would exceed the cap, another recipient still gets paid', async () => {
+    const t = agentWith({ ...two, X402_MAX_USD_PER_RECIPIENT_PER_DAY: '0.03' }, routes);
+    expect((await t.agent.payAndFetch({ url: `https://${HOST}/a` })).result).toBe('paid');
+    const again = await t.agent.payAndFetch({ url: `https://${HOST}/a` });
+    expect(again.result).toBe('refused');
+    expect(again.reasons!.join(' ')).toContain(`over_daily_recipient_usd_limit: 0.02 + 0.02 > 0.03 USD to ${TRUSTED}`);
+    expect((await t.agent.payAndFetch({ url: `https://${HOST}/b` })).result).toBe('paid');
+    expect(t.wallet.n).toBe(2);
+    expect(t.history.recipientToday(TRUSTED)).toEqual({ count: 1, usd: 0.02, preq: 0n });
+  });
+  it('PREQ per-recipient cap (smallest units)', async () => {
+    const env = { ...BASE, X402_PREQ_MINT: PREQ, X402_ALLOWED_ASSETS: 'PREQ', X402_PAY_WITH: 'PREQ', X402_MAX_PREQ_ATOMIC: '10000000', X402_MAX_PREQ_PER_DAY_ATOMIC: '100000000', X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC: '12000000' };
+    const t = agentWith(env, { [`${HOST}/paid`]: (r: Request) => (r.headers.get('payment-signature') ? paidOk() : r402([req({ asset: PREQ, amount: '8000000' })])) });
+    expect((await t.agent.payAndFetch({ url: `https://${HOST}/paid` })).result).toBe('paid');
+    const again = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(again.reasons!.join(' ')).toContain('over_daily_recipient_preq_limit: 8000000 + 8000000 > 12000000 (PREQ smallest units)');
+    expect(t.wallet.n).toBe(1);
+  });
+  it('near-limit warning after a payment that reaches 80% of the daily USD cap (payment still made)', async () => {
+    const t = agentWith({ ...BASE, X402_MAX_USD_PER_DAY: '0.025' }, { [`${HOST}/paid`]: (r: Request) => (r.headers.get('payment-signature') ? paidOk() : r402([req()])) });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('paid');
+    expect(r.warnings).toEqual(['near_daily_usd_limit: 0.02 of 0.025 USD used today (UTC)']);
+  });
+  it('nearLimits: below 80% nothing; count and PREQ caps too', () => {
+    const p = policyFromEnv({ ...BASE, X402_PREQ_MINT: PREQ, X402_ALLOWED_ASSETS: 'PREQ', X402_MAX_PREQ_ATOMIC: '1', X402_MAX_PREQ_PER_DAY_ATOMIC: '10000000', X402_MAX_PAYMENTS_PER_DAY: '5' });
+    expect(nearLimits(p, { count: 1, usd: 0.1, preq: 1_000_000n, a402: 0n })).toEqual([]);
+    expect(nearLimits(p, { count: 4, usd: 0, preq: 8_000_000n, a402: 0n })).toEqual([
+      'near_daily_count_limit: 4 of 5 payments today (UTC)',
+      'near_daily_preq_limit: 8 PREQ of 10 PREQ used today (UTC)',
+    ]);
+  });
+});
+
+describe('payment history CSV export', () => {
+  it('header, one row per entry, amounts with units, quoting and formula guard', () => {
+    const csv = historyToCsv([
+      { at: '2026-11-22T00:00:00.000Z', url: 'https://api.good.test/a?x=1,2', host: HOST, network: NETWORKS.devnet, asset: 'USDC', mint: USDC, amount: '20000', payTo: TRUSTED, result: 'paid', settlementTx: 'TX1', httpStatus: 200, signed: true },
+      { at: '2026-11-22T00:01:00.000Z', url: 'https://api.good.test/b', host: HOST, result: 'refused', reasons: ['=cmd()', 'say "hi"'], signed: false },
+    ]);
+    const lines = csv.trimEnd().split('\r\n');
+    expect(lines[0]).toBe(CSV_COLUMNS.join(','));
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toContain('paid,true,USDC,20000,0.02 USDC');
+    expect(lines[1]).toContain('"https://api.good.test/a?x=1,2"');
+    expect(lines[2]).toContain(`"'=cmd(); say ""hi"""`);
+    expect(csvField('-1')).toBe("'-1");
+    expect(csvField('+SUM(A1)')).toBe("'+SUM(A1)");
+    expect(csvField('@x')).toBe("'@x");
+  });
+  it('payment_history tool with format csv', async () => {
+    const policy = policyFromEnv(BASE);
+    const dir = mkdtempSync(join(tmpdir(), 'csv-'));
+    const history = jsonlHistory(join(dir, 'h.jsonl'), () => policy.mints);
+    history.add({ at: '2026-11-22T00:00:00.000Z', url: `https://${HOST}/a`, host: HOST, asset: 'USDC', mint: USDC, amount: '20000', payTo: TRUSTED, result: 'paid', signed: true });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await createPayServer({ policy, wallet: null, history, fetch }).connect(a);
+    const client = new Client({ name: 't', version: '0' });
+    await client.connect(b);
+    const text = ((await client.callTool({ name: 'payment_history', arguments: { format: 'csv' } })) as { content: { text: string }[] }).content[0].text;
+    expect(text.split('\r\n')[0]).toBe(CSV_COLUMNS.join(','));
+    expect(text).toContain('0.02 USDC');
+  });
+});
+
+describe('pay-mcp init (local wallet key file)', () => {
+  it('creates a 64-byte Solana CLI key file whose public key is the printed address; never overwrites', async () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'init-')), 'sub', 'w.json');
+    const r = await initWallet({ path });
+    const bytes = JSON.parse(readFileSync(path, 'utf8')) as number[];
+    expect(bytes).toHaveLength(64);
+    expect(Keypair.fromSecretKey(Uint8Array.from(bytes)).publicKey.toBase58()).toBe(r.address);
+    expect(r.network).toBe('mainnet');
+    expect(r.text).toContain(r.address);
+    expect(r.text).toContain('No SOL is needed');
+    expect(r.text).toContain(`solana:${r.address}?spl-token=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`);
+    expect(r.text).toContain('X402_ALLOWED_DOMAINS=<api.example.com>');
+    expect(r.text).not.toContain(JSON.stringify(bytes));
+    await expect(initWallet({ path })).rejects.toThrow(/already exists .* not changed/);
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(bytes);
+  });
+  it('devnet: devnet USDC mint and X402_NETWORK=devnet in the connect line', async () => {
+    const r = await initWallet({ path: join(mkdtempSync(join(tmpdir(), 'init-')), 'w.json'), network: 'devnet' });
+    expect(r.text).toContain(`spl-token=${USDC}`);
+    expect(r.text).toContain('-e X402_NETWORK=devnet');
+  });
+});
+
+describe('seller receipts in pay-mcp', () => {
+  it('a valid receipt is reported as verified and kept in history; one that does not match the payment is kept as not verified', async () => {
+    const signer = await receiptSignerFromBytes(Keypair.generate().secretKey);
+    const bodyHash = await sha256Hex(new TextEncoder().encode(JSON.stringify({ ok: true })));
+    for (const [amount, verified] of [['20000', true], ['1', false]] as const) {
+      const token = await signReceipt(signer, {
+        issuedAt: '2026-11-22T00:00:00.000Z',
+        request: { method: 'GET', path: '/paid', bodySha256: null },
+        response: { status: 200, bodySha256: bodyHash },
+        payment: { network: NETWORKS.devnet, asset: USDC, amount, payTo: TRUSTED, transaction: 'TXID' },
+      });
+      const t = agentWith(BASE, { [`${HOST}/paid`]: (r) => {
+        if (!r.headers.get('payment-signature')) return r402([req()]);
+        const res = paidOk();
+        res.headers.set(RECEIPT_HEADER, token);
+        return res;
+      } });
+      const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+      expect(r.result).toBe('paid');
+      expect(r.receipt).toMatchObject({ signer: signer.publicKey, verified });
+      if (!verified) expect(r.receipt!.reasons).toContain('receipt_payment_mismatch: amount');
+      expect(t.history.list()[0].receipt).toMatchObject({ verified, token });
+    }
+  });
+  it('no receipt header → no receipt field', async () => {
+    const t = agentWith(BASE, { [`${HOST}/paid`]: (r) => (r.headers.get('payment-signature') ? paidOk() : r402([req()])) });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.receipt).toBeUndefined();
   });
 });

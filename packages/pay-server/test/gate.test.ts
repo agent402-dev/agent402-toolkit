@@ -11,6 +11,8 @@ import {
 } from '@agent402-dev/pay-server';
 import { clearSupportedCache, presentSignatures } from '@agent402-dev/pay-server/x402';
 import { ataOf, SPL_TOKEN, TOKEN_2022 } from '@agent402-dev/pay-server/chain';
+import { receiptSignerFromBytes, RECEIPT_HEADER } from '@agent402-dev/pay-server';
+import { checkReceipt } from '@agent402-dev/pay-mcp/receipt';
 
 const pk = () => Keypair.generate().publicKey.toBase58();
 const PAY_TO = pk();
@@ -333,5 +335,41 @@ describe('PREQ switch: empty mint is an error, A402 (v1) only when enabled expli
     const { pr, body } = await first402(s.h);
     expect(symbols(pr.accepts)).toEqual(['USDC']);
     expect(body.notOffered[0]).toMatchObject({ asset: 'PREQ', reason: 'PREQ rate out of range' });
+  });
+});
+describe('signed receipts (optional)', () => {
+  it('off by default: no receipt header', async () => {
+    const s = await setup();
+    const { pr } = await first402(s.h);
+    const ok = await s.h(req({ 'payment-signature': sign(pr.accepts[0]) }));
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get(RECEIPT_HEADER)).toBeNull();
+  });
+  it('on: the receipt verifies against the request path, the delivered body and the payment; tampering is detected', async () => {
+    const kp = Keypair.generate();
+    const signer = await receiptSignerFromBytes(kp.secretKey);
+    expect(signer.publicKey).toBe(kp.publicKey.toBase58());
+    const s = await setup({ extra: { receipts: { signer } } });
+    const { pr } = await first402(s.h);
+    const ok = await s.h(req({ 'payment-signature': sign(pr.accepts[0]) }));
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get('access-control-expose-headers')).toContain('X-Agent402-Receipt');
+    const token = ok.headers.get(RECEIPT_HEADER)!;
+    const body = await ok.arrayBuffer();
+    expect(JSON.parse(new TextDecoder().decode(body))).toEqual({ ok: true });
+    const a = pr.accepts[0];
+    const exp = { method: 'GET', url: URL_, responseBody: body, payment: { network: a.network, asset: a.asset, amount: a.amount, payTo: a.payTo, transaction: 'SETTLED' } };
+    expect(await checkReceipt(token, exp)).toMatchObject({ signer: kp.publicKey.toBase58(), verified: true, reasons: [] });
+    expect((await checkReceipt(token, { ...exp, responseBody: new TextEncoder().encode('{"ok":false}').buffer as ArrayBuffer })).reasons).toContain('receipt_response_mismatch: body');
+    expect((await checkReceipt(token, { ...exp, payment: { ...exp.payment, amount: '1' } })).reasons).toContain('receipt_payment_mismatch: amount');
+    expect((await checkReceipt(token, { ...exp, url: 'https://api.example/other' })).reasons).toContain('receipt_request_mismatch: path');
+    const [j, sig] = token.split('.');
+    expect((await checkReceipt(`${j}.${sig.slice(0, -4)}${sig.endsWith('AAAA') ? 'BBBB' : 'AAAA'}`, exp)).reasons).toContain('receipt_bad_signature');
+    expect((await checkReceipt('not-a-receipt', exp)).verified).toBe(false);
+  });
+  it('a key file whose public key does not match its secret is refused', async () => {
+    const a = Keypair.generate().secretKey;
+    const b = Keypair.generate().secretKey;
+    await expect(receiptSignerFromBytes(Uint8Array.from([...a.slice(0, 32), ...b.slice(32)]))).rejects.toThrow(/does not match/);
   });
 });

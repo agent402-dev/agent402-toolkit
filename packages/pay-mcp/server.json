@@ -7,30 +7,142 @@
     "source": "github",
     "subfolder": "packages/pay-mcp"
   },
-  "version": "0.2.0",
+  "version": "0.3.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agent402-dev/pay-mcp",
-      "version": "0.2.0",
-      "transport": { "type": "stdio" },
+      "version": "0.3.0",
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
-        { "name": "X402_KEYPAIR_PATH", "description": "Path to the payment wallet key file (Solana CLI JSON). Without it nothing is paid.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_ALLOWED_DOMAINS", "description": "Allowed domains, comma-separated. Empty: every payment refused.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_TRUSTED_PAY_TO", "description": "Trusted recipient addresses, comma-separated. Empty: every payment refused.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_ALLOWED_ASSETS", "description": "USDC (default) or USDC,PREQ. A402 (v1) is deprecated.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_MAX_USD", "description": "Max USDC per payment in USD (default 0.05)", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_MAX_USD_PER_DAY", "description": "Max USDC per UTC day in USD (default 1)", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_MAX_PAYMENTS_PER_DAY", "description": "Max payments per UTC day (default 20)", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_MAX_PREQ_ATOMIC", "description": "Max PREQ per payment, in PREQ smallest units (1 PREQ = 1,000,000). Not set: PREQ refused.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_MAX_PREQ_PER_DAY_ATOMIC", "description": "Max PREQ per UTC day, in PREQ smallest units (1 PREQ = 1,000,000). Not set: PREQ refused.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_CONFIRM_ABOVE_USD", "description": "Ask a human at or above this USDC amount (USD). Default off.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_CONFIRM_ABOVE_PREQ_ATOMIC", "description": "Ask a human at or above this PREQ amount (PREQ smallest units). Default off.", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_NETWORK", "description": "mainnet or devnet", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_RPC_URL", "description": "Solana RPC URL used to build payment transactions", "isRequired": false, "format": "string", "isSecret": true },
-        { "name": "X402_PAY_WITH", "description": "Preferred asset: USDC or PREQ", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_PREQ_MINT", "description": "PREQ mint override (only needed before the PREQ mint is built into this version, or for devnet rehearsal)", "isRequired": false, "format": "string", "isSecret": false },
-        { "name": "X402_HISTORY_PATH", "description": "Local payment log (JSONL). Daily limits are counted from this file.", "isRequired": false, "format": "string", "isSecret": false }
+        {
+          "name": "X402_KEYPAIR_PATH",
+          "description": "Path to the payment wallet key file (Solana CLI JSON). Without it nothing is paid.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_ALLOWED_DOMAINS",
+          "description": "Allowed domains, comma-separated. Empty: every payment refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_TRUSTED_PAY_TO",
+          "description": "Trusted recipient addresses, comma-separated. Empty: every payment refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_ALLOWED_ASSETS",
+          "description": "USDC (default) or USDC,PREQ. A402 (v1) is deprecated.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MAX_USD",
+          "description": "Max USDC per payment in USD (default 0.05)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MAX_USD_PER_DAY",
+          "description": "Max USDC per UTC day in USD (default 1)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MAX_PAYMENTS_PER_DAY",
+          "description": "Max payments per UTC day (default 20)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MAX_USD_PER_RECIPIENT_PER_DAY",
+          "description": "Max USDC per recipient per UTC day in USD (default off)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MAX_PREQ_ATOMIC",
+          "description": "Max PREQ per payment, in PREQ smallest units (1 PREQ = 1,000,000). Not set: PREQ refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MAX_PREQ_PER_DAY_ATOMIC",
+          "description": "Max PREQ per UTC day, in PREQ smallest units (1 PREQ = 1,000,000). Not set: PREQ refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC",
+          "description": "Max PREQ per recipient per UTC day, in PREQ smallest units (1 PREQ = 1,000,000). Default off.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_CONFIRM_ABOVE_USD",
+          "description": "Ask a human at or above this USDC amount (USD). Default off.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_CONFIRM_ABOVE_PREQ_ATOMIC",
+          "description": "Ask a human at or above this PREQ amount (PREQ smallest units). Default off.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_NETWORK",
+          "description": "mainnet or devnet",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_RPC_URL",
+          "description": "Solana RPC URL used to build payment transactions",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "X402_PAY_WITH",
+          "description": "Preferred asset: USDC or PREQ",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_PREQ_MINT",
+          "description": "PREQ mint override (only needed before the PREQ mint is built into this version, or for devnet rehearsal)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_HISTORY_PATH",
+          "description": "Local payment log (JSONL). Daily limits are counted from this file.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
       ]
     }
   ]

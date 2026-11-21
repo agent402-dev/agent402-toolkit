@@ -1,6 +1,7 @@
 // Payment policy: checks every condition "before" signing. Allowlists default to empty = reject everything.
 // Assets: USDC (default), PREQ (must be enabled explicitly), A402 (v1, deprecated; must be enabled explicitly and prints a warning)
 import type { PaymentRequirements } from '@x402/core/types';
+import { formatUnits } from './units.js';
 
 export const NETWORKS = {
   mainnet: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
@@ -52,6 +53,10 @@ export interface PayPolicy {
   maxPaymentsPerDay: number;
   /** Daily USDC total cap (USD) */
   maxUsdPerDay: number;
+  /** Daily USDC cap per recipient (USD). null = only the overall daily cap applies */
+  maxUsdPerRecipientPerDay: number | null;
+  /** Daily PREQ cap per recipient (smallest units). null = only the overall PREQ daily cap applies */
+  maxPreqPerRecipientPerDay: bigint | null;
   /** USDC payments at or above this amount (USD) need human confirmation. null = never ask */
   confirmAboveUsd: number | null;
   /** Per-token limits (base units). No defaults: both per-payment and daily must be set to pay in that token */
@@ -69,6 +74,8 @@ export interface PolicyEnv {
   X402_MAX_USD?: string;
   X402_MAX_PAYMENTS_PER_DAY?: string;
   X402_MAX_USD_PER_DAY?: string;
+  X402_MAX_USD_PER_RECIPIENT_PER_DAY?: string;
+  X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC?: string;
   X402_CONFIRM_ABOVE_USD?: string;
   X402_MAX_PREQ_ATOMIC?: string;
   X402_MAX_PREQ_PER_DAY_ATOMIC?: string;
@@ -124,6 +131,8 @@ export function policyFromEnv(env: PolicyEnv): PayPolicy {
     maxUsdPerPayment: num(env.X402_MAX_USD, 0.05),
     maxPaymentsPerDay: num(env.X402_MAX_PAYMENTS_PER_DAY, 20),
     maxUsdPerDay: num(env.X402_MAX_USD_PER_DAY, 1),
+    maxUsdPerRecipientPerDay: Number(env.X402_MAX_USD_PER_RECIPIENT_PER_DAY) > 0 ? Number(env.X402_MAX_USD_PER_RECIPIENT_PER_DAY) : null,
+    maxPreqPerRecipientPerDay: atomic(env.X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC),
     confirmAboveUsd: env.X402_CONFIRM_ABOVE_USD ? Number(env.X402_CONFIRM_ABOVE_USD) : null,
     tokenLimits: { PREQ: limitsFor('PREQ'), A402: limitsFor('A402') },
     prefer,
@@ -153,6 +162,14 @@ export interface DayUsage {
   a402: bigint;
 }
 
+/** Today's signed payments to one recipient (payTo) */
+export interface RecipientUsage {
+  count: number;
+  usd: number;
+  preq: bigint;
+}
+const NO_RECIPIENT_USAGE: RecipientUsage = { count: 0, usd: 0, preq: 0n };
+
 export interface Evaluated {
   requirement: PaymentRequirements;
   asset: AssetSymbol | null;
@@ -172,7 +189,7 @@ export function symbolOf(p: PayPolicy, mint: string): AssetSymbol | null {
 const usedToday = (usage: DayUsage, t: TokenSymbol) => (t === 'PREQ' ? usage.preq : usage.a402);
 
 /** Evaluates one payment requirement against the policy (before signing) */
-export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage): Evaluated {
+export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage, recipient: RecipientUsage = NO_RECIPIENT_USAGE): Evaluated {
   const reasons: string[] = [];
   const asset = symbolOf(p, r.asset);
   if (r.scheme !== 'exact') reasons.push(`unsupported_scheme: ${r.scheme}`);
@@ -189,6 +206,9 @@ export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage):
     usd = Number(amount) / 1e6;
     if (usd > p.maxUsdPerPayment) reasons.push(`over_per_payment_limit: ${usd} USD > ${p.maxUsdPerPayment} USD`);
     if (usage.usd + usd > p.maxUsdPerDay) reasons.push(`over_daily_usd_limit: ${usage.usd} + ${usd} > ${p.maxUsdPerDay} USD`);
+    if (p.maxUsdPerRecipientPerDay !== null && recipient.usd + usd > p.maxUsdPerRecipientPerDay) {
+      reasons.push(`over_daily_recipient_usd_limit: ${recipient.usd} + ${usd} > ${p.maxUsdPerRecipientPerDay} USD to ${r.payTo} (X402_MAX_USD_PER_RECIPIENT_PER_DAY)`);
+    }
   }
   let needsTokenConfirm = false;
   if (asset && asset !== 'USDC' && p.allowedAssets.includes(asset) && amount > 0n) {
@@ -200,6 +220,9 @@ export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage):
     else if (amount > l.perPayment) reasons.push(`over_per_payment_limit: ${amount} > ${l.perPayment} (${unit})`);
     if (l.perDay === null) reasons.push(`${lc}_limit_not_configured: set ${n.perDay} (max ${asset} per UTC day, in ${unit}: 1 ${asset} = 1,000,000)`);
     else if (usedToday(usage, asset) + amount > l.perDay) reasons.push(`over_daily_${lc}_limit: ${usedToday(usage, asset)} + ${amount} > ${l.perDay} (${unit})`);
+    if (asset === 'PREQ' && p.maxPreqPerRecipientPerDay !== null && recipient.preq + amount > p.maxPreqPerRecipientPerDay) {
+      reasons.push(`over_daily_recipient_preq_limit: ${recipient.preq} + ${amount} > ${p.maxPreqPerRecipientPerDay} (${unit}) to ${r.payTo} (X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC)`);
+    }
     needsTokenConfirm = l.confirmAbove !== null && amount >= l.confirmAbove;
   }
   if (usage.count >= p.maxPaymentsPerDay) reasons.push(`over_daily_count_limit: ${p.maxPaymentsPerDay}`);
@@ -212,4 +235,17 @@ export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage):
 export function choose(p: PayPolicy, evs: Evaluated[]): Evaluated | null {
   const ok = evs.filter((e) => e.ok);
   return ok.find((e) => e.asset === p.prefer) ?? ok[0] ?? null;
+}
+
+/** Warnings when today's usage has reached a share (default 80%) of a daily cap. Informational only; the caps themselves are enforced by evaluate() */
+export function nearLimits(p: PayPolicy, usage: DayUsage, share = 0.8): string[] {
+  const w: string[] = [];
+  const usd = Math.round(usage.usd * 1e6) / 1e6;
+  if (p.maxUsdPerDay > 0 && usd >= p.maxUsdPerDay * share - 1e-9) w.push(`near_daily_usd_limit: ${usd} of ${p.maxUsdPerDay} USD used today (UTC)`);
+  if (p.maxPaymentsPerDay > 0 && usage.count >= p.maxPaymentsPerDay * share) w.push(`near_daily_count_limit: ${usage.count} of ${p.maxPaymentsPerDay} payments today (UTC)`);
+  const preqCap = p.tokenLimits.PREQ.perDay;
+  if (preqCap !== null && usage.preq * 100n >= preqCap * BigInt(Math.round(share * 100))) {
+    w.push(`near_daily_preq_limit: ${formatUnits(usage.preq, 'PREQ')} of ${formatUnits(preqCap, 'PREQ')} used today (UTC)`);
+  }
+  return w;
 }

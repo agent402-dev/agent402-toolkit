@@ -4,7 +4,8 @@
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from '@x402/core/http';
 import type { PaymentRequired, PaymentRequirements } from '@x402/core/types';
 import type { History, HistoryEntry, PaymentResult } from './history.js';
-import { A402_DEPRECATION_WARNING, choose, domainCheck, evaluate, type Evaluated, type PayPolicy } from './policy.js';
+import { A402_DEPRECATION_WARNING, choose, domainCheck, evaluate, nearLimits, type Evaluated, type PayPolicy } from './policy.js';
+import { checkReceipt, RECEIPT_HEADER } from './receipt.js';
 import { withSmallest } from './units.js';
 import type { Wallet } from './wallet.js';
 
@@ -37,6 +38,8 @@ export interface FetchOutcome {
   options?: { asset: string | null; mint: string; amount: string; payTo: string; ok: boolean; reasons: string[] }[];
   /** Warnings (e.g. the deprecation notice when trying to pay with A402 (v1)) */
   warnings?: string[];
+  /** Seller's signed receipt, if the server sent one (X-Agent402-Receipt) */
+  receipt?: { signer: string | null; verified: boolean; reasons: string[] };
 }
 
 /** Adds the deprecation warning if the chosen asset is A402 (v1) (there is no path that silently pays with A402) */
@@ -63,10 +66,11 @@ export function createAgent(d: AgentDeps) {
     return { refused: 'too_many_redirects' };
   }
 
-  const readBody = async (res: Response) => {
-    const t = (await res.text()).slice(0, 20_000);
+  const parseBody = (buf: ArrayBuffer) => {
+    const t = new TextDecoder().decode(buf).slice(0, 20_000);
     try { return JSON.parse(t); } catch { return t; }
   };
+  const readBody = async (res: Response) => parseBody(await res.arrayBuffer());
   const describe = (e: Evaluated) => ({ asset: e.asset, mint: e.requirement.asset, amount: e.requirement.amount, payTo: e.requirement.payTo, ok: e.ok, reasons: e.reasons });
   const host = (u: string) => { try { return new URL(u).host; } catch { return ''; } };
   const record = (e: Omit<HistoryEntry, 'at'>) => d.history.add({ at: now().toISOString(), ...e });
@@ -90,7 +94,8 @@ export function createAgent(d: AgentDeps) {
       const rc = domainCheck(d.policy, pr.resource.url);
       if (!rc.ok) return { kind: 'refused', refused: `resource_on_disallowed_domain: ${rc.reason}` };
     }
-    const evs = pr.accepts.map((r) => evaluate(d.policy, r, d.history.today(now())));
+    const usage = d.history.today(now());
+    const evs = pr.accepts.map((r) => evaluate(d.policy, r, usage, d.history.recipientToday(r.payTo, now())));
     return { kind: '402', pr, evs, chosen: choose(d.policy, evs), finalUrl };
   }
 
@@ -144,13 +149,20 @@ export function createAgent(d: AgentDeps) {
     const sent = await send({ ...spec, url: a.finalUrl }, { 'payment-signature': header }, false);
     if ('refused' in sent) { record({ ...base, ...pay, result: 'failed', reasons: [sent.refused], signed: true }); return { result: 'failed', reasons: [sent.refused] }; }
     const res = sent.res;
-    const body = await readBody(res);
+    const buf = await res.arrayBuffer();
+    const body = parseBody(buf);
     if (res.ok) {
       const pr = res.headers.get('payment-response');
       let tx: string | undefined;
       try { tx = pr ? decodePaymentResponseHeader(pr).transaction : undefined; } catch { tx = undefined; }
-      record({ ...base, ...pay, result: 'paid', httpStatus: res.status, settlementTx: tx, signed: true });
-      return { result: 'paid', httpStatus: res.status, body, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, settlementTx: tx } };
+      const rt = res.headers.get(RECEIPT_HEADER);
+      const rc = rt
+        ? await checkReceipt(rt, { method: spec.method ?? 'GET', url: a.finalUrl, requestBody: spec.body, responseBody: buf, payment: { network: r.network, asset: r.asset, amount: r.amount, payTo: r.payTo, transaction: tx } })
+        : null;
+      const receipt = rc ? { signer: rc.signer, verified: rc.verified, reasons: rc.reasons } : undefined;
+      record({ ...base, ...pay, result: 'paid', httpStatus: res.status, settlementTx: tx, signed: true, ...(rc ? { receipt: { ...receipt!, token: rc.token } } : {}) });
+      const near = nearLimits(d.policy, d.history.today(now()));
+      return { result: 'paid', httpStatus: res.status, body, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, settlementTx: tx }, ...(receipt ? { receipt } : {}), ...(near.length ? { warnings: near } : {}) };
     }
     const reason = typeof body === 'object' && body && 'reason' in body ? String((body as { reason: unknown }).reason) : `http_${res.status}`;
     const result: PaymentResult = res.status === 402 ? 'rejected_by_server' : res.headers.get('x-payment-status') === 'not-settled' || res.status === 409 ? 'failed' : 'unknown';

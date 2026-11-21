@@ -77,6 +77,25 @@ export default {
 ```
 Rate stores: `memoryRateStore()` (default, tests), `fileRateStore(path)` from `@agent402-dev/pay-server/rates-file` (Node), or your own `RateStore` (for example a Cloudflare Durable Object; see the [Workers example](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/cloudflare-worker)). A Node example is in [`examples/node-server`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/node-server).
 
+## Signed receipts (optional)
+After a settled payment the gate can add an `X-Agent402-Receipt` header: a small JSON record, signed with Ed25519, that binds the request (method, path, body hash), the hash of the response body you delivered, and the payment (network, asset, amount, recipient, transaction). Buyers can keep it as evidence for disputes and settlement reports; `@agent402-dev/pay-mcp` checks it automatically.
+
+```ts
+import { receiptSignerFromBytes } from '@agent402-dev/pay-server';
+
+const signer = await receiptSignerFromBytes(receiptKeyBytes); // 64-byte Solana CLI key file, or a 32-byte seed
+const gate = createPaymentGate({ /* ... */ receipts: { signer } });
+```
+- Use a key made only for receipts (for example `solana-keygen new -o receipt-key.json`), never the key of your receiving wallet. The gate never needs the receiving wallet's key.
+- Publish the receipt key's public key (`signer.publicKey`) so buyers can tell that receipts come from you.
+- If signing fails, the paid resource is still delivered, without a receipt.
+
+## Data
+- No telemetry and no analytics.
+- It contacts only the facilitators you configure (`/supported`, `/verify`, `/settle`) and the RPC you pass to `rpcChain` (settlement checks, receiving token accounts, pool prices for the PREQ rate).
+- Replay protection keeps payment identifiers in the ledger you configure (in memory by default). It stores no other buyer data.
+- It writes nothing to the console except the A402 (v1) deprecation warning when you enable A402.
+
 ## License
 Apache-2.0. See [LICENSE](https://github.com/agent402-dev/agent402-toolkit/blob/main/LICENSE) and [NOTICE](https://github.com/agent402-dev/agent402-toolkit/blob/main/NOTICE).
 

@@ -20,8 +20,10 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 | Max USDC per payment (USD) | `X402_MAX_USD` | `0.05` |
 | Max USDC per UTC day (USD) | `X402_MAX_USD_PER_DAY` | `1` |
 | Max payments per UTC day | `X402_MAX_PAYMENTS_PER_DAY` | `20` |
+| Max USDC per recipient per UTC day (USD) | `X402_MAX_USD_PER_RECIPIENT_PER_DAY` | off (only the overall daily cap) |
 | **Max PREQ per payment** (PREQ smallest units; 1 PREQ = 1,000,000) | `X402_MAX_PREQ_ATOMIC` | **not set → PREQ payments refused** |
 | **Max PREQ per UTC day** (PREQ smallest units; 1 PREQ = 1,000,000) | `X402_MAX_PREQ_PER_DAY_ATOMIC` | **not set → PREQ payments refused** |
+| Max PREQ per recipient per UTC day (PREQ smallest units; 1 PREQ = 1,000,000) | `X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC` | off (only the overall PREQ daily cap) |
 | Ask a human at or above this USDC amount (USD) | `X402_CONFIRM_ABOVE_USD` | off |
 | Ask a human at or above this PREQ amount (PREQ smallest units) | `X402_CONFIRM_ABOVE_PREQ_ATOMIC` | off |
 
@@ -33,10 +35,19 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 - At most one signature per `x402_fetch` call. If the server answers 402 again after payment, it does not sign again.
 - Redirects are followed manually and each hop must be an allowed domain; a disallowed hop is not contacted.
 - Pass `quoteId` from `x402_quote` to `x402_fetch` to refuse if the amount, asset or recipient changed.
+- If the server sends a signed receipt (`X-Agent402-Receipt`, from `@agent402-dev/pay-server`), `x402_fetch` checks its signature and that it matches the request, the response body and the payment, reports `receipt.verified`, and keeps the receipt in the local log. A receipt shows which key signed it; whether that key belongs to the seller is for the seller to publish.
 - Daily totals count every payment this server signed, whatever the result.
 - Daily limits are counted from the local payment log file (`X402_HISTORY_PATH`). Deleting or moving that file resets the daily totals.
+- Per-recipient caps count payments to the same `payTo` address in the current UTC day, on top of the overall caps.
+- When today's usage reaches 80% of a daily cap (USDC, payment count or PREQ), `x402_fetch` results and `wallet_status` carry a `near_daily_…` warning. The payment itself is still decided by the caps.
 
 Other settings: `X402_KEYPAIR_PATH` (wallet key file, Solana CLI JSON; without it nothing is paid), `X402_NETWORK` (`mainnet` | `devnet`), `X402_RPC_URL`, `X402_PAY_WITH` (`USDC` | `PREQ`), `X402_HISTORY_PATH` (default `~/.agent402/payments.jsonl`).
+
+## Create a payment wallet
+```bash
+npx -y @agent402-dev/pay-mcp init
+```
+Creates a new key file at `~/.agent402/pay-wallet.json` and prints its address, a Solana Pay link to fund it with USDC, how to back it up and the command to connect it. It never overwrites an existing file (`--path <file>` chooses another location, `--network devnet` uses devnet). The key is generated on your machine and is not sent anywhere. Payments need no SOL: the facilitator pays the network fee.
 
 ## Connect
 Claude Code (example — set your own allowlists and limits):
@@ -59,9 +70,20 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 | `x402_fetch` | Fetch a URL; pay only if the rules pass |
 | `x402_quote` | Show payment requirements and which rules pass; never signs; returns `quoteId` |
 | `wallet_status` | Address, balances, today's usage (count, USDC, PREQ), limits including both PREQ limits, allowlists |
-| `payment_history` | Local log: time, URL, asset, amount, recipient, result, settlement transaction id |
+| `payment_history` | Local log: time, URL, asset, amount, recipient, result, settlement transaction id (JSON, or CSV with `format: "csv"`) |
 
 The log never stores keys or signed payment payloads.
+
+## Export payment history
+```bash
+npx -y @agent402-dev/pay-mcp export-csv --out payments.csv
+```
+Writes the local payment log as CSV, oldest first, without overwriting an existing file. Without `--out` it prints to the terminal.
+
+## Data
+- No telemetry and no analytics.
+- pay-mcp contacts only the URLs your agent asks it to fetch (allowed domains only) and the Solana RPC (`X402_RPC_URL`, or the public RPC) to build payment transactions and read balances. The RPC provider can see your wallet address.
+- The payment log and the key file stay on your machine. Payment servers and facilitators receive only the partially signed payment transaction.
 
 ## Use a small, dedicated wallet
 Put only what you are willing to spend in the payment wallet. Never point this at a wallet that holds other funds. The key file stays on your machine; only a partially signed payment transaction is sent.

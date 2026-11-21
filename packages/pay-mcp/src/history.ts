@@ -1,5 +1,5 @@
 // Payment history (JSONL, on the user's computer). Keys, payment signature headers and raw partially signed transactions are not stored.
-// Stored: time, URL, host, asset, amount, receiver, result, reason, settlement tx id (public on-chain record)
+// Stored: time, URL, host, asset, amount, receiver, result, reason, settlement tx id (public on-chain record), seller's signed receipt if any
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -22,6 +22,8 @@ export interface HistoryEntry {
   settlementTx?: string;
   /** Whether it signed (true if it signed a payment transaction in this request) */
   signed: boolean;
+  /** Seller's signed receipt (public evidence; contains no keys): signer, check result, and the receipt as received */
+  receipt?: { signer: string | null; verified: boolean; reasons: string[]; token: string };
 }
 
 export interface History {
@@ -29,6 +31,8 @@ export interface History {
   list(limit?: number): HistoryEntry[];
   /** Today's (UTC) signed payment count, USDC total (USD), PREQ and A402 (v1) totals (base units), for limit checks */
   today(now?: Date): { count: number; usd: number; preq: bigint; a402: bigint };
+  /** Today's (UTC) signed payments to one recipient: count, USDC total (USD), PREQ total (base units) */
+  recipientToday(payTo: string, now?: Date): { count: number; usd: number; preq: bigint };
 }
 
 const FORBIDDEN_KEYS = ['secret', 'privateKey', 'keypair', 'paymentSignature', 'transaction', 'payload'];
@@ -38,6 +42,13 @@ export function jsonlHistory(path: string, mints: () => { USDC: string; PREQ: st
     if (!existsSync(path)) return [];
     return readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) as HistoryEntry; } catch { return null; } }).filter((x): x is HistoryEntry => !!x);
   };
+  // A signed payment counts as spent regardless of result (succeeded, rejected, unknown), to be conservative
+  const signedOn = (now: Date) => {
+    const day = now.toISOString().slice(0, 10);
+    return read().filter((e) => e.signed && e.at.slice(0, 10) === day);
+  };
+  const usdOf = (xs: HistoryEntry[], usdc: string) => xs.filter((e) => e.mint === usdc && e.amount).reduce((s, e) => s + Number(e.amount) / 1e6, 0);
+  const sumOf = (xs: HistoryEntry[], mint: string) => (mint ? xs.filter((e) => e.mint === mint && e.amount && /^\d+$/.test(e.amount)).reduce((s, e) => s + BigInt(e.amount!), 0n) : 0n);
   return {
     add(e) {
       for (const k of FORBIDDEN_KEYS) if (k in (e as object)) throw new Error(`history: refusing to store field ${k}`);
@@ -46,13 +57,14 @@ export function jsonlHistory(path: string, mints: () => { USDC: string; PREQ: st
     },
     list(limit = 50) { return read().slice(-limit).reverse(); },
     today(now = new Date()) {
-      const day = now.toISOString().slice(0, 10);
-      // A signed payment counts as spent regardless of result (succeeded, rejected, unknown), to be conservative
-      const xs = read().filter((e) => e.signed && e.at.slice(0, 10) === day);
+      const xs = signedOn(now);
       const m = mints();
-      const usd = xs.filter((e) => e.mint === m.USDC && e.amount).reduce((s, e) => s + Number(e.amount) / 1e6, 0);
-      const sum = (mint: string) => (mint ? xs.filter((e) => e.mint === mint && e.amount && /^\d+$/.test(e.amount)).reduce((s, e) => s + BigInt(e.amount!), 0n) : 0n);
-      return { count: xs.length, usd, preq: sum(m.PREQ), a402: sum(m.A402) };
+      return { count: xs.length, usd: usdOf(xs, m.USDC), preq: sumOf(xs, m.PREQ), a402: sumOf(xs, m.A402) };
+    },
+    recipientToday(payTo, now = new Date()) {
+      const xs = signedOn(now).filter((e) => e.payTo === payTo);
+      const m = mints();
+      return { count: xs.length, usd: usdOf(xs, m.USDC), preq: sumOf(xs, m.PREQ) };
     },
   };
 }
