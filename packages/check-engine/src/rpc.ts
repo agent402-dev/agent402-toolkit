@@ -12,7 +12,7 @@ export function makeConnection(url = rpcUrl()): Connection {
   return new Connection(url, 'confirmed');
 }
 
-/** getMultipleAccounts 로 같은 슬롯 기준 계정들을 읽습니다 (100개씩 나눠 호출). */
+/** Reads accounts at the same slot with getMultipleAccounts (in calls of 100). */
 export function rpcFetcher(conn: Connection): AccountFetcher {
   return async (addresses) => {
     let slot = 0;
@@ -26,28 +26,28 @@ export function rpcFetcher(conn: Connection): AccountFetcher {
   };
 }
 
-/** @deprecated rpcChainReader 를 쓰세요 */
+/** @deprecated Use rpcChainReader */
 export const rpcHolderReader = (conn: Connection, opts: HolderReaderOptions = {}) => rpcChainReader(conn, opts);
 
 export interface HolderReaderOptions {
   /**
-   * getTokenLargestAccounts 가 실패(호출 제한 등)하면 getProgramAccounts 로 민트의 모든 토큰 계정을 훑어
-   * 상위 계정을 고릅니다. 보유 계정이 적은 토큰에서만 현실적입니다.
+    * If getTokenLargestAccounts fails (rate limits, etc.), scans every token account of the mint with getProgramAccounts
+    * and picks the largest. Only practical for tokens with few holder accounts.
    */
   allowScanFallback?: boolean;
   topN?: number;
-  /** getTokenLargestAccounts 가 429 일 때 재시도 간격 (기본 0.8s, 2s, 4s) */
+  /** Retry intervals when getTokenLargestAccounts returns 429 (default 0.8s, 2s, 4s) */
   retryDelaysMs?: number[];
 }
 
 export function rpcChainReader(conn: Connection, opts: HolderReaderOptions = {}): ChainReader {
   const topN = opts.topN ?? 20;
-  // 호출 제한(429)이면 오래 재시도하지 않고 바로 대체 경로로
+  // On rate limits (429), don't retry for long; go straight to the fallback
   const noRetry = new Connection(conn.rpcEndpoint, { commitment: 'confirmed', disableRetryOnRateLimit: true });
   return {
     fetch: rpcFetcher(conn),
     async largestTokenAccounts(mint, tokenProgram) {
-      // 429(호출 제한)는 짧게 몇 번 다시 시도. 그 밖의 오류(계정이 너무 많음 등)는 바로 실패/대체 경로
+      // Retry 429 (rate limit) a few times briefly. Other errors (too many accounts, etc.) fail or fall back right away
       let lastErr: unknown;
       for (const wait of [0, ...(opts.retryDelaysMs ?? [800, 2000, 4000])]) {
         if (wait) await new Promise((r) => setTimeout(r, wait));
@@ -70,7 +70,7 @@ export function rpcChainReader(conn: Connection, opts: HolderReaderOptions = {})
         .sort((x, y) => (y.amount > x.amount ? 1 : y.amount < x.amount ? -1 : 0));
       return {
         addresses: sorted.slice(0, topN).map((a) => a.address),
-        method: `getProgramAccounts (전체 ${sorted.length}개 토큰 계정 중 상위 ${Math.min(topN, sorted.length)}개)`,
+        method: `getProgramAccounts (top ${Math.min(topN, sorted.length)} of ${sorted.length} token accounts)`,
       };
     },
     async programAccounts(program, query) {
@@ -84,7 +84,7 @@ export function rpcChainReader(conn: Connection, opts: HolderReaderOptions = {})
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** JSON-RPC 직접 호출 (web3.js 가 아직 해석하지 못하는 트랜잭션 버전도 받기 위해). 429 는 짧게 재시도 */
+/** Direct JSON-RPC call (to receive transaction versions web3.js cannot decode yet). Retries 429 briefly */
 async function rpcCall<T>(endpoint: string, method: string, params: unknown[]): Promise<T> {
   let lastErr: unknown;
   for (const wait of [0, 800, 2000, 4000]) {
@@ -95,7 +95,7 @@ async function rpcCall<T>(endpoint: string, method: string, params: unknown[]): 
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
     });
     if (res.status === 429) { lastErr = new Error(`${method}: 429 Too many requests`); continue; }
-    if (!res.ok) throw new Error(`${method}: HTTP ${res.status}`); // 응답 본문·주소는 오류에 넣지 않음 (키 노출 방지)
+    if (!res.ok) throw new Error(`${method}: HTTP ${res.status}`); // response body and address are not put in errors (to avoid exposing keys)
     const body = (await res.json()) as { result?: T; error?: { code: number; message: string } };
     if (body.error) {
       if (body.error.code === 429 || /too many/i.test(body.error.message)) { lastErr = new Error(`${method}: 429`); continue; }
@@ -136,7 +136,7 @@ function normalizeTx(signature: string, raw: RawTx | null): TxRecord | null {
 
 export function rpcHistoryReader(conn: Connection, opts: { concurrency?: number } = {}): HistoryReader {
   const endpoint = conn.rpcEndpoint;
-  let maxVersion = 1; // 노드가 1 을 거부하면 0 으로 내림
+  let maxVersion = 1; // drop to 0 if the node rejects 1
   const getTx = async (sig: string): Promise<TxRecord | null> => {
     try {
       const raw = await rpcCall<RawTx | null>(endpoint, 'getTransaction', [sig, { encoding: 'json', commitment: 'confirmed', maxSupportedTransactionVersion: maxVersion }]);
@@ -146,7 +146,7 @@ export function rpcHistoryReader(conn: Connection, opts: { concurrency?: number 
         maxVersion = 0;
         return getTx(sig);
       }
-      if (/version .* is not supported/i.test(String((e as Error).message))) return null; // 해석할 수 없는 버전
+      if (/version .* is not supported/i.test(String((e as Error).message))) return null; // version that cannot be decoded
       throw e;
     }
   };
@@ -170,7 +170,7 @@ export function rpcHistoryReader(conn: Connection, opts: { concurrency?: number 
     },
     async transactions(signatures) {
       const out: (TxRecord | null)[] = new Array(signatures.length).fill(null);
-      const n = opts.concurrency ?? 2; // 무료 RPC 호출 제한을 고려해 낮게
+      const n = opts.concurrency ?? 2; // kept low because of free RPC rate limits
       let next = 0;
       await Promise.all(Array.from({ length: n }, async () => {
         while (next < signatures.length) {

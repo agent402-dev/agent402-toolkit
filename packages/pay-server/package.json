@@ -1,8 +1,8 @@
 {
   "name": "@agent402-dev/pay-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Server-side helpers for x402 on Solana: accept USDC and A402 (Token-2022) with a median daily rate and liquidity guards, via standard facilitators.",
+  "description": "Server-side helpers for x402 on Solana: accept USDC and PREQ (Token-2022) with a median daily rate and liquidity guards, via standard facilitators.",
   "author": "Agent402",
   "license": "Apache-2.0",
   "type": "module",

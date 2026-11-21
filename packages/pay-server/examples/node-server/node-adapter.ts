@@ -1,4 +1,4 @@
-// node:http 요청 ↔ 표준 Request/Response (Node 20+ 의 fetch API 사용). 프레임워크 없이 @agent402-dev/pay-server 를 쓰는 최소 연결
+// node:http request ↔ standard Request/Response (uses the Node 20+ fetch API). Minimal glue for using @agent402-dev/pay-server without a framework
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export function nodeHandler(fetchHandler: (req: Request) => Promise<Response>, origin: string) {

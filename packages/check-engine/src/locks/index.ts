@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 import { Reader } from '../bytes.js';
 import type { ChainReader } from '../chain.js';
 import { decodeMint } from '../mint.js';
-import { DISCLAIMER_EN, DISCLAIMER_KO, MintNotFoundError } from '../summary.js';
+import { DISCLAIMER_EN, MintNotFoundError } from '../summary.js';
 import { percentOf } from '../holders/index.js';
 import { STREAMFLOW_MINT_OFFSET } from '../holders/registry.js';
 import { decodeStreamflowContract, isGenuineStreamflowContract, STREAMFLOW, type StreamflowContract } from './streamflow.js';
@@ -14,22 +14,22 @@ export interface LockContract {
   sender: string;
   recipient: string;
   name: string;
-  /** 계약에 넣은 수량 (수수료 제외, 원 단위) */
+  /** Amount deposited in the contract (excluding fees, base units) */
   amount: string;
   uiAmount: string;
   percentOfSupply: number;
   withdrawn: string;
-  /** 금고에 실제로 남은 토큰 (수수료 포함일 수 있음) */
+  /** Tokens actually left in the escrow (may include fees) */
   escrowBalance: string | null;
   status: 'active' | 'canceled' | 'closed';
   schedule: {
     start: string;
     cliff: string;
     cliffAmount: string;
-    /** 해제 간격 (초) */
+    /** Release interval (seconds) */
     periodSeconds: number;
     amountPerPeriod: string;
-    /** 처음 토큰이 풀리는 시각 */
+    /** Time when tokens first unlock */
     firstUnlock: string;
     end: string;
   };
@@ -48,7 +48,7 @@ export interface LocksReport {
   slot: number;
   decimals: number;
   locks: LockContract[];
-  /** 진행 중(active) 계약에 남은 수량 합계의 공급 대비 % */
+  /** Sum of amounts left in active contracts, as % of supply */
   activeLockedPercent: number;
   contractsFound: number;
   evidence: { account: string; role: string }[];
@@ -64,7 +64,7 @@ export function uiAmount(raw: bigint, decimals: number): string {
   return frac ? `${int}.${frac}` : int;
 }
 
-/** 처음 토큰이 풀리는 시각: cliff_amount 가 있으면 cliff, 없으면 cliff 이후 첫 period */
+/** Time when tokens first unlock: the cliff if cliff_amount is set, otherwise the first period after the cliff */
 export function firstUnlock(c: StreamflowContract): bigint {
   const cliff = c.cliff > 0n ? c.cliff : c.startTime;
   if (c.cliffAmount > 0n) return cliff;
@@ -73,7 +73,7 @@ export function firstUnlock(c: StreamflowContract): bigint {
 
 export async function checkLocks(mintAddress: string, reader: ChainReader, now: () => Date = () => new Date()): Promise<LocksReport> {
   const mint = new PublicKey(mintAddress).toBase58();
-  const notes: string[] = [DISCLAIMER_KO, DISCLAIMER_EN];
+  const notes: string[] = [DISCLAIMER_EN];
   const evidence: LocksReport['evidence'] = [{ account: mint, role: 'mint' }];
 
   const m = await reader.fetch([mint]);
@@ -134,9 +134,9 @@ export async function checkLocks(mintAddress: string, reader: ChainReader, now: 
     .reduce((s, { c }) => s + (c.netAmountDeposited - c.withdrawnAmount), 0n);
 
   notes.push(
-    'firstUnlock 은 cliff_amount 가 있으면 cliff 시각, 없으면 cliff 이후 첫 해제 간격(period)이 지난 시각으로 계산했습니다',
-    'cancelableBySender/Recipient 가 true 이면 해당 주소가 계약을 취소해 남은 토큰을 회수할 수 있습니다. canUpdateRate 가 true 이면 해제 속도를 바꿀 수 있습니다',
-    '지원 락업: Streamflow. 다른 락업 프로그램(Jupiter Lock, Meteora 잠금 등)은 이 항목에 포함되지 않습니다 (확인 불가)',
+    'firstUnlock is the cliff time if cliff_amount is set, otherwise the time one release interval (period) after the cliff',
+    'If cancelableBySender/Recipient is true, that address can cancel the contract and recover the remaining tokens. If canUpdateRate is true, the release rate can be changed',
+    'Supported lockups: Streamflow. Other lockup programs (Jupiter Lock, Meteora lock, etc.) are not included in this section (unavailable)',
   );
 
   return {

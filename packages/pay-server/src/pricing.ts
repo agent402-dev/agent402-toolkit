@@ -1,11 +1,13 @@
-// A402 결제 환율 (30% 할인). 비공개 영역(API 서버). 방식은 docs/pricing.md 에 공개용으로 정리.
-//  - 매시간 기록 (RPC 한 번): A402/SOL = 메인넷 Meteora DAMM v2 풀 sqrt_price,
-//    SOL 쪽 깊이 = 풀 SOL 금고 잔액, SOL/USD = Pyth 푸시 오라클 계정 (Solana 메인넷, USDC ≈ 1 USD 로 봄)
-//  - 하루 고정: 전날(UTC) 기록의 중앙값. 안전장치(기록 수·유동성·변동폭) 중 하나라도 걸리면 그날 A402 결제 끔 (USDC 만)
+// Payment token (PREQ) rate. The method is documented for the public in docs/pricing.md.
+//  - Hourly sample (one RPC call): token/SOL = mainnet Meteora DAMM v2 pool sqrt_price,
+//    SOL-side depth = pool SOL vault balance, SOL/USD = Pyth push oracle account (Solana mainnet, USDC treated as ≈ 1 USD)
+//  - Fixed per day: median of the previous day's (UTC) samples. If any guard (sample count, liquidity, range) trips, token payments are off that day (USDC only)
+//  - Pool and mint addresses are read from preq.ts only. The A402 (v1) pool is deprecated: only when passed explicitly (prints a warning)
 import { PublicKey } from '@solana/web3.js';
 import type { AccountFetcher } from './chain.js';
+import { A402_DEPRECATION_WARNING, PREQ_DECIMALS, PREQ_MAINNET_MINT, PREQ_MAINNET_POOL, requirePreqValue } from './preq.js';
 
-/** Meteora DAMM v2 풀 계정에서 환율에 필요한 부분만 (오프셋: cp-amm IDL, bytemuck — 점검 엔진의 해석과 같은 값) */
+/** Only the parts of a Meteora DAMM v2 pool account needed for the rate (offsets: cp-amm IDL, bytemuck; same values as the check engine's decoder) */
 const DAMM_V2_POOL_SIZE = 1112;
 const DAMM_V2_POOL_DISC = [241, 154, 109, 4, 17, 177, 109, 188];
 export function decodeDammV2PoolForRate(data: Uint8Array) {
@@ -19,37 +21,57 @@ export function decodeDammV2PoolForRate(data: Uint8Array) {
   };
 }
 
-export const A402_MAINNET_MINT = 'GC8VRpVFheTb8Ep53MihEDfLmTfFR5TEP4B2eGG6ny5X';
-export const A402_MAINNET_POOL = 'DaHBw8dxnZaCaX5HdsiM1Hs1uQNwsW3QW3wcD6P4Z5oZ';
-export const A402_POOL_SOL_VAULT = 'FXf9X8exSSZCSe7h14vK4xpcXsdbdNP7nR8myo1MBaMq';
 export const WSOL_MINT = 'So11111111111111111111111111111111111111112';
+/** Meteora DAMM v2 (cp-amm) program */
+export const DAMM_V2_PROGRAM = 'cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG';
+/** Pool vault address = PDA(["token_vault", mint, pool], cp-amm); same rule as Meteora SDK deriveTokenVaultAddress */
+export function dammV2VaultAddress(mint: string, pool: string): string {
+  return PublicKey.findProgramAddressSync([Buffer.from('token_vault'), new PublicKey(mint).toBuffer(), new PublicKey(pool).toBuffer()], new PublicKey(DAMM_V2_PROGRAM))[0].toBase58();
+}
 
-/** Pyth Crypto.SOL/USD 피드 ID (hermes.pyth.network /v2/price_feeds 목록에서 확인) */
+/** Token to price and its token/WSOL pool */
+export interface PoolTarget {
+  symbol: 'PREQ' | 'A402';
+  mint: string;
+  pool: string;
+  decimals: number;
+}
+/** Default target: PREQ (constants in preq.ts). samplePrice errors if they are empty */
+export const PREQ_POOL_TARGET: PoolTarget = { symbol: 'PREQ', mint: PREQ_MAINNET_MINT, pool: PREQ_MAINNET_POOL, decimals: PREQ_DECIMALS };
+
+/** @deprecated A402 (v1) is deprecated. Kept for records only; prints a warning if used */
+export const A402_MAINNET_MINT = 'GC8VRpVFheTb8Ep53MihEDfLmTfFR5TEP4B2eGG6ny5X';
+/** @deprecated A402 (v1) is deprecated */
+export const A402_MAINNET_POOL = 'DaHBw8dxnZaCaX5HdsiM1Hs1uQNwsW3QW3wcD6P4Z5oZ';
+/** @deprecated A402 (v1) is deprecated. Used only when passed explicitly to samplePrice (prints a warning) */
+export const A402_POOL_TARGET: PoolTarget = { symbol: 'A402', mint: A402_MAINNET_MINT, pool: A402_MAINNET_POOL, decimals: 6 };
+
+/** Pyth Crypto.SOL/USD feed ID (checked against the hermes.pyth.network /v2/price_feeds list) */
 export const PYTH_SOL_USD_FEED = 'ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d';
-/** Pyth 푸시 오라클 프로그램과 receiver(계정 소유자) */
+/** Pyth push oracle program and receiver (account owner) */
 export const PYTH_PUSH_ORACLE = 'pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT';
 export const PYTH_RECEIVER = 'rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ';
-/** 샤드 0 의 SOL/USD 가격 계정 = PDA([u16 shard=0, feed_id], push oracle) — 아래 함수로 계산해 대조 */
+/** SOL/USD price account for shard 0 = PDA([u16 shard=0, feed_id], push oracle); computed and checked by the function below */
 export function pythPriceAccount(feedHex = PYTH_SOL_USD_FEED, shard = 0): string {
   const s = Buffer.alloc(2);
   s.writeUInt16LE(shard);
   return PublicKey.findProgramAddressSync([s, Buffer.from(feedHex, 'hex')], new PublicKey(PYTH_PUSH_ORACLE))[0].toBase58();
 }
 
-export const PRICE_USDC_BASE_UNITS = 20_000n; // 0.02 USDC (소수 6자리)
-export const A402_DISCOUNT_BPS = 3000; // 30%
+export const PRICE_USDC_BASE_UNITS = 20_000n; // 0.02 USDC (6 decimals)
+export const TOKEN_DISCOUNT_BPS = 0; // no discount by default
 
-/** 안전장치 기준 (제안값, 2026-11-19) */
+/** Guard thresholds (proposed values, 2026-11-19) */
 export interface RateGuards {
-  /** 전날 기록 최소 개수 (24시간 중) */
+  /** Minimum samples in the previous day (out of 24 hours) */
   minSamples: number;
-  /** 전날 모든 기록에서 풀 SOL 쪽 깊이(USD) 최소값 */
+  /** Minimum SOL-side pool depth (USD) across all of the previous day's samples */
   minPoolSolSideUsd: number;
-  /** 전날 기록의 최고가 / 최저가 최대 비율 */
+  /** Maximum ratio of the previous day's highest to lowest price */
   maxDailyRangeRatio: number;
-  /** Pyth 신뢰구간 / 가격 최대 비율 (넘으면 그 기록을 버림) */
+  /** Maximum Pyth confidence / price ratio (samples above it are discarded) */
   maxOracleConfRatio: number;
-  /** Pyth 갱신 시각이 기록 시각보다 최대 몇 초 전까지 허용 */
+  /** How many seconds before the sample time the Pyth update may be */
   maxOracleAgeSec: number;
 }
 export const DEFAULT_GUARDS: RateGuards = {
@@ -61,27 +83,29 @@ export const DEFAULT_GUARDS: RateGuards = {
 };
 
 export interface PriceSample {
-  /** ISO 시각 */
+  /** ISO time */
   at: string;
-  /** SOL per A402 */
-  a402Sol: number;
+  /** Which token the sample is for (missing for old A402 samples) */
+  symbol?: 'PREQ' | 'A402';
+  /** SOL per token */
+  tokenSol: number;
   /** USD per SOL (Pyth) */
   solUsd: number;
   solUsdConf: number;
-  /** USD per A402 */
-  a402Usd: number;
-  /** 풀 SOL 금고 잔액 × SOL/USD */
+  /** USD per token */
+  tokenUsd: number;
+  /** Pool SOL vault balance × SOL/USD */
   poolSolSideUsd: number;
   slot: number;
   pythPublishTime: number;
 }
 
 export type DailyRate =
-  | { status: 'on'; date: string; basedOn: string; a402Usd: number; samples: number; method: string }
+  | { status: 'on'; date: string; basedOn: string; /** USD per token */ tokenUsd: number; samples: number; method: string }
   | { status: 'off'; date: string; basedOn: string; reason: string; samples: number };
 
 /**
- * DAMM v2 sqrt_price(Q64.64) → B per A 가격.
+  * DAMM v2 sqrt_price (Q64.64) → price of B per A.
  * price = (sqrt_price / 2^64)^2 × 10^(decimalsA − decimalsB)
  */
 export function dammV2Price(sqrtPrice: bigint, decimalsA: number, decimalsB: number): number {
@@ -89,7 +113,7 @@ export function dammV2Price(sqrtPrice: bigint, decimalsA: number, decimalsB: num
   return s * s * 10 ** (decimalsA - decimalsB);
 }
 
-/** Pyth PriceUpdateV2 계정 해석 (verification_level 이 Partial 이면 1바이트 더) */
+/** Decodes a Pyth PriceUpdateV2 account (one more byte if verification_level is Partial) */
 export function decodePythPriceUpdate(data: Buffer) {
   const tag = data[40];
   let o = 41 + (tag === 0 ? 1 : 0);
@@ -102,19 +126,37 @@ export function decodePythPriceUpdate(data: Buffer) {
   return { verification: tag === 1 ? 'full' : 'partial', feedId, price: Number(price) * 10 ** expo, conf: Number(conf) * 10 ** expo, publishTime };
 }
 
-/** 풀·SOL 금고·Pyth 계정을 RPC 한 번으로 읽어 기록 하나. 오라클 품질이 기준 밖이면 예외 */
-export async function samplePrice(fetcher: AccountFetcher, now: () => Date = () => new Date(), guards = DEFAULT_GUARDS): Promise<PriceSample> {
+/**
+  * "SOL per token" from the pool's sqrt_price. Handles the token on side A or B.
+  * Throws on 0, infinity or NaN (including when a single-sided pool's price sits at the range edge right after trading starts)
+ */
+export function tokenSolFromPool(sqrtPrice: bigint, tokenIsA: boolean, tokenDecimals: number): number {
+  const v = tokenIsA ? dammV2Price(sqrtPrice, tokenDecimals, 9) : 1 / dammV2Price(sqrtPrice, 9, tokenDecimals);
+  if (!Number.isFinite(v) || !(v > 0)) throw new Error('non-positive or non-finite pool price');
+  return v;
+}
+
+/** Reads the pool, SOL vault and Pyth accounts in one RPC call and records one sample. Default target is PREQ (preq.ts). Throws if oracle quality is out of bounds */
+export async function samplePrice(fetcher: AccountFetcher, now: () => Date = () => new Date(), guards = DEFAULT_GUARDS, target: PoolTarget = PREQ_POOL_TARGET): Promise<PriceSample> {
+  if (target.symbol === 'A402') console.warn(A402_DEPRECATION_WARNING);
+  const mint = target.symbol === 'PREQ' ? requirePreqValue('PREQ_MAINNET_MINT', target.mint) : target.mint;
+  const poolAddr = target.symbol === 'PREQ' ? requirePreqValue('PREQ_MAINNET_POOL', target.pool) : target.pool;
+  if (!mint || !poolAddr) throw new Error(`${target.symbol} mint/pool not set`);
+  const solVault = dammV2VaultAddress(WSOL_MINT, poolAddr);
   const pythAcc = pythPriceAccount();
-  const { slot, accounts } = await fetcher([A402_MAINNET_POOL, A402_POOL_SOL_VAULT, pythAcc]);
+  const { slot, accounts } = await fetcher([poolAddr, solVault, pythAcc]);
   const [poolAcc, vaultAcc, pyth] = accounts;
   if (!poolAcc || !vaultAcc || !pyth) throw new Error('price accounts missing');
 
   const pool = decodeDammV2PoolForRate(poolAcc.data);
-  if (pool.tokenAMint !== A402_MAINNET_MINT || pool.tokenBMint !== WSOL_MINT || pool.tokenBVault !== A402_POOL_SOL_VAULT) {
-    throw new Error('unexpected pool layout');
-  }
-  const a402Sol = dammV2Price(pool.sqrtPrice, 6, 9);
-  const solInVault = Number(Buffer.from(vaultAcc.data).readBigUInt64LE(64)) / 1e9;
+  const tokenIsA = pool.tokenAMint === mint && pool.tokenBMint === WSOL_MINT && pool.tokenBVault === solVault;
+  const tokenIsB = pool.tokenBMint === mint && pool.tokenAMint === WSOL_MINT && pool.tokenAVault === solVault;
+  if (!tokenIsA && !tokenIsB) throw new Error('unexpected pool layout');
+  const tokenSol = tokenSolFromPool(pool.sqrtPrice, tokenIsA, target.decimals);
+  const vaultData = Buffer.from(vaultAcc.data);
+  if (vaultData.length < 72) throw new Error('unexpected SOL vault account');
+  // A single-sided pool may have 0 on the SOL side right after trading starts → record depth 0 (fixRate's depth guard turns off payments that day)
+  const solInVault = Number(vaultData.readBigUInt64LE(64)) / 1e9;
 
   if (pyth.owner !== PYTH_RECEIVER) throw new Error('pyth account owner mismatch');
   const p = decodePythPriceUpdate(Buffer.from(pyth.data));
@@ -123,10 +165,11 @@ export async function samplePrice(fetcher: AccountFetcher, now: () => Date = () 
   const nowSec = Math.floor(now().getTime() / 1000);
   if (nowSec - p.publishTime > guards.maxOracleAgeSec) throw new Error('pyth price stale');
   if (!(p.price > 0) || p.conf / p.price > guards.maxOracleConfRatio) throw new Error('pyth confidence too wide');
-  if (!(a402Sol > 0)) throw new Error('non-positive pool price');
 
+  const tokenUsd = tokenSol * p.price;
+  if (!Number.isFinite(tokenUsd) || !(tokenUsd > 0)) throw new Error('non-positive or non-finite token price');
   return {
-    at: now().toISOString(), a402Sol, solUsd: p.price, solUsdConf: p.conf, a402Usd: a402Sol * p.price,
+    at: now().toISOString(), symbol: target.symbol, tokenSol, solUsd: p.price, solUsdConf: p.conf, tokenUsd,
     poolSolSideUsd: solInVault * p.price, slot, pythPublishTime: p.publishTime,
   };
 }
@@ -139,29 +182,47 @@ export function median(xs: number[]): number {
 
 const prevDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 
-/** date 에 쓸 고정 환율. 전날 기록으로 계산하고, 안전장치에 걸리면 off */
+/** Fixed rate for date. Computed from the previous day's samples; off if a guard trips */
 export function fixRate(date: string, samples: PriceSample[], guards = DEFAULT_GUARDS): DailyRate {
   const basedOn = prevDay(date);
   const ys = samples.filter((s) => s.at.slice(0, 10) === basedOn);
   const off = (reason: string): DailyRate => ({ status: 'off', date, basedOn, reason, samples: ys.length });
-  if (ys.length < guards.minSamples) return off(`${basedOn}: ${ys.length} samples, below the minimum of ${guards.minSamples}`);
-  const minDepth = Math.min(...ys.map((s) => s.poolSolSideUsd));
+  if (ys.length === 0 || ys.length < guards.minSamples) return off(`${basedOn}: ${ys.length} samples, below the minimum of ${Math.max(1, guards.minSamples)}`);
+  // If any price is 0, negative, infinite or NaN, turn off that day (avoids division by zero and abnormal amounts)
+  if (ys.some((s) => !Number.isFinite(s.tokenUsd) || !(s.tokenUsd > 0))) return off(`${basedOn}: invalid (zero, negative or non-finite) price sample`);
+  const depths = ys.map((s) => (Number.isFinite(s.poolSolSideUsd) ? s.poolSolSideUsd : 0));
+  const minDepth = Math.min(...depths);
   if (minDepth < guards.minPoolSolSideUsd) {
     return off(`${basedOn}: lowest pool SOL-side depth ${minDepth.toFixed(0)} USD, below the minimum of ${guards.minPoolSolSideUsd} USD`);
   }
-  const prices = ys.map((s) => s.a402Usd);
+  const prices = ys.map((s) => s.tokenUsd);
   const ratio = Math.max(...prices) / Math.min(...prices);
-  if (ratio > guards.maxDailyRangeRatio) {
+  if (!Number.isFinite(ratio) || ratio > guards.maxDailyRangeRatio) {
     return off(`${basedOn}: max/min price ratio ${ratio.toFixed(2)}, above the limit of ${guards.maxDailyRangeRatio}`);
   }
   return {
-    status: 'on', date, basedOn, a402Usd: median(prices), samples: ys.length,
+    status: 'on', date, basedOn, tokenUsd: median(prices), samples: ys.length,
     method: `median of ${ys.length} hourly samples on ${basedOn} (UTC) (lowest depth ${minDepth.toFixed(0)} USD, max/min ${ratio.toFixed(2)})`,
   };
 }
 
-/** A402 로 낼 금액 (원 단위). 0.02 USD × (1 − 30%) 를 고정 환율로 나누고 올림 */
-export function a402Amount(rate: Extract<DailyRate, { status: 'on' }>, decimals = 6): bigint {
-  const usd = (Number(PRICE_USDC_BASE_UNITS) / 1e6) * (1 - A402_DISCOUNT_BPS / 10_000);
-  return BigInt(Math.ceil((usd / rate.a402Usd) * 10 ** decimals));
+const U64_MAX = (1n << 64n) - 1n;
+
+/**
+  * Token amount to pay (base units): priceUsd × (1 − discount) ÷ fixed rate, rounded up.
+  * Throws if the rate is 0, negative, infinite or NaN, or if the result exceeds u64 (so that request does not offer token payment)
+ */
+export function tokenAmountFor(priceUsd: number, discountPercent: number, rate: Extract<DailyRate, { status: 'on' }>, decimals = 6): bigint {
+  if (!Number.isFinite(rate.tokenUsd) || !(rate.tokenUsd > 0)) throw new Error('invalid token rate');
+  const usd = priceUsd * (1 - discountPercent / 100);
+  const units = Math.ceil((usd / rate.tokenUsd) * 10 ** decimals);
+  if (!Number.isFinite(units) || units <= 0) throw new Error('token amount out of range');
+  const amount = BigInt(units);
+  if (amount > U64_MAX) throw new Error('token amount out of range');
+  return amount;
+}
+
+/** Token amount (base units) at the default price (0.02 USD), no discount */
+export function tokenAmount(rate: Extract<DailyRate, { status: 'on' }>, decimals = 6): bigint {
+  return tokenAmountFor(Number(PRICE_USDC_BASE_UNITS) / 1e6, TOKEN_DISCOUNT_BPS / 100, rate, decimals);
 }

@@ -1,4 +1,4 @@
-// 사용법: npm run earlybuys -- <민트 주소> [분=5] [--pool <풀 주소>]
+// Usage: npm run earlybuys -- <mint address> [minutes=5] [--pool <pool address>]
 import 'dotenv/config';
 import { checkEarlyBuys, makeConnection, rpcChainReader, rpcHistoryReader } from '@agent402-dev/check-engine/index';
 

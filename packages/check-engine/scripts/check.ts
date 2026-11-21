@@ -1,4 +1,4 @@
-// 사용법: npm run check -- <민트 주소>
+// Usage: npm run check -- <mint address>
 import 'dotenv/config';
 import { checkSummary, makeConnection, rpcFetcher } from '@agent402-dev/check-engine/index';
 

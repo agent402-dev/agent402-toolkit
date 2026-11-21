@@ -13,14 +13,14 @@ export type Dex = 'meteora-damm-v2' | 'raydium-cpmm';
 
 interface CandidateBase {
   address: string;
-  /** 이 토큰이 들어 있는 풀 금고 */
+  /** Pool vault that holds this token */
   vault: string;
-  /** 짝 토큰 금고 */
+  /** Vault of the paired token */
   pairVault: string;
   pairMint: string;
   /**
-   * 풀에 기록된 거래 시작 시점.
-   * DAMM v2: activation_point (activation_type 0 = 슬롯, 1 = 유닉스 초). CPMM: open_time (유닉스 초)
+    * Trading start recorded in the pool.
+    * DAMM v2: activation_point (activation_type 0 = slot, 1 = unix seconds). CPMM: open_time (unix seconds)
    */
   activation: { kind: 'slot' | 'timestamp'; value: bigint };
 }
@@ -42,7 +42,7 @@ export async function tokenBalances(reader: ChainReader, accounts: string[]) {
   return { slot: res.slot, balances: out };
 }
 
-/** 지원 DEX(Meteora DAMM v2, Raydium CPMM)에서 이 민트가 들어 있는 풀을 찾아, 이 토큰 잔액이 큰 순서로 돌려줍니다. */
+/** Finds pools holding this mint on supported DEXes (Meteora DAMM v2, Raydium CPMM), ordered by this token's balance, largest first. */
 export async function findSupportedPools(mint: string, reader: ChainReader) {
   const find = async (program: string, size: number, offsets: number[]) =>
     (await Promise.all(offsets.map((offset) => reader.programAccounts(program, { memcmp: [{ offset, bytes: mint }], dataSize: size })))).flat();
@@ -63,7 +63,7 @@ export async function findSupportedPools(mint: string, reader: ChainReader) {
   }
   for (const a of cpmmRaw) {
     let p: CpmmPool;
-    try { p = decodeCpmmPool(a.data); } catch { continue; } // 같은 크기의 다른 계정
+    try { p = decodeCpmmPool(a.data); } catch { continue; } // another account of the same size
     const isA = p.mintA === mint;
     candidates.push({
       dex: 'raydium-cpmm', address: a.address, pool: p,

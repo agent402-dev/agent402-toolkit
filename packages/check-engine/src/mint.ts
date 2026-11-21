@@ -2,9 +2,9 @@ import { PublicKey } from '@solana/web3.js';
 import { Reader } from './bytes.js';
 import { SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM } from './programs.js';
 
-/** 기본 민트 레이아웃 크기 (SPL Token, Token-2022 공통) */
+/** Base mint layout size (shared by SPL Token and Token-2022) */
 export const MINT_BASE_SIZE = 82;
-/** Token-2022: 확장이 있으면 계정 크기를 165 바이트(토큰 계정 크기)까지 채운 뒤 AccountType 1바이트, 이어서 TLV */
+/** Token-2022: with extensions, the account is padded to 165 bytes (token account size), then 1 AccountType byte, then TLV */
 const ACCOUNT_TYPE_OFFSET = 165;
 const ACCOUNT_TYPE_MINT = 1;
 
@@ -41,7 +41,7 @@ export function programKind(owner: PublicKey): TokenProgramKind | null {
   return null;
 }
 
-/** 민트 계정 원본 바이트를 해석합니다. owner 가 토큰 프로그램이 아니거나 민트가 아니면 NotAMintError. */
+/** Decodes raw mint account bytes. Throws NotAMintError if the owner is not a token program or the account is not a mint. */
 export function decodeMint(data: Buffer, owner: PublicKey): DecodedMint {
   const program = programKind(owner);
   if (!program) throw new NotAMintError(`account owner ${owner.toBase58()} is not a token program`);
@@ -67,7 +67,7 @@ export function decodeMint(data: Buffer, owner: PublicKey): DecodedMint {
     while (t.remaining() >= 4) {
       const type = t.u16();
       const len = t.u16();
-      if (type === 0) break; // Uninitialized: 이후는 빈 공간
+      if (type === 0) break; // Uninitialized: the rest is empty space
       tlv.push({ type, data: Buffer.from(t.bytes(len)) });
     }
   }

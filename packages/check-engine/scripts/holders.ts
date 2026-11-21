@@ -1,5 +1,5 @@
-// 사용법: npm run holders -- <민트 주소> [--scan]
-//   --scan : getTokenLargestAccounts 가 막히면 getProgramAccounts 로 대체 (보유 계정이 적은 토큰만)
+// Usage: npm run holders -- <mint address> [--scan]
+//   --scan : if getTokenLargestAccounts is blocked, fall back to getProgramAccounts (only for tokens with few holder accounts)
 import 'dotenv/config';
 import { checkHolders, makeConnection, rpcHolderReader } from '@agent402-dev/check-engine/index';
 

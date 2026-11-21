@@ -1,7 +1,7 @@
 import { Reader } from './bytes.js';
 import type { TlvEntry } from './mint.js';
 
-/** Token-2022 확장 번호 → 이름 (spl token-2022 ExtensionType 순서) */
+/** Token-2022 extension number to name (spl token-2022 ExtensionType order) */
 export const EXTENSION_NAMES: Record<number, string> = {
   1: 'TransferFeeConfig',
   2: 'TransferFeeAmount',
@@ -38,22 +38,22 @@ export function extensionName(type: number): string {
 }
 
 /**
- * 보유자의 토큰 이동·잔액·표시 금액에 영향을 줄 수 있는 확장.
- * 판단(좋다/나쁘다)이 아니라 "이 확장이 무엇을 할 수 있게 하는가" 라는 사실만 적습니다.
+  * Extensions that can affect holders' transfers, balances or displayed amounts.
+  * Records only the fact of what the extension allows, not a judgement (good or bad).
  */
 export interface NotableExtension {
   name: string;
-  /** 이 확장이 허용하는 동작 (사실 서술) */
+  /** What this extension allows (factual description) */
   effect: string;
-  /** 설정을 바꾸거나 동작을 실행할 수 있는 권한자 주소. 없으면 null */
+  /** Authority addresses that can change settings or perform the action. null if none */
   authorities: Record<string, string | null>;
-  /** 확장별 현재 설정값 */
+  /** Current settings for each extension */
   config: Record<string, unknown>;
 }
 
 const DEFAULT_ACCOUNT_STATES = ['uninitialized', 'initialized', 'frozen'] as const;
 
-/** 해석 결과 중 메타데이터·포인터 관련 값 (항목 3 에서 사용) */
+/** Metadata and pointer values from the decoded result (used in section 3) */
 export interface MetadataPointerInfo {
   authority: string | null;
   metadataAddress: string | null;
@@ -89,7 +89,7 @@ function transferFee(r: Reader) {
   return { epoch: epoch.toString(), maximumFee: maximumFee.toString(), basisPoints };
 }
 
-/** 영향 확장 하나를 해석합니다. 영향 확장이 아니면 null. */
+/** Decodes one notable extension. null if it is not a notable extension. */
 export function decodeNotable(e: TlvEntry): NotableExtension | null {
   const name = extensionName(e.type);
   const r = new Reader(e.data);
@@ -102,7 +102,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
       const newer = transferFee(r);
       return {
         name,
-        effect: '전송할 때마다 설정된 비율(basis points, 최대치 있음)만큼 수수료가 떼어져 보관되고, 인출 권한자가 이를 인출할 수 있음. 설정 권한자는 수수료율을 바꿀 수 있음(다음 에포크 이후 적용)',
+        effect: 'A fee at the configured rate (basis points, capped) is withheld on every transfer, and the withdraw authority can withdraw it. The config authority can change the fee rate (applies from a later epoch)',
         authorities: { transferFeeConfigAuthority, withdrawWithheldAuthority },
         config: { olderTransferFee: older, newerTransferFee: newer, withheldAmountOnMint: withheldAmount.toString() },
       };
@@ -110,7 +110,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
     case 3:
       return {
         name,
-        effect: '공급량이 0 일 때 권한자가 민트 계정을 닫을 수 있음',
+        effect: 'The authority can close the mint account when supply is 0',
         authorities: { closeAuthority: r.optionalNonZeroPubkey() },
         config: {},
       };
@@ -120,7 +120,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
       const auditorElgamalPubkey = r.bytes(32).some((b) => b !== 0) ? 'set' : null;
       return {
         name,
-        effect: '기밀 전송(금액 비공개)을 사용할 수 있음. 권한자는 계정별 기밀 전송 승인과 감사자 키를 설정할 수 있음',
+        effect: 'Confidential transfers (hidden amounts) can be used. The authority can set per-account approval for confidential transfers and the auditor key',
         authorities: { authority },
         config: { autoApproveNewAccounts, auditorElgamalPubkey },
       };
@@ -132,14 +132,14 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
         name,
         effect:
           state === 'frozen'
-            ? '새로 만들어지는 토큰 계정이 동결 상태로 시작함. 프리즈 권한자가 풀어 주어야 전송 가능'
-            : '새 토큰 계정의 기본 상태를 지정함 (현재 값은 config.state)',
+            ? 'New token accounts start frozen. The freeze authority must thaw them before they can transfer'
+            : 'Sets the default state of new token accounts (current value is config.state)',
         authorities: {},
         config: { state },
       };
     }
     case 9:
-      return { name, effect: '토큰을 다른 계정으로 전송할 수 없음', authorities: {}, config: {} };
+      return { name, effect: 'Tokens cannot be transferred to another account', authorities: {}, config: {} };
     case 10: {
       const rateAuthority = r.optionalNonZeroPubkey();
       const initializationTimestamp = r.i64();
@@ -148,7 +148,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
       const currentRate = r.i16();
       return {
         name,
-        effect: '표시 금액(UI amount)에 이자율이 반영됨. 실제 원장 수량은 바뀌지 않음. 권한자가 이자율을 바꿀 수 있음',
+        effect: 'The displayed amount (UI amount) reflects an interest rate. The ledger amount does not change. The authority can change the rate',
         authorities: { rateAuthority },
         config: {
           currentRateBps: currentRate,
@@ -161,7 +161,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
     case 12:
       return {
         name,
-        effect: '영구 위임자가 어느 보유 계정에서든 소유자 서명 없이 토큰을 옮기거나 소각할 수 있음',
+        effect: 'The permanent delegate can move or burn tokens from any holder account without the owner signature',
         authorities: { delegate: r.optionalNonZeroPubkey() },
         config: {},
       };
@@ -170,7 +170,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
       const programId = r.optionalNonZeroPubkey();
       return {
         name,
-        effect: '전송할 때마다 지정된 프로그램이 함께 실행되며, 그 프로그램이 전송을 거부할 수 있음. 권한자는 실행할 프로그램을 바꿀 수 있음',
+        effect: 'A designated program runs on every transfer and can reject the transfer. The authority can change the program',
         authorities: { authority },
         config: { programId },
       };
@@ -178,14 +178,14 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
     case 16:
       return {
         name,
-        effect: '기밀 전송 수수료 설정. 권한자가 기밀 수수료 인출 설정을 바꿀 수 있음',
+        effect: 'Confidential transfer fee settings. The authority can change the confidential fee withdraw settings',
         authorities: { authority: r.optionalNonZeroPubkey() },
         config: {},
       };
     case 24:
       return {
         name,
-        effect: '기밀(금액 비공개) 발행·소각을 사용할 수 있음',
+        effect: 'Confidential (hidden amount) mint and burn can be used',
         authorities: {},
         config: {},
       };
@@ -196,7 +196,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
       const newMultiplier = r.f64();
       return {
         name,
-        effect: '표시 금액(UI amount)에 배수가 곱해짐. 실제 원장 수량은 바뀌지 않음. 권한자가 배수를 바꿀 수 있음',
+        effect: 'The displayed amount (UI amount) is multiplied by a multiplier. The ledger amount does not change. The authority can change the multiplier',
         authorities: { authority },
         config: {
           multiplier,
@@ -210,7 +210,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
       const paused = r.bool();
       return {
         name,
-        effect: '권한자가 이 토큰의 발행·전송·소각을 일시 정지할 수 있음',
+        effect: 'The authority can pause minting, transfers and burning of this token',
         authorities: { authority },
         config: { paused },
       };
@@ -218,7 +218,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
     case 28:
       return {
         name,
-        effect: '소각할 때 권한자의 서명이 필요함',
+        effect: 'Burning requires the authority signature',
         authorities: { authority: r.optionalNonZeroPubkey() },
         config: {},
       };
@@ -227,7 +227,7 @@ export function decodeNotable(e: TlvEntry): NotableExtension | null {
   }
 }
 
-/** 이름에 등록되지 않은 확장 번호 — 알 수 없으므로 "확인 불가" 로 별도 표시 */
+/** Extension numbers not in the name table: unknown, so shown separately as "unavailable" */
 export function isUnknownExtension(type: number): boolean {
   return !(type in EXTENSION_NAMES);
 }

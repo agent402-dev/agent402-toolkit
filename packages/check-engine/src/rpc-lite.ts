@@ -2,8 +2,8 @@ import type { AccountFetcher } from './summary.js';
 import type { ChainReader, HistoryReader, SignatureInfo, TokenBalanceEntry, TxRecord } from './chain.js';
 
 /**
- * fetch 만 쓰는 RPC 판독기 (Cloudflare Workers 등 web3.js Connection 없이).
- * 오류 메시지에 RPC 주소(키 포함 가능)를 넣지 않습니다.
+  * RPC reader that uses only fetch (for Cloudflare Workers and others without a web3.js Connection).
+  * Error messages never include the RPC address (which may contain a key).
  */
 export class RpcError extends Error {
   constructor(message: string, readonly status: number | null = null) {
@@ -16,24 +16,24 @@ export interface LiteOptions {
   fetchImpl?: typeof fetch;
   retryDelaysMs?: number[];
   commitment?: 'confirmed' | 'finalized';
-  /** 바깥으로 나간 HTTP 요청 수를 셉니다 (Workers 요청당 외부 호출 제한 측정용) */
+  /** Counts outgoing HTTP requests (to measure the Workers per-request outbound call limit) */
   counter?: { requests: number };
   /**
-   * 같은 순간에 나온 호출을 JSON-RPC 일괄 요청 하나로 묶을 최대 개수. 1 이면 묶지 않음.
-   * RPC 가 일괄 요청을 지원해야 함 (기본 25)
+    * Maximum number of calls made at the same moment to bundle into one JSON-RPC batch request. 1 means no batching.
+    * The RPC must support batch requests (default 25)
    */
   batchSize?: number;
-  /** RPC 업체의 초당 호출 제한에 맞춰, 묶음 안 호출 수 기준으로 보내는 속도를 늦춤 (기본 10). 0 이면 제한 없음 */
+  /** Slows sending to fit the RPC provider's per-second call limit, counted by calls in a batch (default 10). 0 means no limit */
   maxCallsPerSecond?: number;
 }
 
 type Pending = { method: string; params: unknown[]; resolve: (v: unknown) => void; reject: (e: unknown) => void };
 
-/** 엔드포인트별 묶음 처리기: 대기열을 batchSize 씩 순서대로 보냄 (한 번에 하나의 HTTP 만 진행) */
+/** Per-endpoint batcher: sends the queue in batchSize chunks, in order (one HTTP request in flight at a time) */
 class Batcher {
   private queue: Pending[] = [];
   private running = false;
-  /** 다음 HTTP 를 보내도 되는 시각 (호출 수 기준 속도 제한) */
+  /** Earliest time the next HTTP request may be sent (rate limit by call count) */
   private nextAt = 0;
   constructor(private endpoint: string, private o: LiteOptions) {}
 
@@ -51,7 +51,7 @@ class Batcher {
       this.queue.push({ method, params, resolve: resolve as (v: unknown) => void, reject });
       if (!this.running) {
         this.running = true;
-        // 같은 틱에 나온 호출이 모두 대기열에 들어온 뒤 보냄
+        // Send after all calls made in the same tick are in the queue
         setTimeout(() => void this.drain(), 0);
       }
     });
@@ -89,7 +89,7 @@ class Batcher {
       if (!res.ok) { lastErr = new RpcError(`${chunk[0].method}: HTTP ${res.status}`, res.status); break; }
       const raw = (await res.json()) as unknown;
       const items = (Array.isArray(raw) ? raw : [raw]) as { id: number; result?: unknown; error?: { code: number; message: string } }[];
-      // 묶음 안의 일부가 429 면 그 일부만 다시 대기열 앞에 넣음
+      // If part of a batch gets 429, put only that part back at the front of the queue
       const retry: Pending[] = [];
       for (const it of items) {
         const p = chunk[single ? 0 : it.id];
@@ -118,7 +118,7 @@ function batcherFor(endpoint: string, o: LiteOptions): Batcher {
   return b;
 }
 
-/** JSON-RPC 호출 (자동 묶음 + 429 재시도). 오류에는 method 이름만 남김 */
+/** JSON-RPC call (automatic batching + 429 retry). Errors keep only the method name */
 function call<T>(endpoint: string, method: string, params: unknown[], o: LiteOptions): Promise<T> {
   return batcherFor(endpoint, o).enqueue<T>(method, params);
 }
@@ -151,11 +151,11 @@ interface RawTx {
   transaction: { signatures?: string[]; message: { accountKeys?: string[]; instructions?: { programIdIndex: number; data: string; accounts: number[] }[] } };
 }
 
-/** 결제 검증용으로 명령(instruction)·로그·서명 목록까지 담은 기록 */
+/** Record including instructions, logs and the signature list, for payment verification */
 export interface TxRecordWithInstructions extends TxRecord {
   instructions: { programId: string; data: string }[];
   logMessages: string[];
-  /** 트랜잭션에 들어 있는 모든 서명 (base58) */
+  /** All signatures in the transaction (base58) */
   signatures: string[];
 }
 
@@ -179,13 +179,13 @@ export function normalizeTx(signature: string, raw: RawTx | null): TxRecordWithI
   };
 }
 
-/** 주소의 최근 서명 (최신 순) */
+/** Recent signatures for an address (newest first) */
 export async function fetchRecentSignatures(endpoint: string, address: string, limit: number, o: LiteOptions = {}): Promise<string[]> {
   const r = await call<{ signature: string }[]>(endpoint, 'getSignaturesForAddress', [address, { limit, commitment: 'confirmed' }], o);
   return r.map((s) => s.signature);
 }
 
-/** 트랜잭션 하나 (v1 형식까지). 없으면 null */
+/** One transaction (up to v1 format). null if missing */
 export async function fetchTransaction(endpoint: string, signature: string, o: LiteOptions = {}): Promise<TxRecordWithInstructions | null> {
   let version = 1;
   for (;;) {
@@ -202,7 +202,7 @@ export async function fetchTransaction(endpoint: string, signature: string, o: L
   }
 }
 
-/** 점검 엔진 전체(항목 1~8)가 쓰는 판독기를 fetch 만으로 */
+/** The reader used by the whole check engine (sections 1 to 8), using only fetch */
 export function fetchChainReader(endpoint: string, o: LiteOptions = {}): ChainReader & HistoryReader {
   return {
     fetch: fetchAccountFetcher(endpoint, o),
@@ -225,7 +225,7 @@ export function fetchChainReader(endpoint: string, o: LiteOptions = {}): ChainRe
       return r.map((s): SignatureInfo => ({ signature: s.signature, slot: s.slot, blockTime: s.blockTime, err: s.err !== null }));
     },
     async transactions(signatures) {
-      // 한꺼번에 요청 → 묶음 처리기가 batchSize 씩 순서대로 보냄
+      // Request all at once: the batcher sends them in batchSize chunks, in order
       return Promise.all(signatures.map((s) => fetchTransaction(endpoint, s, o)));
     },
     blocks: (a, b) => call<number[]>(endpoint, 'getBlocks', [a, b, { commitment: 'confirmed' }], o),

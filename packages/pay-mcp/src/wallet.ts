@@ -1,5 +1,5 @@
-// 결제 지갑: 사용자 컴퓨터의 키 파일로 x402 exact 결제 트랜잭션에 서명 (공식 @x402 클라이언트).
-// 키는 서버로 보내지 않음 — 부분 서명한 트랜잭션만 PAYMENT-SIGNATURE 헤더로. 이 모듈은 정책 검사를 통과한 조건 하나에만 서명
+// Payment wallet: signs x402 exact payment transactions with a key file on the user's computer (official @x402 client).
+// The key is never sent to the server; only the partially signed transaction goes in the PAYMENT-SIGNATURE header. This module signs only one requirement that passed the policy check
 import { readFileSync } from 'node:fs';
 import { createKeyPairSignerFromBytes } from '@solana/kit';
 import { encodePaymentSignatureHeader } from '@x402/core/http';
@@ -7,14 +7,14 @@ import type { PaymentRequired, PaymentRequirements } from '@x402/core/types';
 import { x402Client } from '@x402/fetch';
 import { toClientSvmSigner } from '@x402/svm';
 import { ExactSvmScheme } from '@x402/svm/exact/client';
-import type { PayPolicy } from './policy.js';
+import { TOKEN_SYMBOLS, type PayPolicy } from './policy.js';
 
 export interface Wallet {
   address: string;
   network: string;
-  /** 정책 검사를 통과한 조건 하나에 서명 → PAYMENT-SIGNATURE 헤더 값 */
+  /** Signs one requirement that passed the policy check → PAYMENT-SIGNATURE header value */
   sign(resource: PaymentRequired['resource'], requirement: PaymentRequirements): Promise<string>;
-  /** 이 프로세스에서 서명한 횟수 */
+  /** Number of signatures made in this process */
   readonly signedCount: number;
   balances(): Promise<Record<string, string>>;
 }
@@ -24,15 +24,19 @@ export async function loadWallet(keyPath: string, policy: PayPolicy, rpcUrl?: st
   const signer = await createKeyPairSignerFromBytes(bytes);
   bytes.fill(0);
   let signed = 0;
-  // 공식 클라이언트의 지출 한도도 같은 값으로 (두 번째 안전망)
+  const tokenAllow = TOKEN_SYMBOLS.flatMap((t) => {
+    const max = policy.tokenLimits[t].perPayment;
+    return policy.allowedAssets.includes(t) && policy.mints[t] && max !== null
+      ? [{ network: policy.network as `${string}:${string}`, asset: policy.mints[t], maxAmountPerPayment: max.toString() }]
+      : [];
+  });
+  // The official client's spending limit is set to the same value (a second safety net)
   const client = x402Client.fromConfig({
     schemes: [{ network: policy.network as `${string}:${string}`, client: new ExactSvmScheme(toClientSvmSigner(signer), rpcUrl ? { rpcUrl } : undefined) }],
     spendControls: {
       maxAmountPerPayment: `$${policy.maxUsdPerPayment}`,
-      // A402 는 허용 + 결제당 상한이 설정됐을 때만 공식 클라이언트에도 허용 (상한 없으면 공식 클라이언트도 거절)
-      ...(policy.allowedAssets.includes('A402') && policy.maxA402PerPayment !== null
-        ? { allowedAssets: [{ network: policy.network as `${string}:${string}`, asset: policy.mints.A402, maxAmountPerPayment: policy.maxA402PerPayment.toString() }] }
-        : {}),
+      // Tokens (PREQ, A402 (v1)) are allowed in the official client only when allowed and a per-payment cap is set (without a cap the official client rejects too)
+      ...(tokenAllow.length ? { allowedAssets: tokenAllow } : {}),
     },
   });
   const rpc = rpcUrl ?? (policy.network.includes('EtWTRAB') ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com');
@@ -48,6 +52,8 @@ export async function loadWallet(keyPath: string, policy: PayPolicy, rpcUrl?: st
     async balances() {
       const out: Record<string, string> = {};
       for (const [sym, mint] of Object.entries(policy.mints)) {
+        // Skip assets without a mint and A402 (v1) when not allowed
+        if (!mint || (sym === 'A402' && !policy.allowedAssets.includes('A402'))) continue;
         try {
           const r = await fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner', params: [signer.address, { mint }, { encoding: 'jsonParsed' }] }) });
           const j = (await r.json()) as { result?: { value: { account: { data: { parsed: { info: { tokenAmount: { uiAmountString: string } } } } } }[] } };

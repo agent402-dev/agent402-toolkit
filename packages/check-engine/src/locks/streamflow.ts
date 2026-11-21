@@ -3,9 +3,9 @@ import { Reader } from '../bytes.js';
 import { STREAMFLOW_PROGRAM, streamflowEscrow } from '../holders/registry.js';
 
 /**
- * Streamflow 계약(스트림 메타데이터) 해석.
- * 레이아웃: @streamflow/stream 13.4.0 solana/layout.ts streamLayout (packed, little-endian)
- * SDK 에 적힌 오프셋(sender 49, recipient 113, mint 177, closed 671, old_metadata 714)과 일치함.
+  * Decodes Streamflow contracts (stream metadata).
+  * Layout: @streamflow/stream 13.4.0 solana/layout.ts streamLayout (packed, little-endian)
+  * Matches the offsets in the SDK (sender 49, recipient 113, mint 177, closed 671, old_metadata 714).
  */
 export const STREAMFLOW = STREAMFLOW_PROGRAM.toBase58();
 export const STREAMFLOW_CONTRACT_MIN_SIZE = 819;
@@ -93,7 +93,7 @@ export function decodeStreamflowContract(data: Buffer): StreamflowContract {
   };
 }
 
-/** 계약 주소로 금고 PDA 를 다시 계산해 계약에 기록된 금고와 같은지 (진짜 Streamflow 계약인지) 확인 */
+/** Re-derives the escrow PDA from the contract address and checks it matches the escrow recorded in the contract (that it is a real Streamflow contract) */
 export function isGenuineStreamflowContract(address: string, c: StreamflowContract): boolean {
   return streamflowEscrow(new PublicKey(address)).toBase58() === c.escrowTokens;
 }

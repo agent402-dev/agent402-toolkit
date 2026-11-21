@@ -4,14 +4,14 @@ import { Reader } from '../bytes.js';
 import { RAYDIUM_CPMM_PROGRAM } from '../holders/registry.js';
 
 /**
- * Raydium CPMM (raydium-cp-swap) PoolState 해석.
- * 레이아웃: @raydium-io/raydium-sdk-v2 src/raydium/cpmm/layout.ts CpmmPoolInfoLayout (packed)
+  * Decodes Raydium CPMM (raydium-cp-swap) PoolState.
+  * Layout: @raydium-io/raydium-sdk-v2 src/raydium/cpmm/layout.ts CpmmPoolInfoLayout (packed)
  */
 export const CPMM_PROGRAM = RAYDIUM_CPMM_PROGRAM.toBase58();
 const POOL_DISC = createHash('sha256').update('account:PoolState').digest().subarray(0, 8);
 export const CPMM_POOL_OFFSETS = { mintA: 168, mintB: 200 } as const;
 
-// raydium-sdk-v2 common/programId.ts: LOCK_CPMM_PROGRAM, LOCK_CPMM_AUTH (Raydium LP 잠금 "Burn & Earn")
+// raydium-sdk-v2 common/programId.ts: LOCK_CPMM_PROGRAM, LOCK_CPMM_AUTH (Raydium LP lock "Burn & Earn")
 export const RAYDIUM_LP_LOCK_PROGRAM = new PublicKey('LockrWmn6K5twhz3y9w1dQERbmgSaRkfnTeTKbpofwE').toBase58();
 export const RAYDIUM_LP_LOCK_AUTHORITY = new PublicKey('3f7GcQFG397GAaEnv51zR6tsTVihYRydnydDD1cXekxH').toBase58();
 
@@ -25,12 +25,12 @@ export interface CpmmPool {
   mintB: string;
   status: number;
   lpDecimals: number;
-  /** 풀이 기록한 LP 총량 (예치·인출 때만 바뀜) */
+  /** Total LP recorded by the pool (changes only on deposit and withdrawal) */
   lpAmount: bigint;
   openTime: bigint;
 }
 
-/** PoolState 계정 크기 (SDK CpmmPoolInfoLayout.span 과 대조) */
+/** PoolState account size (checked against SDK CpmmPoolInfoLayout.span) */
 export const CPMM_POOL_SIZE = 637;
 
 export function decodeCpmmPool(data: Buffer): CpmmPool {
@@ -43,7 +43,7 @@ export function decodeCpmmPool(data: Buffer): CpmmPool {
   const mintLp = r.pubkey().toBase58();
   const mintA = r.pubkey().toBase58();
   const mintB = r.pubkey().toBase58();
-  r.offset = 328; // mintProgramA, mintProgramB, observationId 건너뜀
+  r.offset = 328; // skip mintProgramA, mintProgramB, observationId
   r.u8(); // bump
   const status = r.u8();
   const lpDecimals = r.u8();

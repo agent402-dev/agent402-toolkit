@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
-import { checkSummary, DISCLAIMER_KO, NotAMintError, type AccountFetcher } from '@agent402-dev/check-engine/index';
+import { checkSummary, DISCLAIMER_EN, NotAMintError, type AccountFetcher } from '@agent402-dev/check-engine/index';
 import { guardrailViolations } from '@agent402-dev/check-engine/guardrail';
 import { metaplexMetadataPda, METAPLEX_METADATA_PROGRAM, SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM } from '@agent402-dev/check-engine/programs';
 
-// ---------- 실제 메인넷 픽스처 (npm run verify:week1 로 저장) ----------
+// ---------- Real mainnet fixtures (saved with npm run verify:week1) ----------
 interface Fixture {
   mint: string;
   slots: number[];
@@ -26,7 +26,7 @@ const run = async (s: string) => {
 };
 
 describe('mainnet fixtures', () => {
-  it('A402: 민트·프리즈 없음, TokenMetadata 권한 없음, 포인터 권한은 deployer 에 남아 있음', async () => {
+  it('A402: no mint or freeze authority, no TokenMetadata authority, pointer authority still held by the deployer', async () => {
     const r = await run('A402');
     expect(r.tokenProgram).toBe('token-2022');
     expect(r.authorities.mint).toEqual({ status: 'revoked', address: null });
@@ -41,7 +41,7 @@ describe('mainnet fixtures', () => {
     expect(md.status).toBe('present');
   });
 
-  it('USDC: 발행·동결 권한 있음, Metaplex 수정 가능', async () => {
+  it('USDC: mint and freeze authorities present, Metaplex mutable', async () => {
     const r = await run('USDC');
     expect(r.tokenProgram).toBe('spl-token');
     expect(r.authorities.mint.status).toBe('present');
@@ -50,7 +50,7 @@ describe('mainnet fixtures', () => {
     expect(r.authorities.metadataUpdate.status).toBe('present');
   });
 
-  it('WIF: 모두 폐기, Metaplex isMutable=false → revoked (기록된 주소는 유지)', async () => {
+  it('WIF: all revoked, Metaplex isMutable=false → revoked (recorded address kept)', async () => {
     const r = await run('WIF');
     expect(r.authorities.mint.status).toBe('revoked');
     expect(r.authorities.freeze.status).toBe('none');
@@ -61,7 +61,7 @@ describe('mainnet fixtures', () => {
     expect(md.sources[0].recordedUpdateAuthority).toBeTruthy();
   });
 
-  it('BONK / JUP: SPL Token, 발행 권한 폐기, Metaplex 수정 가능', async () => {
+  it('BONK / JUP: SPL Token, mint authority revoked, Metaplex mutable', async () => {
     for (const s of ['BONK', 'JUP']) {
       const r = await run(s);
       expect(r.tokenProgram).toBe('spl-token');
@@ -70,7 +70,7 @@ describe('mainnet fixtures', () => {
     }
   });
 
-  it('PYUSD: Token-2022 확장 8개, 영향 확장 6개와 권한자', async () => {
+  it('PYUSD: 8 Token-2022 extensions, 6 notable extensions and their authorities', async () => {
     const r = await run('PYUSD');
     expect(r.token2022Extensions).toEqual([
       'MintCloseAuthority', 'PermanentDelegate', 'TransferFeeConfig', 'ConfidentialTransferMint',
@@ -84,16 +84,16 @@ describe('mainnet fixtures', () => {
     expect(pd.authorities.delegate).toBeTruthy();
   });
 
-  it('6개 모두 가드레일 통과 + 고지 문구 포함', async () => {
+  it('all 6 pass the guardrail and include the disclaimer', async () => {
     for (const s of ['A402', 'USDC', 'BONK', 'WIF', 'JUP', 'PYUSD']) {
       const r = await run(s);
       expect(guardrailViolations(r), s).toEqual([]);
-      expect(r.notes).toContain(DISCLAIMER_KO);
+      expect(r.notes).toContain(DISCLAIMER_EN);
     }
   });
 });
 
-// ---------- 합성 계정 ----------
+// ---------- Synthetic accounts ----------
 const pk = () => Keypair.generate().publicKey;
 
 function splMint(opts: { mintAuth?: PublicKey | null; freeze?: PublicKey | null; size?: number } = {}): Buffer {
@@ -126,7 +126,7 @@ function metaplexAcc(mint: PublicKey, ua: PublicKey, isMutable: boolean): Buffer
   return Buffer.concat([
     Buffer.from([4]), ua.toBuffer(), mint.toBuffer(),
     borshStr('Name\0\0\0'), borshStr('SYM\0'), borshStr('https://x\0\0'),
-    Buffer.from([0, 0]), Buffer.from([1]), Buffer.from([1, 0, 0, 0]), Buffer.alloc(34), // creators: 1개
+    Buffer.from([0, 0]), Buffer.from([1]), Buffer.from([1, 0, 0, 0]), Buffer.alloc(34), // creators: 1
     Buffer.from([0]), Buffer.from([isMutable ? 1 : 0]),
   ]);
 }
@@ -136,7 +136,7 @@ const mapFetcher = (m: Record<string, { owner: PublicKey; data: Buffer } | null>
 });
 
 describe('synthetic accounts', () => {
-  it('SPL 민트 + 권한 주소 그대로 노출, 메타데이터 없음 → not_found', async () => {
+  it('SPL mint + authority addresses exposed as is, no metadata → not_found', async () => {
     const mint = pk(), ma = pk(), fa = pk();
     const r = await checkSummary(mint.toBase58(), mapFetcher({ [mint.toBase58()]: { owner: SPL_TOKEN_PROGRAM, data: splMint({ mintAuth: ma, freeze: fa }) } }));
     expect(r.authorities.mint).toEqual({ status: 'present', address: ma.toBase58() });
@@ -145,7 +145,7 @@ describe('synthetic accounts', () => {
     expect(r.token2022Extensions).toEqual([]);
   });
 
-  it('Metaplex isMutable=false → revoked, 크리에이터 배열을 건너뛰고 isMutable 을 읽음', async () => {
+  it('Metaplex isMutable=false → revoked, skips the creators array and reads isMutable', async () => {
     const mint = pk(), ua = pk();
     const r = await checkSummary(mint.toBase58(), mapFetcher({
       [mint.toBase58()]: { owner: SPL_TOKEN_PROGRAM, data: splMint() },
@@ -156,7 +156,7 @@ describe('synthetic accounts', () => {
     expect(md.sources[0]).toMatchObject({ name: 'Name', symbol: 'SYM', uri: 'https://x', recordedUpdateAuthority: ua.toBase58() });
   });
 
-  it('PausableConfig·NonTransferable·DefaultAccountState(frozen)·PermanentDelegate 해석', async () => {
+  it('decodes PausableConfig, NonTransferable, DefaultAccountState (frozen), PermanentDelegate', async () => {
     const mint = pk(), auth = pk(), del = pk();
     const data = t22Mint([
       { type: 26, data: Buffer.concat([auth.toBuffer(), Buffer.from([1])]) },
@@ -174,15 +174,15 @@ describe('synthetic accounts', () => {
     expect(guardrailViolations(r)).toEqual([]);
   });
 
-  it('모르는 확장 번호는 unknownExtensions + 확인 불가 메모', async () => {
+  it('unknown extension numbers → unknownExtensions + an unavailable note', async () => {
     const mint = pk();
     const data = t22Mint([{ type: 99, data: Buffer.alloc(3) }]);
     const r = await checkSummary(mint.toBase58(), mapFetcher({ [mint.toBase58()]: { owner: TOKEN_2022_PROGRAM, data } }));
     expect(r.unknownExtensions).toEqual([99]);
-    expect(r.notes.some((n) => n.includes('확인 불가'))).toBe(true);
+    expect(r.notes.some((n) => n.includes('(unavailable)'))).toBe(true);
   });
 
-  it('포인터가 해석할 수 없는 외부 계정을 가리키면 unverifiable', async () => {
+  it('pointer to an external account that cannot be decoded → unverifiable', async () => {
     const mint = pk(), target = pk();
     const data = t22Mint([{ type: 18, data: Buffer.concat([Buffer.alloc(32), target.toBuffer()]) }]);
     const r = await checkSummary(mint.toBase58(), mapFetcher({
@@ -192,7 +192,7 @@ describe('synthetic accounts', () => {
     expect(r.authorities.metadataUpdate.status).toBe('unverifiable');
   });
 
-  it('민트가 아닌 계정은 NotAMintError', async () => {
+  it('an account that is not a mint → NotAMintError', async () => {
     const a = pk();
     await expect(checkSummary(a.toBase58(), mapFetcher({ [a.toBase58()]: { owner: SPL_TOKEN_PROGRAM, data: Buffer.alloc(165) } })))
       .rejects.toBeInstanceOf(NotAMintError);
@@ -200,12 +200,12 @@ describe('synthetic accounts', () => {
       .rejects.toBeInstanceOf(NotAMintError);
   });
 
-  it('가드레일: 엔진 문구에 금지어가 있으면 잡고, 주소·토큰 이름은 무시', () => {
-    expect(guardrailViolations({ notes: [DISCLAIMER_KO, 'this token is safe'] })).toContain('forbidden term: safe');
-    expect(guardrailViolations({ notes: [DISCLAIMER_KO], a: 'BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG', name: 'SCAM coin' })).toEqual([]);
+  it('guardrail: catches forbidden terms in engine text, ignores addresses and token names', () => {
+    expect(guardrailViolations({ notes: [DISCLAIMER_EN, 'this token is safe'] })).toContain('forbidden term: safe');
+    expect(guardrailViolations({ notes: [DISCLAIMER_EN], a: 'BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG', name: 'SCAM coin' })).toEqual([]);
     expect(guardrailViolations({ notes: [] })).toContain('missing disclaimer');
-    // 트랜잭션 서명(88자 base58) 안의 우연한 글자열도 무시
-    expect(guardrailViolations({ notes: [DISCLAIMER_KO], txs: ['5rugXq3Ckd1N4wF9yTbkA7sZpQmVe2hRuLc8GjWx6YiUoP1nBtDa3fKs9vHgMzE4JqRwSxCyNdTb2aLu7kPmVnH'] })).toEqual([]);
-    expect(guardrailViolations({ notes: [DISCLAIMER_KO, 'early buy wallets look like a rug'] })).toContain('forbidden term: rug');
+    // Also ignores chance substrings inside a transaction signature (88-char base58)
+    expect(guardrailViolations({ notes: [DISCLAIMER_EN], txs: ['5rugXq3Ckd1N4wF9yTbkA7sZpQmVe2hRuLc8GjWx6YiUoP1nBtDa3fKs9vHgMzE4JqRwSxCyNdTb2aLu7kPmVnH'] })).toEqual([]);
+    expect(guardrailViolations({ notes: [DISCLAIMER_EN, 'early buy wallets look like a rug'] })).toContain('forbidden term: rug');
   });
 });

@@ -1,4 +1,4 @@
-// Node 전용 환율 저장소: JSON 파일 하나 (기록은 최근 3일치만 유지). Workers 에서는 쓰지 말 것 (node:fs)
+// Node-only rate store: a single JSON file (keeps only the last 3 days of samples). Do not use on Workers (node:fs)
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { DailyRate, PriceSample } from './pricing.js';
@@ -15,7 +15,7 @@ export function fileRateStore(path: string, keepDays = 3): RateStore {
     mkdirSync(dirname(path), { recursive: true });
     const tmp = `${path}.tmp`;
     writeFileSync(tmp, JSON.stringify(s));
-    renameSync(tmp, path); // 쓰다 끊겨도 원본이 깨지지 않게
+    renameSync(tmp, path); // so the original is not corrupted if writing is interrupted
   };
   return {
     async addSample(x) {

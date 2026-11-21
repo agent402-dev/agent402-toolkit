@@ -1,5 +1,5 @@
-// 결제 기록 (JSONL, 사용자 컴퓨터). 키·결제 서명 헤더·부분 서명 트랜잭션 원문은 남기지 않음.
-// 남기는 것: 시각·URL·호스트·자산·금액·수령 주소·결과·이유·정산 tx id(공개 체인 기록)
+// Payment history (JSONL, on the user's computer). Keys, payment signature headers and raw partially signed transactions are not stored.
+// Stored: time, URL, host, asset, amount, receiver, result, reason, settlement tx id (public on-chain record)
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -15,25 +15,25 @@ export interface HistoryEntry {
   amount?: string;
   payTo?: string;
   result: PaymentResult;
-  /** 거절·실패 이유 */
+  /** Reason for rejection or failure */
   reasons?: string[];
   httpStatus?: number;
-  /** 정산 트랜잭션 id (PAYMENT-RESPONSE) */
+  /** Settlement transaction id (PAYMENT-RESPONSE) */
   settlementTx?: string;
-  /** 서명했는지 (이 요청에서 결제 트랜잭션에 서명했으면 true) */
+  /** Whether it signed (true if it signed a payment transaction in this request) */
   signed: boolean;
 }
 
 export interface History {
   add(e: HistoryEntry): void;
   list(limit?: number): HistoryEntry[];
-  /** 오늘(UTC) 서명한 결제 수, USDC 합계(USD), A402 합계(원 단위) — 상한 계산용 */
-  today(now?: Date): { count: number; usd: number; a402: bigint };
+  /** Today's (UTC) signed payment count, USDC total (USD), PREQ and A402 (v1) totals (base units), for limit checks */
+  today(now?: Date): { count: number; usd: number; preq: bigint; a402: bigint };
 }
 
 const FORBIDDEN_KEYS = ['secret', 'privateKey', 'keypair', 'paymentSignature', 'transaction', 'payload'];
 
-export function jsonlHistory(path: string, mints: () => { USDC: string; A402: string }): History {
+export function jsonlHistory(path: string, mints: () => { USDC: string; PREQ: string; A402: string }): History {
   const read = (): HistoryEntry[] => {
     if (!existsSync(path)) return [];
     return readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) as HistoryEntry; } catch { return null; } }).filter((x): x is HistoryEntry => !!x);
@@ -47,12 +47,12 @@ export function jsonlHistory(path: string, mints: () => { USDC: string; A402: st
     list(limit = 50) { return read().slice(-limit).reverse(); },
     today(now = new Date()) {
       const day = now.toISOString().slice(0, 10);
-      // 서명한 결제는 결과(성공·거절됨·모름)와 상관없이 쓴 것으로 셈 (보수적으로)
+      // A signed payment counts as spent regardless of result (succeeded, rejected, unknown), to be conservative
       const xs = read().filter((e) => e.signed && e.at.slice(0, 10) === day);
       const m = mints();
       const usd = xs.filter((e) => e.mint === m.USDC && e.amount).reduce((s, e) => s + Number(e.amount) / 1e6, 0);
-      const a402 = xs.filter((e) => e.mint === m.A402 && e.amount && /^\d+$/.test(e.amount)).reduce((s, e) => s + BigInt(e.amount!), 0n);
-      return { count: xs.length, usd, a402 };
+      const sum = (mint: string) => (mint ? xs.filter((e) => e.mint === mint && e.amount && /^\d+$/.test(e.amount)).reduce((s, e) => s + BigInt(e.amount!), 0n) : 0n);
+      return { count: xs.length, usd, preq: sum(m.PREQ), a402: sum(m.A402) };
     },
   };
 }

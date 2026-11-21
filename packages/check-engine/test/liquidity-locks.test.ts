@@ -6,7 +6,7 @@ import { guardrailViolations } from '@agent402-dev/check-engine/guardrail';
 import { decodeStreamflowContract, isGenuineStreamflowContract } from '@agent402-dev/check-engine/locks/streamflow';
 import { streamflowEscrow } from '@agent402-dev/check-engine/holders/registry';
 
-// ---------- 메인넷 픽스처 재생 ----------
+// ---------- Mainnet fixture replay ----------
 interface Rec {
   mint: string;
   slot: number;
@@ -39,8 +39,8 @@ function replay(rec: Rec): ChainReader {
 const load = (s: string): Rec => JSON.parse(readFileSync(fx(s), 'utf8'));
 const now = () => new Date('2026-11-19T00:00:00Z');
 
-describe.skipIf(!existsSync(fx('A402')))('A402 (정답 데이터)', () => {
-  it('DAMM v2 풀 DaHB…: 영구 잠금 99.4%, 운영자 NFT GGFk… 는 Squads 금고 보유', async () => {
+describe.skipIf(!existsSync(fx('A402')))('A402 (reference data)', () => {
+  it('DAMM v2 pool DaHB…: 99.4% permanently locked, operator NFT GGFk… held by the Squads vault', async () => {
     const rec = load('A402');
     const r = await checkLiquidity(rec.mint, replay(rec), now);
     expect(r.poolsFound).toEqual({ 'meteora-damm-v2': 1, 'raydium-cpmm': 0 });
@@ -54,7 +54,7 @@ describe.skipIf(!existsSync(fx('A402')))('A402 (정답 데이터)', () => {
     expect(guardrailViolations(r)).toEqual([]);
   });
 
-  it('Streamflow Bhf28…: 5,000만, 취소 불가, 클리프 2027-11-18, 첫 해제 2027-12-18', async () => {
+  it('Streamflow Bhf28…: 50M, not cancelable, cliff 2027-11-18, first release 2027-12-18', async () => {
     const rec = load('A402');
     const r = await checkLocks(rec.mint, replay(rec), now);
     expect(r.locks).toHaveLength(1);
@@ -69,14 +69,14 @@ describe.skipIf(!existsSync(fx('A402')))('A402 (정답 데이터)', () => {
     });
     expect(l.schedule.cliff.slice(0, 10)).toBe('2027-11-18');
     expect(l.schedule.firstUnlock.slice(0, 10)).toBe('2027-12-18');
-    expect(l.escrowBalance).toBe('50095000000000'); // 5,000만 + 9.5만(수수료)
+    expect(l.escrowBalance).toBe('50095000000000'); // 50M + 95K (fee)
     expect(r.activeLockedPercent).toBe(5);
     expect(guardrailViolations(r)).toEqual([]);
   });
 });
 
-describe.skipIf(!existsSync(fx('CPMM-3')))('Raydium CPMM 실제 풀', () => {
-  it('CPMM-3: 소각 90.1% + Raydium LP 잠금 9.9% = 100%', async () => {
+describe.skipIf(!existsSync(fx('CPMM-3')))('Raydium CPMM real pool', () => {
+  it('CPMM-3: 90.1% burned + 9.9% Raydium LP lock = 100%', async () => {
     const rec = load('CPMM-3');
     const r = await checkLiquidity(rec.mint, replay(rec), now);
     const p = r.pools.find((x) => x.dex === 'raydium-cpmm')!;
@@ -86,7 +86,7 @@ describe.skipIf(!existsSync(fx('CPMM-3')))('Raydium CPMM 실제 풀', () => {
     expect(p.lockedPercent).toBe(100);
   });
 
-  it('LP 보유자 조회 실패 → 잠김 비율은 0 이 아니라 null(확인 불가)', async () => {
+  it('LP holder lookup fails → locked share is null (unavailable), not 0', async () => {
     const rec = load('CPMM-3');
     const failing: ChainReader = { ...replay(rec), largestTokenAccounts: async () => { throw new Error('429 Too many requests'); } };
     const r = await checkLiquidity(rec.mint, failing, now);
@@ -94,13 +94,13 @@ describe.skipIf(!existsSync(fx('CPMM-3')))('Raydium CPMM 실제 풀', () => {
     expect(p.lockedPercent).toBeNull();
     expect(p.lockedTokenPercentOfSupply).toBeNull();
     expect(p.breakdown).toMatchObject({ raydiumLpLock: null, lpCirculating: null });
-    expect(p.breakdown.lpNotInCirculation).toBeCloseTo(90.12, 1); // 민트 공급량으로 구한 값은 그대로
+    expect(p.breakdown.lpNotInCirculation).toBeCloseTo(90.12, 1); // value from mint supply is kept
     expect(p.lp!.lpInRaydiumLock).toBeNull();
-    expect(r.notes.some((n) => n.includes('확인 불가'))).toBe(true);
+    expect(r.notes.some((n) => n.includes('(unavailable)'))).toBe(true);
     expect(guardrailViolations(r)).toEqual([]);
   });
 
-  it('CPMM-2: 차이가 100 단위뿐인 풀은 burn 으로 표시하지 않음 + Streamflow 3개', async () => {
+  it('CPMM-2: a pool differing by only 100 units is not shown as burn + 3 Streamflow contracts', async () => {
     const rec = load('CPMM-2');
     const r = await checkLiquidity(rec.mint, replay(rec), now);
     const lockOnly = r.pools.find((x) => x.pool === '6Z7ojWGMStUB32DJDRQCmBFw5gzBC4hfg6v4tsuRvpHX')!;
@@ -112,8 +112,8 @@ describe.skipIf(!existsSync(fx('CPMM-3')))('Raydium CPMM 실제 풀', () => {
   });
 });
 
-// ---------- 합성 ----------
-describe('Streamflow 판독', () => {
+// ---------- Synthetic ----------
+describe('Streamflow decoding', () => {
   function contract(opts: { mint: PublicKey; escrow: PublicKey; cliff: bigint; cliffAmount: bigint; period: bigint; start: bigint }) {
     const d = Buffer.alloc(1104);
     opts.mint.toBuffer().copy(d, 177);
@@ -129,7 +129,7 @@ describe('Streamflow 판독', () => {
     d.writeUInt8(1, 671); // closed
     return d;
   }
-  it('필드 위치, 첫 해제 계산(cliff_amount 유무), 금고 PDA 확인', () => {
+  it('field positions, first release calculation (with and without cliff_amount), escrow PDA check', () => {
     const mint = Keypair.generate().publicKey;
     const addr = Keypair.generate().publicKey;
     const esc = streamflowEscrow(addr);

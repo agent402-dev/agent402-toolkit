@@ -1,7 +1,7 @@
-// 금액 표시: USDC·A402 모두 소수 6자리. A402 금액은 항상 단위와 함께 보여 줌
+// Amount display: USDC and PREQ (and the deprecated A402) all have 6 decimals. Token amounts are always shown with units
 export const DECIMALS = 6;
 
-/** 최소 단위 정수 → "140,000 A402" */
+/** Base-unit integer → "140,000 PREQ" */
 export function formatUnits(atomic: string | bigint, symbol: string): string {
   const s = atomic.toString().padStart(DECIMALS + 1, '0');
   const int = s.slice(0, -DECIMALS).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -9,5 +9,5 @@ export function formatUnits(atomic: string | bigint, symbol: string): string {
   return `${int}${frac ? '.' + frac : ''} ${symbol}`;
 }
 
-/** "140,000 A402 (140000000000 smallest units)" */
+/** "140,000 PREQ (140000000000 smallest units)" */
 export const withSmallest = (atomic: string | bigint, symbol: string) => `${formatUnits(atomic, symbol)} (${atomic} smallest units)`;

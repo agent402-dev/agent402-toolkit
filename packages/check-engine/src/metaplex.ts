@@ -1,6 +1,6 @@
 import { Reader } from './bytes.js';
 
-/** Metaplex Token Metadata 계정 (Key::MetadataV1 = 4) 의 앞부분만 해석합니다. */
+/** Decodes only the first part of a Metaplex Token Metadata account (Key::MetadataV1 = 4). */
 export interface MetaplexMetadata {
   updateAuthority: string;
   mint: string;

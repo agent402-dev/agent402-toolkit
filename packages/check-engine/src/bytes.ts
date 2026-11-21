@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 
-/** 순차 바이트 판독기. 범위를 벗어나면 예외를 던집니다. */
+/** Sequential byte reader. Throws when reading out of range. */
 export class Reader {
   constructor(
     private readonly buf: Buffer,
@@ -67,12 +67,12 @@ export class Reader {
     this.offset += 32;
     return v;
   }
-  /** Token-2022 의 OptionalNonZeroPubkey: 전부 0 이면 없음(null) */
+  /** Token-2022 OptionalNonZeroPubkey: all zeros means none (null) */
   optionalNonZeroPubkey(): string | null {
     const k = this.pubkey();
     return k.equals(PublicKey.default) ? null : k.toBase58();
   }
-  /** borsh 문자열 (u32 길이 + UTF-8). Metaplex 는 끝에 \0 패딩이 있어 잘라냅니다. */
+  /** borsh string (u32 length + UTF-8). Metaplex pads the end with \0, which is trimmed. */
   string(): string {
     const len = this.u32();
     this.need(len);

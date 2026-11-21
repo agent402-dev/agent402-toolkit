@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
-import { checkHolders, DISCLAIMER_KO, percentOf, type HolderReader } from '@agent402-dev/check-engine/index';
+import { checkHolders, DISCLAIMER_EN, percentOf, type HolderReader } from '@agent402-dev/check-engine/index';
 import { guardrailViolations } from '@agent402-dev/check-engine/guardrail';
 import {
   METEORA_DAMM_V2_POOL_AUTHORITY,
@@ -14,14 +14,14 @@ import {
 } from '@agent402-dev/check-engine/holders/registry';
 import { SPL_TOKEN_PROGRAM } from '@agent402-dev/check-engine/programs';
 
-describe('registry: PDA 계산값', () => {
-  it('Meteora DAMM v2 풀 권한 = A402 풀 금고의 실제 소유자', () => {
+describe('registry: derived PDAs', () => {
+  it('Meteora DAMM v2 pool authority = actual owner of the A402 pool vault', () => {
     expect(METEORA_DAMM_V2_POOL_AUTHORITY.toBase58()).toBe('HLnpSz9h2S4hiLQ43rnSD9XkcUThA7B8hQMKmDaiTLcC');
   });
-  it('Raydium CPMM 권한 = SDK 상수 CREATE_CPMM_POOL_AUTH', () => {
+  it('Raydium CPMM authority = SDK constant CREATE_CPMM_POOL_AUTH', () => {
     expect(RAYDIUM_CPMM_AUTHORITY.toBase58()).toBe('GpMZbSM2GgvTKHJirzeGfMFoaZ8UR2X7F4v8vHTvxFbL');
   });
-  it('Streamflow 금고 PDA = A402 락업 금고', () => {
+  it('Streamflow escrow PDA = A402 lockup escrow', () => {
     expect(streamflowEscrow(new PublicKey('Bhf28aVfysJk8thruEqm3VW5XTNpysn8TwiwvuAC4rCf')).toBase58())
       .toBe('94a2qJ3upmaoSvmRLdf7FfTKW9f8aKeaKyn57EcCHNzW');
   });
@@ -31,7 +31,7 @@ describe('registry: PDA 계산값', () => {
   });
 });
 
-// ---------- A402 메인넷 픽스처 ----------
+// ---------- A402 mainnet fixtures ----------
 interface Rec {
   mint: string;
   fetches: { addresses: string[]; slot: number; accounts: ({ owner: string; data: string } | null)[] }[];
@@ -63,7 +63,7 @@ function replay(rec: Rec): HolderReader {
 
 const a402Path = new URL('./fixtures/holders-A402.json', import.meta.url);
 describe.skipIf(!existsSync(a402Path))('A402 fixture', () => {
-  it('풀 82.83% / 락업 5.01% (Bhf28…) / J9Hef 12.16%', async () => {
+  it('pool 82.83% / lockup 5.01% (Bhf28…) / J9Hef 12.16%', async () => {
     const rec: Rec = JSON.parse(readFileSync(a402Path, 'utf8'));
     const r = await checkHolders(rec.mint, replay(rec));
     expect(r.top[0]).toMatchObject({ category: 'pool', label: 'meteora-damm-v2', tokenAccount: 'AxhGmD7bRGo8qb2tuC43qFBUeuhpe2ZSR2cxo3NBpbmC' });
@@ -79,7 +79,7 @@ describe.skipIf(!existsSync(a402Path))('A402 fixture', () => {
 
 const wifPath = new URL('./fixtures/holders-WIF.json', import.meta.url);
 describe.skipIf(!existsSync(wifPath))('WIF fixture', () => {
-  it('Raydium AMM v4 금고를 pool 로 판별 (실제 체인 사례)', async () => {
+  it('identifies a Raydium AMM v4 vault as pool (real on-chain case)', async () => {
     const rec: Rec = JSON.parse(readFileSync(wifPath, 'utf8'));
     const r = await checkHolders(rec.mint, replay(rec));
     const pools = r.top.filter((h) => h.category === 'pool');
@@ -89,11 +89,11 @@ describe.skipIf(!existsSync(wifPath))('WIF fixture', () => {
   });
 });
 
-// ---------- 합성 ----------
+// ---------- Synthetic ----------
 const pk = () => Keypair.generate().publicKey;
-/** 온커브(일반 키쌍) 주소 */
+/** On-curve (regular keypair) address */
 const wallet = () => Keypair.generate().publicKey;
-/** 오프커브 주소 */
+/** Off-curve address */
 const offCurve = () => PublicKey.findProgramAddressSync([Keypair.generate().publicKey.toBuffer()], pk())[0];
 
 function mintData(supply: bigint): Buffer {
@@ -126,7 +126,7 @@ function synthReader(
 }
 
 describe('synthetic holders', () => {
-  it('CPMM 풀·CLMM 풀 상태·지갑 합산·알 수 없는 프로그램·닫힌 계정', async () => {
+  it('CPMM pool, CLMM pool state, wallet merge, unknown program, closed account', async () => {
     const mint = pk();
     const w = wallet();
     const clmmPool = offCurve();
@@ -152,20 +152,20 @@ describe('synthetic holders', () => {
     expect(r.categoryPercent).toEqual({ pool: 70, lock: 0, wallet: 15, program: 12, pda: 0 });
     expect(r.excludingPoolsAndLocksTop5[0]).toMatchObject({ owner: w.toBase58(), percent: 15 });
     expect(r.excludingPoolsAndLocksTop5[0].tokenAccounts).toHaveLength(2);
-    // 미지원 프로그램 계정은 상위 5곳에 섞지 않고 따로
+    // Unsupported program accounts are kept separate, not mixed into the top 5
     expect(r.excludingPoolsAndLocksTop5).toHaveLength(1);
     expect(r.unsupportedProgramAccounts).toEqual([
       { owner: otherOwner.toBase58(), category: 'program', ownerProgram: otherProgram.toBase58(), percent: 12, tokenAccounts: [t5.toBase58()] },
     ]);
-    expect(r.notes).toContain(DISCLAIMER_KO);
+    expect(r.notes).toContain(DISCLAIMER_EN);
     expect(guardrailViolations(r)).toEqual([]);
   });
 
-  it('Streamflow: 계약의 민트가 다르거나 PDA 가 안 맞으면 lock 으로 보지 않음', async () => {
+  it('Streamflow: not treated as lock if the contract mint differs or the PDA does not match', async () => {
     const mint = pk(), otherMint = pk();
     const contract = pk();
     const escrow = streamflowEscrow(contract);
-    const fake = offCurve(); // 계약에 기록돼 있지만 PDA 가 맞지 않는 주소
+    const fake = offCurve(); // recorded in the contract but does not match the PDA
     const mkContract = (m: PublicKey, esc: PublicKey) => {
       const d = Buffer.alloc(300);
       m.toBuffer().copy(d, STREAMFLOW_MINT_OFFSET);

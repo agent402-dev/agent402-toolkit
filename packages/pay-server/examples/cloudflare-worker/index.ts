@@ -1,22 +1,23 @@
-// @agent402-dev/pay-server 예제: Cloudflare Worker. 환율 기록은 Durable Object(RateStore) 에, 매시간 cron 으로 기록.
-// wrangler.toml 예:
+// @agent402-dev/pay-server example: Cloudflare Worker. A402 (v1) is deprecated; switched to PREQ.
+// Payments: USDC + PREQ. Rate samples are stored in a Durable Object (RateStore), recorded by an hourly cron.
+// Example wrangler.toml:
 //   main = "index.ts"
 //   compatibility_flags = ["nodejs_compat"]
 //   [[durable_objects.bindings]] name = "RATES" class_name = "RateStoreDO"
 //   [[migrations]] tag = "v1" new_sqlite_classes = ["RateStoreDO"]
 //   [triggers] crons = ["5 * * * *"]
-//   [vars] PAY_TO = "<수령 지갑 공개 주소>"   # 개인키는 넣지 않음
-//   (RPC_URL 은 `wrangler secret put RPC_URL`)
-// 이 예제의 Durable Object 장부는 메모리 장부(기본)를 씀 — 여러 인스턴스에서 재사용을 막으려면 X402Ledger 를 DO 로 구현해 넘기면 됨
+//   [vars] PAY_TO = "<receiving wallet public address>"   # never put a private key here
+//   (RPC_URL via `wrangler secret put RPC_URL`)
+// This example uses the in-memory ledger (default). To prevent reuse across instances, implement X402Ledger as a DO and pass it in
 import { DurableObject } from 'cloudflare:workers';
 import {
-  A402_MAINNET, createPaymentGate, createRateBook, KNOWN_FACILITATORS, rpcChain, SOLANA_MAINNET, USDC_MAINNET,
+  createPaymentGate, createRateBook, KNOWN_FACILITATORS, PREQ_MAINNET, rpcChain, SOLANA_MAINNET, USDC_MAINNET,
   type DailyRate, type PriceSample, type RateStore,
 } from '@agent402-dev/pay-server';
 
 interface Env { PAY_TO: string; RPC_URL: string; RATES: DurableObjectNamespace<RateStoreDO> }
 
-/** RateStore 를 Durable Object(SQLite 저장소의 KV) 로 */
+/** RateStore backed by a Durable Object (SQLite-backed KV) */
 export class RateStoreDO extends DurableObject<Env> {
   async addSample(s: PriceSample) { await this.ctx.storage.put(`s:${s.at}`, s); }
   async samples(day: string) { return [...(await this.ctx.storage.list<PriceSample>({ prefix: `s:${day}` })).values()]; }
@@ -25,7 +26,7 @@ export class RateStoreDO extends DurableObject<Env> {
 }
 
 function rateStore(env: Env): RateStore {
-  const stub = env.RATES.get(env.RATES.idFromName('a402'));
+  const stub = env.RATES.get(env.RATES.idFromName('preq'));
   return {
     addSample: (s) => stub.addSample(s),
     samples: (d) => stub.samples(d) as Promise<PriceSample[]>,
@@ -38,13 +39,14 @@ let gate: ReturnType<typeof createPaymentGate> | null = null;
 function gateFor(env: Env) {
   if (gate) return gate;
   const chain = rpcChain(env.RPC_URL);
-  const rates = createRateBook({ store: rateStore(env), fetcher: chain.accounts });
+  const rates = createRateBook({ store: rateStore(env), fetcher: chain.accounts }); // PREQ pool (pay-server src/preq.ts)
   gate = createPaymentGate({
     network: SOLANA_MAINNET,
     payTo: env.PAY_TO,
-    priceUsd: 0.02, // 설정 예시 (example setting)
+    priceUsd: 0.02, // example setting
     usdc: USDC_MAINNET,
-    a402: { asset: A402_MAINNET, discountPercent: 30 /* 설정 예시 (example setting) */, rate: () => rates.today() },
+    // Stops here with an error if the PREQ mint is empty
+    preq: { asset: PREQ_MAINNET, rate: () => rates.today() },
     facilitators: [KNOWN_FACILITATORS.payai, KNOWN_FACILITATORS.dexter],
     chain,
     resource: { description: 'Example paid resource', serviceName: 'example' },

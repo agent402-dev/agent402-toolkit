@@ -1,10 +1,10 @@
-// 결제 판단·실행 (MCP 와 무관한 핵심 로직 — 테스트 가능하게 분리)
-// 순서: 도메인 확인 → 요청(리다이렉트는 직접 따라가며 매번 도메인 확인) → 402 면 정책 평가 → (견적 고정 확인) → (사람 확인) → 서명 1회 → 재요청
-// 서명은 이 요청에서 최대 1번. 결제 뒤 다시 402 가 오면 다시 서명하지 않음
+// Payment decision and execution (core logic independent of MCP, separated for testing)
+// Order: domain check → request (follows redirects itself, checking the domain each time) → on 402, evaluate the policy → (confirm the quote is unchanged) → (human confirmation) → sign once → re-request
+// At most one signature per request. If another 402 comes after paying, it does not sign again
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from '@x402/core/http';
 import type { PaymentRequired, PaymentRequirements } from '@x402/core/types';
 import type { History, HistoryEntry, PaymentResult } from './history.js';
-import { choose, domainCheck, evaluate, type Evaluated, type PayPolicy } from './policy.js';
+import { A402_DEPRECATION_WARNING, choose, domainCheck, evaluate, type Evaluated, type PayPolicy } from './policy.js';
 import { withSmallest } from './units.js';
 import type { Wallet } from './wallet.js';
 
@@ -15,7 +15,7 @@ export interface AgentDeps {
   wallet: Wallet | null;
   history: History;
   fetch: typeof fetch;
-  /** 사람 확인 (MCP elicitation). 클라이언트가 지원하지 않으면 'unsupported' → 결제 안 함 */
+  /** Human confirmation (MCP elicitation). If the client does not support it, 'unsupported' → no payment */
   confirm: (message: string) => Promise<ConfirmAnswer>;
   now?: () => Date;
   maxRedirects?: number;
@@ -33,16 +33,22 @@ export interface FetchOutcome {
   reasons?: string[];
   payment?: { asset: string | null; mint: string; amount: string; payTo: string; network: string; settlementTx?: string };
   body?: unknown;
-  /** 정책 평가 결과 (거절일 때 각 조건의 이유) */
+  /** Policy evaluation result (the reason for each condition when rejected) */
   options?: { asset: string | null; mint: string; amount: string; payTo: string; ok: boolean; reasons: string[] }[];
+  /** Warnings (e.g. the deprecation notice when trying to pay with A402 (v1)) */
+  warnings?: string[];
 }
+
+/** Adds the deprecation warning if the chosen asset is A402 (v1) (there is no path that silently pays with A402) */
+const withDeprecation = <T extends FetchOutcome>(o: T): T =>
+  o.payment?.asset === 'A402' ? { ...o, warnings: [...(o.warnings ?? []), A402_DEPRECATION_WARNING] } : o;
 
 export function createAgent(d: AgentDeps) {
   const now = d.now ?? (() => new Date());
   const quotes = new Map<string, Pinned>();
   const QUOTE_TTL_MS = 5 * 60_000;
 
-  /** 리다이렉트를 직접 따라가며 매 단계 도메인 확인 */
+  /** Follows redirects itself and checks the domain at each step */
   async function send(spec: RequestSpec, extraHeaders: Record<string, string> = {}, follow = true): Promise<{ res: Response; finalUrl: string } | { refused: string }> {
     let url = spec.url;
     for (let hop = 0; hop <= (d.maxRedirects ?? 3); hop++) {
@@ -70,7 +76,7 @@ export function createAgent(d: AgentDeps) {
     | { kind: 'not_required'; res: Response; finalUrl: string }
     | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; finalUrl: string };
 
-  /** 402 를 받아 정책으로 평가 (서명 없음) */
+  /** Receives a 402 and evaluates it with the policy (no signing) */
   async function assess(spec: RequestSpec): Promise<Assessment> {
     const sent = await send(spec);
     if ('refused' in sent) return { kind: 'refused', refused: sent.refused };
@@ -79,7 +85,7 @@ export function createAgent(d: AgentDeps) {
     const h = res.headers.get('payment-required');
     let pr: PaymentRequired;
     try { pr = decodePaymentRequiredHeader(h ?? ''); } catch { return { kind: 'refused', refused: 'invalid_payment_required_header' }; }
-    // 402 가 다른 주소의 리소스를 가리키면 그 주소도 허용 목록에 있어야 함
+    // If the 402 points to a resource at another address, that address must also be on the allowlist
     if (pr.resource?.url) {
       const rc = domainCheck(d.policy, pr.resource.url);
       if (!rc.ok) return { kind: 'refused', refused: `resource_on_disallowed_domain: ${rc.reason}` };
@@ -118,7 +124,7 @@ export function createAgent(d: AgentDeps) {
       return { result, reasons, options, payment: { asset: a.chosen!.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network } };
     };
 
-    // 견적과 같은 조건인지 (재요청 사이에 금액·수령 주소가 바뀌면 거절)
+    // Same requirement as the quote? (reject if the amount or receiver changed between requests)
     if (spec.quoteId) {
       const q = quotes.get(spec.quoteId);
       if (!q || q.url !== spec.url || now().getTime() - q.at > QUOTE_TTL_MS) return refuse('refused', ['quote_not_found_or_expired']);
@@ -127,13 +133,13 @@ export function createAgent(d: AgentDeps) {
     }
     if (!d.wallet) return refuse('refused', ['no_wallet: set X402_KEYPAIR_PATH']);
     if (a.chosen.needsConfirmation) {
-      const human = `Pay ${a.chosen.asset === 'USDC' ? `${a.chosen.usd} USDC` : withSmallest(r.amount, a.chosen.asset ?? 'A402')} to ${r.payTo} for ${spec.url}?`;
+      const human = `Pay ${a.chosen.asset === 'USDC' ? `${a.chosen.usd} USDC` : withSmallest(r.amount, a.chosen.asset ?? 'tokens')} to ${r.payTo} for ${spec.url}?${a.chosen.asset === 'A402' ? ` (${A402_DEPRECATION_WARNING})` : ''}`;
       const ans = await d.confirm(human).catch(() => 'unsupported' as const);
       if (ans === 'unsupported') return refuse('confirmation_required', ['confirmation_required: this client cannot ask for confirmation (MCP elicitation); payment not made']);
       if (ans === 'decline') return refuse('declined_by_user', ['declined_by_user']);
     }
 
-    // 서명 (이 요청에서 한 번만)
+    // Sign (only once per request)
     const header = await d.wallet.sign(a.pr.resource, r);
     const sent = await send({ ...spec, url: a.finalUrl }, { 'payment-signature': header }, false);
     if ('refused' in sent) { record({ ...base, ...pay, result: 'failed', reasons: [sent.refused], signed: true }); return { result: 'failed', reasons: [sent.refused] }; }
@@ -152,5 +158,8 @@ export function createAgent(d: AgentDeps) {
     return { result, httpStatus: res.status, reasons: [reason], body };
   }
 
-  return { quote, payAndFetch };
+  return {
+    quote: async (spec: RequestSpec) => withDeprecation(await quote(spec)),
+    payAndFetch: async (spec: RequestSpec & { quoteId?: string }) => withDeprecation(await payAndFetch(spec)),
+  };
 }

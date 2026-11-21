@@ -1,16 +1,16 @@
-// SDK 가 체인에서 읽는 것 (점검 엔진에 기대지 않는 최소 구현). fetch 만 씀 → Cloudflare Workers·Node 모두.
-// - 정산 트랜잭션 읽기 (수령 증가액 확인), 수령 토큰 계정의 최근 서명 (정산 결과를 모를 때 판정)
-// - 계정 여러 개 읽기 (환율 기록·받는 쪽 토큰 계정 확인)
+// What the SDK reads from the chain (minimal implementation, independent of the check engine). Uses only fetch, so it runs on Cloudflare Workers and Node.
+// - Reads settlement transactions (checks the received increase) and recent signatures of receiving token accounts (to decide when the settlement result is unknown)
+// - Reads multiple accounts (rate recording, checking the receiver's token account)
 
-/** 정산 확인에 필요한 트랜잭션 정보 */
+/** Transaction info needed to confirm settlement */
 export interface ChainTx {
   signature: string;
   err: boolean;
-  /** 0번 = 수수료 낸 주소 */
+  /** Index 0 = fee payer */
   accountKeys: string[];
   preTokenBalances: { accountIndex: number; mint: string; owner?: string | null; amount: string }[];
   postTokenBalances: { accountIndex: number; mint: string; owner?: string | null; amount: string }[];
-  /** 트랜잭션의 모든 서명 (구매자 서명 찾기용) */
+  /** All signatures in the transaction (to find the buyer's signature) */
   signatures: string[];
 }
 
@@ -23,7 +23,7 @@ export interface ChainReader {
   accounts: AccountFetcher;
 }
 
-/** 이 결제 수단의 수령 주소 증가량 (수령 주소가 소유한 그 민트 토큰 계정 합) */
+/** Increase at the receiving address for this payment asset (sum of that mint's token accounts owned by the receiver) */
 export function receivedBy(tx: ChainTx, owner: string, mint: string): bigint {
   const sum = (xs: ChainTx['preTokenBalances']) => xs.filter((b) => b.owner === owner && b.mint === mint).reduce((s, b) => s + BigInt(b.amount), 0n);
   return sum(tx.postTokenBalances) - sum(tx.preTokenBalances);
@@ -34,7 +34,7 @@ export interface RpcOptions {
   commitment?: 'confirmed' | 'finalized';
 }
 
-/** JSON-RPC 로 ChainReader 만들기. RPC 주소(키 포함일 수 있음)는 오류 메시지에 넣지 않음 */
+/** Builds a ChainReader over JSON-RPC. The RPC address (which may contain a key) is never put in error messages */
 export function rpcChain(rpcUrl: string, o: RpcOptions = {}): ChainReader {
   const f = o.fetchImpl ?? fetch;
   const commitment = o.commitment ?? 'confirmed';
@@ -74,12 +74,12 @@ export function rpcChain(rpcUrl: string, o: RpcOptions = {}): ChainReader {
   };
 }
 
-// ---------- 주소 ----------
+// ---------- Addresses ----------
 export const SPL_TOKEN = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 export const TOKEN_2022 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const ATA_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 
-/** 연결 토큰 계정(ATA) 주소 */
+/** Associated token account (ATA) address */
 export async function ataOf(owner: string, mint: string, tokenProgram: string): Promise<string> {
   const { PublicKey } = await import('@solana/web3.js');
   return PublicKey.findProgramAddressSync(

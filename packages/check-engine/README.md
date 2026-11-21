@@ -4,7 +4,6 @@ Reads public Solana on-chain data for a token mint and returns **facts with evid
 It does not judge or rate tokens and gives no investment advice. Every result carries this note:
 
 > Factual information from public on-chain data. Not investment advice.
-> 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
 
 Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit) (Solana). Free and open source.
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
@@ -53,7 +52,7 @@ A public RPC works for items 1–4. Items 5–8 use `getTokenLargestAccounts` an
 ## Free: the full report runs on your machine
 A402 Check is free. The hosted A402 Check API (`https://a402-check.agent402-ebc.workers.dev`) serves only the summary (items 1–4, `GET /v1/check/{mint}/summary`, 20 calls per IP per day). The full report (items 1–8) is not served by the API (`GET /v1/check/{mint}` answers `410` with these instructions); run it with your own Solana RPC, either with this library (`checkFull`) or with the [`@agent402-dev/check-mcp`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/check-mcp) tool `token_check`.
 
-> A402 Check 는 무료입니다. 전체 리포트(항목 1~8)는 자신의 RPC 로 이 컴퓨터에서 실행합니다.
+> A402 Check is free. The full report (sections 1 to 8) runs on this computer with your own RPC.
 
 ## From source
 In the [repository](https://github.com/agent402-dev/agent402-toolkit), from the root:
@@ -74,4 +73,4 @@ npm test                       # offline, uses recorded public mainnet data
 Apache-2.0. See [LICENSE](https://github.com/agent402-dev/agent402-toolkit/blob/main/LICENSE) and [NOTICE](https://github.com/agent402-dev/agent402-toolkit/blob/main/NOTICE).
 
 ---
-Factual information from public on-chain data. Not investment advice. / 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
+Factual information from public on-chain data. Not investment advice.

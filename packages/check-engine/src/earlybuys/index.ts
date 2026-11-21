@@ -1,84 +1,84 @@
 import { PublicKey } from '@solana/web3.js';
 import type { ChainReader, HistoryReader, SignatureInfo, TxRecord } from '../chain.js';
 import { decodeMint } from '../mint.js';
-import { DISCLAIMER_EN, DISCLAIMER_KO, MintNotFoundError } from '../summary.js';
+import { DISCLAIMER_EN, MintNotFoundError } from '../summary.js';
 import { percentOf } from '../holders/index.js';
 import { findSupportedPools, tokenBalances, type Dex, type PoolCandidate } from '../liquidity/pools.js';
 
 export interface EarlyBuyer {
-  /** 토큰을 받은 계정의 소유자 주소 */
+  /** Owner address of the account that received the token */
   wallet: string;
-  /** 온커브 주소(개인키 서명 주소) 여부. false 면 프로그램 파생 주소(PDA) */
+  /** Whether the address is on-curve (signs with a private key). false means a program-derived address (PDA) */
   onCurve: boolean;
-  /** 창 안에서 풀과의 교환으로 받은 수량 합계 (원 단위) */
+  /** Total received through swaps with the pool in the window (base units) */
   bought: string;
   boughtPercentOfSupply: number;
-  /** 창 안에서 같은 풀과의 교환으로 내준 수량 합계 (유동성 추가는 포함하지 않음) */
+  /** Total given through swaps with the same pool in the window (liquidity additions not included) */
   soldInWindow: string;
-  /** bought − soldInWindow (0 미만이면 0) */
+  /** bought − soldInWindow (0 if negative) */
   netBought: string;
   netBoughtPercentOfSupply: number;
-  /** 창 안에서 같은 풀에 유동성으로 넣은 이 토큰 수량 */
+  /** Amount of this token added as liquidity to the same pool in the window */
   addedToLiquidity: string;
-  /** 창 안에서 같은 풀의 유동성을 빼며 받은 이 토큰 수량 */
+  /** Amount of this token received by removing liquidity from the same pool in the window */
   removedFromLiquidity: string;
   firstBuySlot: number;
   firstBuyTime: string;
-  /** 거래 시작 시각으로부터 첫 매수까지 초 */
+  /** Seconds from trading start to the first buy */
   secondsAfterStart: number;
   buyCount: number;
-  /** 근거 트랜잭션 (최대 5개) */
+  /** Evidence transactions (up to 5) */
   txs: string[];
 }
 
 export interface EarlyBuysReport {
   mint: string;
   checkedAt: string;
-  /** complete: 창 안 거래를 모두 확인 / partial: 일부만 / unverifiable: 확인 불가 */
+  /** complete: all trades in the window checked / partial: only some / unverifiable: could not check */
   status: 'complete' | 'partial' | 'unverifiable';
   dex: Dex | null;
   pool: string | null;
   poolCreatedAt: string | null;
   poolCreationSlot: number | null;
   poolCreationTx: string | null;
-  /** 풀에 기록된 거래 시작 시점(activation / open_time)과 풀 생성 시각 중 늦은 쪽 */
+  /** The later of the trading start recorded in the pool (activation / open_time) and the pool creation time */
   tradingStart: string | null;
-  /** 거래가 처음 열린 블록 (거래 시작 시점이 풀 생성보다 늦을 때). 아니면 풀 생성 블록 */
+  /** Block where trading first opened (when the trading start is later than pool creation). Otherwise the pool creation block */
   tradingOpenSlot: number | null;
   windowMinutes: number;
-  /** 창 안에서 풀과의 교환으로 토큰을 받은 주소 수 */
+  /** Number of addresses that received the token through swaps with the pool in the window */
   wallets: number;
-  /** 그 주소들의 (매수 − 같은 창 안 매도) 합계의 공급 대비 %. 유동성 추가·제거는 반영하지 않음 */
+  /** Sum of (buys − sells in the same window) for those addresses, as % of supply. Liquidity additions and removals are not counted */
   supplyPercent: number;
-  /** 매도를 빼지 않은 매수 수량 합계의 공급 대비 % */
+  /** Total bought without subtracting sells, as % of supply */
   grossSupplyPercent: number;
-  /** 매수 주소들이 창 안에서 같은 풀에 유동성으로 넣은 이 토큰 합계의 공급 대비 % */
+  /** This token added as liquidity to the same pool by buying addresses in the window, as % of supply */
   liquidityAddedPercent: number;
-  /** 매수 주소들이 창 안에서 같은 풀의 유동성을 빼며 받은 이 토큰 합계의 공급 대비 % */
+  /** This token received by buying addresses from removing liquidity in the same pool in the window, as % of supply */
   liquidityRemovedPercent: number;
-  /** sameBlockBasis 블록에서 매수가 있었는지. 그 블록을 확정하지 못하면 null */
+  /** Whether there was a buy in the sameBlockBasis block. null if that block could not be determined */
   sameBlock: boolean | null;
-  /** trading-open-block: 거래가 처음 열린 블록 / pool-creation-block: 풀 생성 블록 */
+  /** trading-open-block: block where trading first opened / pool-creation-block: pool creation block */
   sameBlockBasis: 'trading-open-block' | 'pool-creation-block';
   buysInSameBlock: number;
-  /** 서로 다른 주소 2개 이상이 같은 슬롯에서 매수한 경우 */
+  /** Cases where two or more different addresses bought in the same slot */
   sameSlotGroups: { slot: number; wallets: string[] }[];
   firstTradeSlot: number | null;
-  /** 첫 매수가 있었던 슬롯에서 매수한 주소 수 */
+  /** Number of addresses that bought in the slot of the first buy */
   walletsInFirstTradeSlot: number;
-  /** 시작 후 1분 단위 누적 (매수 − 매도 기준) */
+  /** Cumulative per minute after the start (buys − sells) */
   cumulativeByMinute: { minute: number; wallets: number; supplyPercent: number }[];
   buyers: EarlyBuyer[];
-  /** 창 안 트랜잭션을 이 풀 기준으로 분류한 건수 */
+  /** Counts of window transactions classified relative to this pool */
   activity: { buys: number; sells: number; liquidityAdds: number; liquidityRemoves: number; other: number };
   stats: { signaturesScanned: number; transactionsInWindow: number; transactionsParsed: number; transactionsUnreadable: number };
-  /** 조사 범위 (사실대로): 상한과 실제로 읽은 양. status 가 partial·unverifiable 인 이유를 숫자로 */
+  /** Scope of the check (as is): limits and amounts actually read. Explains in numbers why status is partial or unverifiable */
   coverage: {
-    /** 창 안 거래 중 읽은 건수 / 창 안 거래 전체 건수 (풀 기록을 끝까지 못 갔으면 전체는 null) */
+    /** Trades read in the window / all trades in the window (total is null if pool history was not read to the end) */
     transactionsRead: number;
     transactionsInWindow: number | null;
     maxTransactions: number;
-    /** 거슬러 올라간 서명 수 / 상한 */
+    /** Signatures walked back / limit */
     signaturesScanned: number;
     maxSignatures: number;
     reachedPoolCreation: boolean;
@@ -89,17 +89,17 @@ export interface EarlyBuysReport {
 
 export interface EarlyBuysOptions {
   windowMinutes?: number;
-  /** 특정 풀 지정. 없으면 지원 풀 중 이 토큰 잔액이 가장 큰 풀 */
+  /** A specific pool. If not set, the supported pool with the largest balance of this token */
   pool?: string;
-  /** 풀 서명을 거슬러 올라갈 최대 쪽수 (1쪽 = 1000건) */
+  /** Maximum pages to walk back through pool signatures (1 page = 1000 entries) */
   maxSignaturePages?: number;
-  /** 창 안에서 읽을 최대 트랜잭션 수 */
+  /** Maximum transactions to read in the window */
   maxTransactions?: number;
   now?: () => Date;
 }
 
 const iso = (sec: number | null) => (sec === null ? '' : new Date(sec * 1000).toISOString());
-/** getBlocks 한 번에 물을 수 있는 최대 범위 */
+/** Maximum range getBlocks can query at once */
 const MAX_BLOCK_RANGE = 500_000;
 
 function deltas(tx: TxRecord, mint: string) {
@@ -122,17 +122,17 @@ export interface PoolSide {
   vault: string;
   pairMint: string;
   pairVault: string;
-  /** 금고 소유자(풀 권한자) — 받는 쪽/내는 쪽 집계에서 제외 */
+  /** Vault owner (pool authority): excluded from the receiving and giving tallies */
   poolAuthority: string | null;
 }
 
 /**
- * 한 트랜잭션에서 이 풀의 두 금고 움직임으로 종류를 정하고, 이 토큰을 주고받은 소유자별 수량을 돌려줍니다.
- *  이 토큰 금고 ↓, 짝 금고 ↑ → buy     (늘어난 소유자 = 매수자)
- *  이 토큰 금고 ↑, 짝 금고 ↓ → sell    (줄어든 소유자 = 매도자)
- *  둘 다 ↑                  → add-liquidity    (줄어든 소유자 = 넣은 주소)
- *  둘 다 ↓                  → remove-liquidity (늘어난 소유자 = 뺀 주소)
- *  한쪽만 움직임             → other (수수료 청구 등. 매수·매도로 세지 않음)
+  * Classifies one transaction by the movement of this pool's two vaults, and returns the amount of this token moved per owner.
+  *  this token vault ↓, paired vault ↑ → buy     (owner whose balance rose = buyer)
+  *  this token vault ↑, paired vault ↓ → sell    (owner whose balance fell = seller)
+  *  both ↑                           → add-liquidity    (owner whose balance fell = adder)
+  *  both ↓                           → remove-liquidity (owner whose balance rose = remover)
+  *  only one moves                   → other (fee claims, etc. Not counted as a buy or sell)
  */
 export function analyzeSwap(tx: TxRecord, side: PoolSide) {
   const ours = deltas(tx, side.mint);
@@ -179,15 +179,15 @@ function unverifiable(mint: string, windowMinutes: number, now: Date, notes: str
 }
 
 /**
- * 확정 블록 중 블록 시각이 t 이상인 첫 블록. 범위가 너무 크거나 못 찾으면 null.
- * 한 번에 최대 K 개 지점의 블록 시각을 동시에 물어 구간을 좁힘 (RPC 일괄 요청과 함께 쓰면 HTTP 2~3번)
+  * First confirmed block whose block time is at least t. null if the range is too large or not found.
+  * Narrows the range by asking block times for up to K points at once (2 or 3 HTTP requests with RPC batching)
  */
 async function firstBlockAtOrAfter(reader: HistoryReader, fromSlot: number, toSlot: number, t: number): Promise<number | null> {
   if (toSlot < fromSlot || toSlot - fromSlot > MAX_BLOCK_RANGE) return null;
   const slots = await reader.blocks(fromSlot, toSlot);
-  // 한 단계에 묻는 지점 수 = RPC 일괄 요청 크기(10) → 단계마다 HTTP 1회
+  // Points asked per step = RPC batch size (10), so one HTTP request per step
   const K = 10;
-  // 불변식: 인덱스 < lo 는 모두 시각 < t. hi 는 시각 ≥ t 인 인덱스이거나 slots.length(아직 없음)
+  // Invariant: every index < lo has time < t. hi is an index with time ≥ t, or slots.length (none yet)
   let lo = 0, hi = slots.length;
   while (lo < hi) {
     const len = hi - lo;
@@ -213,23 +213,23 @@ export async function checkEarlyBuys(
   const maxPages = opts.maxSignaturePages ?? 20;
   const maxTx = opts.maxTransactions ?? 400;
   const now = (opts.now ?? (() => new Date()))();
-  const notes: string[] = [DISCLAIMER_KO, DISCLAIMER_EN];
+  const notes: string[] = [DISCLAIMER_EN];
 
   const m = (await reader.fetch([mint])).accounts[0];
   if (!m) throw new MintNotFoundError(`account ${mint} not found`);
   const supply = decodeMint(m.data, new PublicKey(m.owner)).supply;
 
-  // 1) 풀 선택
+  // 1) Pick the pool
   const { candidates } = await findSupportedPools(mint, reader);
   const pool: PoolCandidate | undefined = opts.pool ? candidates.find((c) => c.address === opts.pool) : candidates[0];
   if (!pool) {
-    notes.push('지원 DEX(Meteora DAMM v2, Raydium CPMM)에서 이 토큰의 풀을 찾지 못했습니다 (확인 불가)');
+    notes.push('No pool for this token was found on supported DEXes (Meteora DAMM v2, Raydium CPMM) (unavailable)');
     return unverifiable(mint, windowMinutes, now, notes);
   }
   const vaultInfo = (await tokenBalances(reader, [pool.vault])).balances.get(pool.vault);
   const side: PoolSide = { mint, vault: pool.vault, pairMint: pool.pairMint, pairVault: pool.pairVault, poolAuthority: vaultInfo?.owner ?? null };
 
-  // 2) 풀 서명을 생성 시점까지 거슬러 올라감
+  // 2) Walk pool signatures back to creation
   const sigs: SignatureInfo[] = [];
   let before: string | undefined;
   let reachedStart = false;
@@ -241,7 +241,7 @@ export async function checkEarlyBuys(
   }
   const base = { dex: pool.dex, pool: pool.address } as const;
   if (!reachedStart) {
-    notes.push(`풀 거래 기록을 최근부터 ${sigs.length}건(상한 ${maxPages * 1000}건)까지 거슬러 올라갔지만 거래 시작 시점에 닿지 못했습니다 (확인 불가)`);
+    notes.push(`Walked back ${sigs.length} pool transactions from the latest (limit ${maxPages * 1000}) without reaching the trading start (unavailable)`);
     return unverifiable(mint, windowMinutes, now, notes, {
       ...base, stats: { signaturesScanned: sigs.length, transactionsInWindow: 0, transactionsParsed: 0, transactionsUnreadable: 0 },
       coverage: { transactionsRead: 0, transactionsInWindow: null, maxTransactions: maxTx, signaturesScanned: sigs.length, maxSignatures: maxPages * 1000, reachedPoolCreation: false },
@@ -251,8 +251,8 @@ export async function checkEarlyBuys(
   const creation = chronological[0];
   const creationTime = creation.blockTime;
 
-  // 3) 거래 시작 시각과 거래가 처음 열린 블록
-  //    풀에 기록된 시작 시점이 풀 생성보다 늦으면 "거래가 처음 열린 블록", 아니면 "풀 생성 블록" 기준
+  // 3) Trading start time and the block where trading first opened
+  //    If the start recorded in the pool is later than pool creation, use "block where trading first opened", otherwise "pool creation block"
   let startTime: number | null = creationTime;
   let delayedStart = false;
   let tradingOpenSlot: number | null = creation.slot;
@@ -274,15 +274,15 @@ export async function checkEarlyBuys(
     }
   }
   if (startTime === null) {
-    notes.push('거래 시작 시각을 구하지 못했습니다 (확인 불가)');
+    notes.push('Could not determine the trading start time (unavailable)');
     return unverifiable(mint, windowMinutes, now, notes, base);
   }
   if (delayedStart && tradingOpenSlot === null) {
-    notes.push('거래가 처음 열린 블록을 확정하지 못해 sameBlock 을 판정하지 않았습니다 (확인 불가)');
+    notes.push('Could not determine the block where trading first opened, so sameBlock was not evaluated (unavailable)');
   }
   const end = startTime + windowMinutes * 60;
 
-  // 4) 창 안의 성공한 거래 (+ 풀 생성 슬롯의 거래)
+  // 4) Successful trades in the window (+ trades in the pool creation slot)
   const inWindow = chronological.filter(
     (s) => !s.err && s.signature !== creation.signature &&
       ((s.blockTime !== null && s.blockTime >= startTime! && s.blockTime < end) || s.slot === creation.slot),
@@ -291,7 +291,7 @@ export async function checkEarlyBuys(
   const txs = await reader.transactions(toRead.map((s) => s.signature));
   const unreadable = txs.filter((t) => t === null).length;
 
-  // 5) 집계
+  // 5) Tally
   type W = { bought: bigint; sold: bigint; added: bigint; removed: bigint; firstSlot: number; firstTime: number; count: number; txs: string[] };
   const buyers = new Map<string, W>();
   const sold = new Map<string, bigint>();
@@ -369,18 +369,18 @@ export async function checkEarlyBuys(
 
   const complete = inWindow.length <= maxTx && unreadable === 0;
   if (inWindow.length > maxTx) {
-    notes.push(`창 안 거래 ${inWindow.length}건 중 시간순으로 앞의 ${maxTx}건만 조회했습니다 (일부). 매수 주소 수·비중은 이 ${maxTx}건 기준입니다`);
+    notes.push(`Only the first ${maxTx} of ${inWindow.length} trades in the window (by time) were read (partial). Buyer count and share are based on these ${maxTx} trades`);
   }
-  if (unreadable) notes.push(`읽지 못한 트랜잭션 ${unreadable}건이 있습니다 (일부)`);
+  if (unreadable) notes.push(`${unreadable} transactions could not be read (partial)`);
   notes.push(
-    '거래 분류: 한 트랜잭션에서 이 토큰 금고가 줄고 짝 토큰 금고가 늘면 매수, 반대면 매도, 둘 다 늘면 유동성 추가, 둘 다 줄면 유동성 제거, 한쪽만 움직이면 기타(매수·매도로 세지 않음). 매수자는 같은 트랜잭션에서 이 토큰 잔액이 늘어난 소유자입니다 (풀 권한자 제외)',
-    'supplyPercent 는 (매수 − 같은 창 안 매도) 기준입니다. 유동성 추가·제거는 매도·매수가 아니므로 빼지 않고 liquidityAddedPercent·liquidityRemovedPercent 로 따로 보여 줍니다. grossSupplyPercent 는 매수만 더한 값입니다',
+    'Trade classification: in one transaction, if this token vault decreases and the paired vault increases it is a buy, the reverse is a sell, both increasing is a liquidity addition, both decreasing is a liquidity removal, and only one moving is other (not counted as a buy or sell). The buyer is the owner whose balance of this token increased in the same transaction (excluding the pool authority)',
+    'supplyPercent is based on (buys − sells in the same window). Liquidity additions and removals are not sells or buys, so they are not subtracted and are shown separately as liquidityAddedPercent and liquidityRemovedPercent. grossSupplyPercent adds buys only',
     delayedStart
-      ? `sameBlock 은 거래가 처음 열린 블록(풀에 기록된 시작 시점 이후 첫 블록${tradingOpenSlot !== null ? `, 슬롯 ${tradingOpenSlot}` : ''})에서 매수가 있었는지입니다`
-      : 'sameBlock 은 풀 생성 블록에서 매수가 있었는지입니다 (풀에 별도 거래 시작 시점이 없거나 생성 시각 이전)',
-    'sameSlotGroups 는 서로 다른 주소가 같은 슬롯에서 매수한 경우입니다',
-    '이 항목은 거래 시작 직후 매수했다는 사실만 보여 주며, 자동화 프로그램 사용 여부나 주소 간 관계는 판단하지 않습니다',
-    '지원 DEX 풀 중 이 토큰 잔액이 가장 큰 풀 기준입니다. 토큰의 첫 거래가 다른 DEX·발행 플랫폼에서 일어났다면 그 거래는 포함되지 않습니다',
+      ? `sameBlock is whether there was a buy in the block where trading first opened (the first block after the start recorded in the pool${tradingOpenSlot !== null ? `, slot ${tradingOpenSlot}` : ''})`
+      : 'sameBlock is whether there was a buy in the pool creation block (the pool has no separate trading start, or it is before creation)',
+    'sameSlotGroups lists cases where different addresses bought in the same slot',
+    'This section only shows the fact that addresses bought right after trading started. It does not judge whether automated programs were used or how addresses are related',
+    'Based on the supported DEX pool with the largest balance of this token. If the token first traded on another DEX or launch platform, those trades are not included',
   );
 
   return {

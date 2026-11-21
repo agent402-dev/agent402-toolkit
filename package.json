@@ -2,7 +2,7 @@
   "name": "agent402-toolkit",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent402 toolkit for Solana: factual token checks, and x402 payments in USDC and A402.",
+  "description": "Agent402 toolkit for Solana: factual token checks, and x402 payments in USDC and PREQ.",
   "author": "Agent402",
   "license": "Apache-2.0",
   "type": "module",

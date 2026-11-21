@@ -4,7 +4,6 @@ MCP server (stdio) that returns **facts with evidence addresses** about a Solana
 It does not judge or rate tokens and gives no investment advice.
 
 > Factual information from public on-chain data. Not investment advice.
-> 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
 
 Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit) (Solana). Uses [`@agent402-dev/check-engine`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/check-engine).
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
@@ -43,4 +42,4 @@ Token amounts in results are in the token's smallest unit (raw integer) unless t
 Apache-2.0. See [LICENSE](https://github.com/agent402-dev/agent402-toolkit/blob/main/LICENSE) and [NOTICE](https://github.com/agent402-dev/agent402-toolkit/blob/main/NOTICE).
 
 ---
-Factual information from public on-chain data. Not investment advice. / 공개 온체인 데이터에 따른 사실 정보이며 투자 권유가 아닙니다.
+Factual information from public on-chain data. Not investment advice.

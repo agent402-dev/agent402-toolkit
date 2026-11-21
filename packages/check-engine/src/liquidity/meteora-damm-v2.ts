@@ -2,8 +2,8 @@ import { Reader } from '../bytes.js';
 import { METEORA_DAMM_V2_PROGRAM } from '../holders/registry.js';
 
 /**
- * Meteora DAMM v2 (cp-amm) 계정 해석.
- * 오프셋은 @meteora-ag/cp-amm-sdk 1.5.1 에 들어 있는 IDL(src/idl/cp_amm.json, bytemuck) 에서 계산.
+  * Decodes Meteora DAMM v2 (cp-amm) accounts.
+  * Offsets computed from the IDL in @meteora-ag/cp-amm-sdk 1.5.1 (src/idl/cp_amm.json, bytemuck).
  */
 export const DAMM_V2_PROGRAM = METEORA_DAMM_V2_PROGRAM.toBase58();
 export const DAMM_V2_POOL_SIZE = 1112;

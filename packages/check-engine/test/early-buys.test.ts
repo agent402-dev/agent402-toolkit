@@ -9,7 +9,7 @@ import { guardrailViolations } from '@agent402-dev/check-engine/guardrail';
 import { DAMM_V2_PROGRAM } from '@agent402-dev/check-engine/liquidity/meteora-damm-v2';
 import { SPL_TOKEN_PROGRAM } from '@agent402-dev/check-engine/programs';
 
-// ---------- 메인넷 픽스처 재생 ----------
+// ---------- Mainnet fixture replay ----------
 interface Rec {
   mint: string;
   slot: number;
@@ -60,8 +60,8 @@ function replay(rec: Rec): ChainReader & HistoryReader {
 const load = (s: string): Rec => JSON.parse(readFileSync(fx(s), 'utf8'));
 const now = () => new Date('2026-11-19T00:00:00Z');
 
-describe.skipIf(!existsSync(fx('A402')))('A402 (정답 데이터)', () => {
-  it('시작 13:48:13, 3분 안 지갑 4개. 7WUby 는 매도가 아니라 유동성 추가', async () => {
+describe.skipIf(!existsSync(fx('A402')))('A402 (reference data)', () => {
+  it('start 13:48:13, 4 wallets within 3 minutes. 7WUby added liquidity rather than selling', async () => {
     const rec = load('A402');
     const r = await checkEarlyBuys(rec.mint, replay(rec), { now });
     expect(r.status).toBe('complete');
@@ -74,26 +74,26 @@ describe.skipIf(!existsSync(fx('A402')))('A402 (정답 데이터)', () => {
     const w7 = r.buyers.find((b) => b.wallet.startsWith('7WUby'))!;
     expect(w7.soldInWindow).toBe('0');
     expect(w7.addedToLiquidity).toBe('5609090117651');
-    // 매수 − 매도 = 19.96%, 그중 유동성으로 넣은 0.56% 를 빼면 정답 데이터의 약 19.4%
+    // buys − sells = 19.96%; subtracting the 0.56% added as liquidity gives about 19.4% of the reference data
     expect(r.supplyPercent).toBeCloseTo(19.956, 3);
     expect(r.liquidityAddedPercent).toBeCloseTo(0.5609, 4);
     expect(r.supplyPercent - r.liquidityAddedPercent).toBeCloseTo(19.4, 1);
 
-    // sameBlock: 풀에 거래 시작 시점이 있으므로 "거래가 처음 열린 블록" 기준
+    // sameBlock: the pool has a trading start, so the basis is "block where trading first opened"
     expect(r.sameBlockBasis).toBe('trading-open-block');
     expect(r.tradingOpenSlot).toBe(470957018);
     expect(r.sameBlock).toBe(false);
     expect(r.sameSlotGroups).toEqual([{ slot: 470957640, wallets: expect.arrayContaining([
       'raradsXG6YeeU635nYeskzkNjzUwbbdugWbse7D1Q7A', 'rereMkDCpde7vPEqP82rrLiKoBvkEfKyNCzn1Ni3Pma',
     ]) }]);
-    // 사실과 다른 표현이 응답에 없어야 함
-    expect(JSON.stringify(r)).not.toMatch(/되팔|되판|resold/);
+    // The response must not contain wording that is not factual
+    expect(JSON.stringify(r)).not.toMatch(/resold|resell/);
     expect(guardrailViolations(r)).toEqual([]);
   });
 });
 
-describe.skipIf(!existsSync(fx('NEW-2')))('최근 DAMM v2 풀 (NEW-2)', () => {
-  it('별도 거래 시작 시점이 없는 풀 → 풀 생성 블록 기준, 그 블록 매수 있음 / 상한 넘으면 partial', async () => {
+describe.skipIf(!existsSync(fx('NEW-2')))('recent DAMM v2 pool (NEW-2)', () => {
+  it('pool without a separate trading start → pool creation block basis, a buy in that block / partial when over the limit', async () => {
     const rec = load('NEW-2');
     const r = await checkEarlyBuys(rec.mint, replay(rec), { now });
     expect(r.sameBlockBasis).toBe('pool-creation-block');
@@ -105,10 +105,10 @@ describe.skipIf(!existsSync(fx('NEW-2')))('최근 DAMM v2 풀 (NEW-2)', () => {
   });
 });
 
-// ---------- 합성 ----------
+// ---------- Synthetic ----------
 const k = () => Keypair.generate().publicKey.toBase58();
 
-describe('analyzeSwap: 두 금고 움직임으로 분류', () => {
+describe('analyzeSwap: classify by the movement of the two vaults', () => {
   const mint = k(), pairMint = k(), vault = k(), pairVault = k(), auth = k(), user = k(), user2 = k(), router = k();
   const side: PoolSide = { mint, vault, pairMint, pairVault, poolAuthority: auth };
   type Row = { acc: string; owner: string; mint: string; pre?: number; post?: number };
@@ -121,7 +121,7 @@ describe('analyzeSwap: 두 금고 움직임으로 분류', () => {
   const V = (pre: number, post: number): Row => ({ acc: vault, owner: auth, mint, pre, post });
   const P = (pre: number, post: number): Row => ({ acc: pairVault, owner: auth, mint: pairMint, pre, post });
 
-  it('buy: 이 토큰 금고 ↓ 짝 금고 ↑ (새 토큰 계정 포함, 경유 계정 제외)', () => {
+  it('buy: this token vault ↓, paired vault ↑ (including new token accounts, excluding intermediate accounts)', () => {
     const a = analyzeSwap(tx([V(1000, 900), P(50, 60),
       { acc: k(), owner: router, mint, pre: 0, post: 0 },
       { acc: k(), owner: user, mint, post: 60 },
@@ -129,37 +129,37 @@ describe('analyzeSwap: 두 금고 움직임으로 분류', () => {
     expect(a.kind).toBe('buy');
     expect(Object.fromEntries(a.buys)).toEqual({ [user]: 60n, [user2]: 40n });
   });
-  it('sell: 이 토큰 금고 ↑ 짝 금고 ↓', () => {
+  it('sell: this token vault ↑, paired vault ↓', () => {
     const a = analyzeSwap(tx([V(900, 950), P(60, 55), { acc: k(), owner: user, mint, pre: 60, post: 10 }]), side);
     expect(a.kind).toBe('sell');
     expect(a.sells).toEqual([[user, 50n]]);
     expect(a.liquidityAdds).toEqual([]);
   });
-  it('add-liquidity: 두 금고 모두 ↑ → 매도가 아님', () => {
+  it('add-liquidity: both vaults ↑ → not a sell', () => {
     const a = analyzeSwap(tx([V(900, 950), P(60, 66), { acc: k(), owner: user, mint, pre: 60, post: 10 }]), side);
     expect(a.kind).toBe('add-liquidity');
     expect(a.sells).toEqual([]);
     expect(a.liquidityAdds).toEqual([[user, 50n]]);
   });
-  it('remove-liquidity: 두 금고 모두 ↓ → 매수가 아님', () => {
+  it('remove-liquidity: both vaults ↓ → not a buy', () => {
     const a = analyzeSwap(tx([V(950, 900), P(66, 60), { acc: k(), owner: user, mint, pre: 10, post: 60 }]), side);
     expect(a.kind).toBe('remove-liquidity');
     expect(a.buys).toEqual([]);
     expect(a.liquidityRemoves).toEqual([[user, 50n]]);
   });
-  it('other: 한쪽 금고만 움직임 (수수료 청구 등) → 매수·매도 아님', () => {
+  it('other: only one vault moves (fee claims, etc.) → neither buy nor sell', () => {
     const a = analyzeSwap(tx([V(1000, 990), { acc: k(), owner: user, mint, pre: 0, post: 10 }]), side);
     expect(a.kind).toBe('other');
     expect(a.buys).toEqual([]);
   });
-  it('none: 금고가 안 움직인 일반 전송', () => {
+  it('none: a plain transfer with no vault movement', () => {
     const a = analyzeSwap(tx([{ acc: k(), owner: user, mint, pre: 60, post: 10 }, { acc: k(), owner: user2, mint, pre: 0, post: 50 }]), side);
     expect(a.kind).toBe('none');
   });
 });
 
-describe('checkEarlyBuys 경계', () => {
-  /** DAMM v2 풀 하나가 있는 합성 체인 */
+describe('checkEarlyBuys boundaries', () => {
+  /** Synthetic chain with one DAMM v2 pool */
   function chain(opts: { sigPages: SignatureInfo[][]; activation?: number; blocks?: Record<number, number>; txs?: Record<string, TxRecord> }) {
     const mint = Keypair.generate().publicKey, pool = k(), vault = k(), pairVault = k(), pairMint = k(), auth = k();
     const mintData = Buffer.alloc(82); mintData.writeBigUInt64LE(1000n, 36); mintData.writeUInt8(1, 45);
@@ -173,7 +173,7 @@ describe('checkEarlyBuys 경계', () => {
     poolData.writeUInt8(1, 480); // activation_type = timestamp
     const vaultData = Buffer.alloc(165); mint.toBuffer().copy(vaultData, 0); new PublicKey(auth).toBuffer().copy(vaultData, 32);
     const blocks = opts.blocks ?? {};
-    // 체인을 만든 뒤 그 금고 주소로 만든 서명·트랜잭션을 넣을 수 있게 ctx 로 둠
+    // Kept in ctx so signatures and transactions built from the vault addresses can be added after building the chain
     const ctx = { sigPages: opts.sigPages, txs: opts.txs ?? {} };
     let page = 0;
     const r: ChainReader & HistoryReader = {
@@ -192,7 +192,7 @@ describe('checkEarlyBuys 경계', () => {
   }
   const sig = (i: number, t: number): SignatureInfo => ({ signature: `s${i}`, slot: i, blockTime: t, err: false });
 
-  it('거래 기록이 상한보다 길면 unverifiable', async () => {
+  it('unverifiable when the trade history is longer than the limit', async () => {
     const full = Array.from({ length: 1000 }, (_, i) => sig(i, 1000));
     const { mint, reader } = chain({ sigPages: [full, full] });
     const r = await checkEarlyBuys(mint, reader, { maxSignaturePages: 2, now });
@@ -201,7 +201,7 @@ describe('checkEarlyBuys 경계', () => {
     expect(guardrailViolations(r)).toEqual([]);
   });
 
-  it('activation 이 생성보다 이르면(0) 풀 생성 블록 기준, 읽지 못한 트랜잭션이 있으면 partial', async () => {
+  it('activation earlier than creation (0) → pool creation block basis; partial if some transactions could not be read', async () => {
     const { mint, reader } = chain({ sigPages: [[sig(3, 5030), sig(2, 5010), sig(1, 5000)]] });
     const r = await checkEarlyBuys(mint, reader, { now });
     expect(r.tradingStart).toBe(new Date(5000 * 1000).toISOString());
@@ -210,8 +210,8 @@ describe('checkEarlyBuys 경계', () => {
     expect(r.status).toBe('partial');
   });
 
-  it('activation 이 생성보다 늦으면 그 시각 이후 첫 블록이 "거래가 처음 열린 블록" — 그 블록 매수만 sameBlock', async () => {
-    // 생성 슬롯 10 (t=1000), 거래 시작 t=1100. 블록 시각: 11→1050, 13→1099, 14→1100(열린 블록), 16→1101
+  it('activation later than creation → the first block after that time is the "block where trading first opened"; only buys in that block count for sameBlock', async () => {
+    // creation slot 10 (t=1000), trading start t=1100. Block times: 11→1050, 13→1099, 14→1100 (opened block), 16→1101
     const blocks = { 10: 1000, 11: 1050, 13: 1099, 14: 1100, 16: 1101 };
     const run = async (buySlot: number, buyTime: number) => {
       const c = chain({ sigPages: [], activation: 1100, blocks });
