@@ -12,4 +12,5 @@ export {
   type DailyRate, type PoolTarget, type PriceSample, type RateGuards,
 } from './pricing.js';
 export { receiptSignerFromBytes, signReceipt, RECEIPT_HEADER, type Receipt, type ReceiptSigner } from './receipt.js';
+export { signRegistration, REGISTRATION_PATH, type RegistrationDocument, type RegistrationPayload } from './registration.js';
 export { memoryX402Ledger, ledgerClaim, SETTLE_UNKNOWN_EXPIRY_MS, type X402Ledger, type LedgerEntry, type Asset } from './x402.js';

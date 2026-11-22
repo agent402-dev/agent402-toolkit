@@ -7,12 +7,12 @@
     "source": "github",
     "subfolder": "packages/pay-mcp"
   },
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agent402-dev/pay-mcp",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "transport": {
         "type": "stdio"
       },
@@ -104,6 +104,48 @@
         {
           "name": "X402_CONFIRM_ABOVE_PREQ_ATOMIC",
           "description": "Ask a human at or above this PREQ amount (PREQ smallest units). Default off.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_REQUIRE_LOCK",
+          "description": "yes = pay only sellers whose registered on-chain lock meets the minimums (default off)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_REQUIRE_LOCK_ABOVE_USD",
+          "description": "Require a seller lock only for USDC payments at or above this amount (USD)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MIN_LOCK_DAYS",
+          "description": "The minimum must still be locked this many days from now (default 90)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MIN_LOCK_PREQ_ATOMIC",
+          "description": "Minimum PREQ locked by the seller, PREQ smallest units (1 PREQ = 1,000,000)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MIN_LOCK_USDC_ATOMIC",
+          "description": "Minimum USDC locked by the seller, USDC smallest units (1 USDC = 1,000,000)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MIN_LOCK_SOL_ATOMIC",
+          "description": "Minimum wrapped SOL locked by the seller, lamports (1 SOL = 1,000,000,000)",
           "isRequired": false,
           "format": "string",
           "isSecret": false

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createAgent, type ConfirmAnswer } from './agent.js';
 import type { History } from './history.js';
+import type { AccountsFetcher } from './locks.js';
 import { historyToCsv } from './csv.js';
 import { nearLimits, tokenEnv, type PayPolicy, type TokenSymbol } from './policy.js';
 import { formatUnits } from './units.js';
@@ -14,6 +15,8 @@ export interface PayServerDeps {
   history: History;
   fetch: typeof fetch;
   now?: () => Date;
+  /** Read-only account reader for seller lock checks */
+  accounts?: AccountsFetcher;
 }
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -50,7 +53,7 @@ function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown>
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.3.0' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.4.0' });
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!server.server.getClientCapabilities()?.elicitation) return 'unsupported';
     const r = await server.server.elicitInput({
@@ -100,6 +103,9 @@ export function createPayServer(d: PayServerDeps): McpServer {
         maxUsdPerPayment: d.policy.maxUsdPerPayment, maxUsdPerDay: d.policy.maxUsdPerDay, maxPaymentsPerDay: d.policy.maxPaymentsPerDay,
         confirmAboveUsd: d.policy.confirmAboveUsd,
         maxUsdPerRecipientPerDay: d.policy.maxUsdPerRecipientPerDay,
+        sellerLock: d.policy.lock.always || d.policy.lock.aboveUsd !== null
+          ? { required: d.policy.lock.always ? 'always' : `USDC payments of ${d.policy.lock.aboveUsd} USD or more`, minDays: d.policy.lock.minDays, minimums: d.policy.lock.min }
+          : 'off',
         maxPreqPerRecipientPerDayAtomic: d.policy.maxPreqPerRecipientPerDay,
         ...tokenLimitFields(d.policy, 'PREQ'),
         ...(showA402 ? tokenLimitFields(d.policy, 'A402') : {}),

@@ -2,10 +2,10 @@
 export const DECIMALS = 6;
 
 /** Base-unit integer → "140,000 PREQ" */
-export function formatUnits(atomic: string | bigint, symbol: string): string {
-  const s = atomic.toString().padStart(DECIMALS + 1, '0');
-  const int = s.slice(0, -DECIMALS).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const frac = s.slice(-DECIMALS).replace(/0+$/, '');
+export function formatUnits(atomic: string | bigint, symbol: string, decimals = DECIMALS): string {
+  const s = atomic.toString().padStart(decimals + 1, '0');
+  const int = s.slice(0, -decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const frac = s.slice(-decimals).replace(/0+$/, '');
   return `${int}${frac ? '.' + frac : ''} ${symbol}`;
 }
 

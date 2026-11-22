@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { historyToCsv } from './csv.js';
 import { jsonlHistory } from './history.js';
+import { rpcAccounts } from './locks.js';
 import { initWallet } from './init.js';
 import { policyFromEnv } from './policy.js';
 import { createPayServer } from './tools.js';
@@ -69,5 +70,6 @@ if (cmd === 'init') {
     })
     : null;
   const history = jsonlHistory(process.env.X402_HISTORY_PATH ?? DEFAULT_HISTORY, () => policy.mints);
-  await createPayServer({ policy, wallet, history, fetch }).connect(new StdioServerTransport());
+  const rpc = process.env.X402_RPC_URL ?? (policy.network.includes('EtWTRAB') ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com');
+  await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc) }).connect(new StdioServerTransport());
 }

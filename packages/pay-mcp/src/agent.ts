@@ -4,7 +4,9 @@
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from '@x402/core/http';
 import type { PaymentRequired, PaymentRequirements } from '@x402/core/types';
 import type { History, HistoryEntry, PaymentResult } from './history.js';
-import { A402_DEPRECATION_WARNING, choose, domainCheck, evaluate, nearLimits, type Evaluated, type PayPolicy } from './policy.js';
+import { checkCommitment, type CommitmentResult } from './commitment.js';
+import type { AccountsFetcher } from './locks.js';
+import { A402_DEPRECATION_WARNING, choose, domainCheck, evaluate, nearLimits, needsLock, type Evaluated, type PayPolicy } from './policy.js';
 import { checkReceipt, RECEIPT_HEADER } from './receipt.js';
 import { withSmallest } from './units.js';
 import type { Wallet } from './wallet.js';
@@ -20,6 +22,8 @@ export interface AgentDeps {
   confirm: (message: string) => Promise<ConfirmAnswer>;
   now?: () => Date;
   maxRedirects?: number;
+  /** Read-only account reader for seller lock checks (getMultipleAccounts) */
+  accounts?: AccountsFetcher;
 }
 
 export interface RequestSpec { url: string; method?: string; headers?: Record<string, string>; body?: string }
@@ -38,6 +42,8 @@ export interface FetchOutcome {
   options?: { asset: string | null; mint: string; amount: string; payTo: string; ok: boolean; reasons: string[] }[];
   /** Warnings (e.g. the deprecation notice when trying to pay with A402 (v1)) */
   warnings?: string[];
+  /** Seller lock check, when the policy required one */
+  lock?: CommitmentResult['facts'] & { ok: boolean };
   /** Seller's signed receipt, if the server sent one (X-Agent402-Receipt) */
   receipt?: { signer: string | null; verified: boolean; reasons: string[] };
 }
@@ -50,6 +56,16 @@ export function createAgent(d: AgentDeps) {
   const now = d.now ?? (() => new Date());
   const quotes = new Map<string, Pinned>();
   const QUOTE_TTL_MS = 5 * 60_000;
+  const lockCache = new Map<string, { at: number; r: CommitmentResult }>();
+  const LOCK_TTL_MS = 10 * 60_000;
+  async function commitmentFor(origin: string, payTo: string): Promise<CommitmentResult> {
+    const key = `${origin}|${payTo}`;
+    const hit = lockCache.get(key);
+    if (hit && now().getTime() - hit.at < LOCK_TTL_MS) return hit.r;
+    const r = await checkCommitment({ origin, payTo, policy: d.policy, fetch: d.fetch, accounts: d.accounts, now: now() });
+    lockCache.set(key, { at: now().getTime(), r });
+    return r;
+  }
 
   /** Follows redirects itself and checks the domain at each step */
   async function send(spec: RequestSpec, extraHeaders: Record<string, string> = {}, follow = true): Promise<{ res: Response; finalUrl: string } | { refused: string }> {
@@ -78,7 +94,7 @@ export function createAgent(d: AgentDeps) {
   type Assessment =
     | { kind: 'refused'; refused: string }
     | { kind: 'not_required'; res: Response; finalUrl: string }
-    | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; finalUrl: string };
+    | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; finalUrl: string; lock?: FetchOutcome['lock'] };
 
   /** Receives a 402 and evaluates it with the policy (no signing) */
   async function assess(spec: RequestSpec): Promise<Assessment> {
@@ -96,7 +112,15 @@ export function createAgent(d: AgentDeps) {
     }
     const usage = d.history.today(now());
     const evs = pr.accepts.map((r) => evaluate(d.policy, r, usage, d.history.recipientToday(r.payTo, now())));
-    return { kind: '402', pr, evs, chosen: choose(d.policy, evs), finalUrl };
+    // Seller lock check, only for options that need it and passed every other rule (before signing)
+    let lock: FetchOutcome['lock'];
+    for (const e of evs) {
+      if (!e.ok || !needsLock(d.policy, e)) continue;
+      const c = await commitmentFor(new URL(finalUrl).origin, e.requirement.payTo);
+      lock = { ok: c.ok, ...c.facts };
+      if (!c.ok) { e.ok = false; e.reasons.push(...c.reasons); }
+    }
+    return { kind: '402', pr, evs, chosen: choose(d.policy, evs), finalUrl, ...(lock ? { lock } : {}) };
   }
 
   async function quote(spec: RequestSpec): Promise<FetchOutcome & { quoteId?: string }> {
@@ -104,11 +128,11 @@ export function createAgent(d: AgentDeps) {
     if (a.kind === 'refused') return { result: 'refused', reasons: [a.refused] };
     if (a.kind === 'not_required') return { result: 'not_required', httpStatus: a.res.status };
     const options = a.evs.map(describe);
-    if (!a.chosen) return { result: 'refused', reasons: ['no_option_passes_policy'], options };
+    if (!a.chosen) return { result: 'refused', reasons: ['no_option_passes_policy'], options, ...(a.lock ? { lock: a.lock } : {}) };
     const quoteId = crypto.randomUUID();
     const r = a.chosen.requirement;
     quotes.set(quoteId, { url: spec.url, asset: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, at: now().getTime() });
-    return { result: 'not_required', quoteId, options, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [] };
+    return { result: 'not_required', quoteId, options, ...(a.lock ? { lock: a.lock } : {}), payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [] };
   }
 
   async function payAndFetch(spec: RequestSpec & { quoteId?: string }): Promise<FetchOutcome> {
@@ -120,7 +144,7 @@ export function createAgent(d: AgentDeps) {
     if (!a.chosen) {
       const reasons = ['no_option_passes_policy', ...a.evs.flatMap((e) => e.reasons)];
       record({ ...base, result: 'refused', reasons, signed: false });
-      return { result: 'refused', reasons, options };
+      return { result: 'refused', reasons, options, ...(a.lock ? { lock: a.lock } : {}) };
     }
     const r: PaymentRequirements = a.chosen.requirement;
     const pay = { network: r.network, asset: a.chosen.asset ?? undefined, mint: r.asset, amount: r.amount, payTo: r.payTo };
@@ -162,7 +186,7 @@ export function createAgent(d: AgentDeps) {
       const receipt = rc ? { signer: rc.signer, verified: rc.verified, reasons: rc.reasons } : undefined;
       record({ ...base, ...pay, result: 'paid', httpStatus: res.status, settlementTx: tx, signed: true, ...(rc ? { receipt: { ...receipt!, token: rc.token } } : {}) });
       const near = nearLimits(d.policy, d.history.today(now()));
-      return { result: 'paid', httpStatus: res.status, body, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, settlementTx: tx }, ...(receipt ? { receipt } : {}), ...(near.length ? { warnings: near } : {}) };
+      return { result: 'paid', httpStatus: res.status, body, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, settlementTx: tx }, ...(a.lock ? { lock: a.lock } : {}), ...(receipt ? { receipt } : {}), ...(near.length ? { warnings: near } : {}) };
     }
     const reason = typeof body === 'object' && body && 'reason' in body ? String((body as { reason: unknown }).reason) : `http_${res.status}`;
     const result: PaymentResult = res.status === 402 ? 'rejected_by_server' : res.headers.get('x-payment-status') === 'not-settled' || res.status === 409 ? 'failed' : 'unknown';

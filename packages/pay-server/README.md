@@ -90,6 +90,25 @@ const gate = createPaymentGate({ /* ... */ receipts: { signer } });
 - Publish the receipt key's public key (`signer.publicKey`) so buyers can tell that receipts come from you.
 - If signing fails, the paid resource is still delivered, without a receipt.
 
+## Seller registration and locks (optional)
+Buyers using `@agent402-dev/pay-mcp` can require sellers to have an on-chain lock. To be eligible, lock tokens (PREQ, USDC or wrapped SOL) with [Jupiter Lock](https://lock.jup.ag/) to your own address with **no cancel and no recipient-change permission**, then serve a signed registration at `https://<your host>/.well-known/agent402.json`:
+
+```ts
+import { receiptSignerFromBytes, signRegistration } from '@agent402-dev/pay-server';
+
+const lockKey = await receiptSignerFromBytes(lockRecipientKeyBytes); // offline; the key that receives the lock
+const doc = await signRegistration({ host: 'api.example.com', payTo: ['YOUR_RECEIVING_ADDRESS'], locks: [{ protocol: 'jupiter-lock', account: 'LOCK_ESCROW_ADDRESS' }] }, [lockKey]);
+// Serve JSON.stringify(doc) at /.well-known/agent402.json
+```
+Or from the command line (keys are read on your computer and never sent):
+```bash
+npx -y @agent402-dev/pay-server register --host api.example.com --pay-to <receiving address> \
+  --lock jupiter-lock:<lock escrow address> --key <lock recipient key file> --out agent402.json
+```
+- Sign offline and serve only the resulting document. The gate never needs the lock key or the receiving wallet's key.
+- Use a lock received by a regular key. A lock received by a multisig vault cannot sign the registration yet.
+- The format is the same for every asset. A lock is a commitment signal only; nothing can be confiscated.
+
 ## Data
 - No telemetry and no analytics.
 - It contacts only the facilitators you configure (`/supported`, `/verify`, `/settle`) and the RPC you pass to `rpcChain` (settlement checks, receiving token accounts, pool prices for the PREQ rate).

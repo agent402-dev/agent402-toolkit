@@ -57,6 +57,8 @@ export interface PayPolicy {
   maxUsdPerRecipientPerDay: number | null;
   /** Daily PREQ cap per recipient (smallest units). null = only the overall PREQ daily cap applies */
   maxPreqPerRecipientPerDay: bigint | null;
+  /** Seller lock (commitment) requirement: 'always', USDC payments at or above aboveUsd, or off */
+  lock: LockPolicy;
   /** USDC payments at or above this amount (USD) need human confirmation. null = never ask */
   confirmAboveUsd: number | null;
   /** Per-token limits (base units). No defaults: both per-payment and daily must be set to pay in that token */
@@ -76,6 +78,15 @@ export interface PolicyEnv {
   X402_MAX_USD_PER_DAY?: string;
   X402_MAX_USD_PER_RECIPIENT_PER_DAY?: string;
   X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC?: string;
+  /** yes = pay only sellers whose registered lock meets the minimums */
+  X402_REQUIRE_LOCK?: string;
+  /** Require the lock only for USDC payments at or above this amount (USD) */
+  X402_REQUIRE_LOCK_ABOVE_USD?: string;
+  /** The lock must still hold the minimum this many days from now (default 90) */
+  X402_MIN_LOCK_DAYS?: string;
+  X402_MIN_LOCK_PREQ_ATOMIC?: string;
+  X402_MIN_LOCK_USDC_ATOMIC?: string;
+  X402_MIN_LOCK_SOL_ATOMIC?: string;
   X402_CONFIRM_ABOVE_USD?: string;
   X402_MAX_PREQ_ATOMIC?: string;
   X402_MAX_PREQ_PER_DAY_ATOMIC?: string;
@@ -133,6 +144,7 @@ export function policyFromEnv(env: PolicyEnv): PayPolicy {
     maxUsdPerDay: num(env.X402_MAX_USD_PER_DAY, 1),
     maxUsdPerRecipientPerDay: Number(env.X402_MAX_USD_PER_RECIPIENT_PER_DAY) > 0 ? Number(env.X402_MAX_USD_PER_RECIPIENT_PER_DAY) : null,
     maxPreqPerRecipientPerDay: atomic(env.X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC),
+    lock: lockPolicyFromEnv(env),
     confirmAboveUsd: env.X402_CONFIRM_ABOVE_USD ? Number(env.X402_CONFIRM_ABOVE_USD) : null,
     tokenLimits: { PREQ: limitsFor('PREQ'), A402: limitsFor('A402') },
     prefer,
@@ -160,6 +172,38 @@ export interface DayUsage {
   preq: bigint;
   /** Total A402 (v1) signed today (base units) */
   a402: bigint;
+}
+
+/** Lock assets are read the same way (asset-neutral): a seller passes if any configured asset meets its minimum */
+export type LockAsset = 'PREQ' | 'USDC' | 'SOL';
+export interface LockPolicy {
+  always: boolean;
+  aboveUsd: number | null;
+  minDays: number;
+  /** Minimum still locked at now + minDays, per asset (smallest units). Only assets listed here count */
+  min: Partial<Record<LockAsset, bigint>>;
+}
+export const WSOL_MINT = 'So11111111111111111111111111111111111111112';
+
+function lockPolicyFromEnv(env: PolicyEnv): LockPolicy {
+  const always = env.X402_REQUIRE_LOCK === 'yes';
+  const aboveUsd = Number(env.X402_REQUIRE_LOCK_ABOVE_USD) > 0 ? Number(env.X402_REQUIRE_LOCK_ABOVE_USD) : null;
+  const min: Partial<Record<LockAsset, bigint>> = {};
+  for (const [a, v] of [['PREQ', env.X402_MIN_LOCK_PREQ_ATOMIC], ['USDC', env.X402_MIN_LOCK_USDC_ATOMIC], ['SOL', env.X402_MIN_LOCK_SOL_ATOMIC]] as const) {
+    const x = atomic(v);
+    if (x !== null) min[a] = x;
+  }
+  if ((always || aboveUsd !== null) && !Object.keys(min).length) {
+    throw new Error('Lock requirement is on but no minimum is set: set at least one of X402_MIN_LOCK_PREQ_ATOMIC, X402_MIN_LOCK_USDC_ATOMIC, X402_MIN_LOCK_SOL_ATOMIC (smallest units).');
+  }
+  const days = Number(env.X402_MIN_LOCK_DAYS);
+  return { always, aboveUsd, minDays: Number.isFinite(days) && days >= 0 && env.X402_MIN_LOCK_DAYS ? days : 90, min };
+}
+
+/** Whether this payment option needs a seller lock check */
+export function needsLock(p: PayPolicy, e: { asset: AssetSymbol | null; usd: number | null }): boolean {
+  if (p.lock.always) return true;
+  return p.lock.aboveUsd !== null && e.asset === 'USDC' && e.usd !== null && e.usd >= p.lock.aboveUsd;
 }
 
 /** Today's signed payments to one recipient (payTo) */

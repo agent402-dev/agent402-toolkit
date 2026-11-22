@@ -2,7 +2,7 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Keypair } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import { describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -18,6 +18,8 @@ import { initWallet } from '@agent402-dev/pay-mcp/init';
 import { nearLimits } from '@agent402-dev/pay-mcp/policy';
 import { RECEIPT_HEADER } from '@agent402-dev/pay-mcp/receipt';
 import { receiptSignerFromBytes, sha256Hex, signReceipt } from '@agent402-dev/pay-server/receipt';
+import { signRegistration } from '@agent402-dev/pay-server/registration';
+import { decodeStreamflow, JUPITER_LOCK_PROGRAM, readLock, STREAMFLOW_PROGRAM, streamflowLockedAt, streamflowNotFixed, type AccountsFetcher } from '@agent402-dev/pay-mcp/locks';
 import { formatUnits, withSmallest } from '@agent402-dev/pay-mcp/units';
 import type { Wallet } from '@agent402-dev/pay-mcp/wallet';
 
@@ -510,5 +512,148 @@ describe('seller receipts in pay-mcp', () => {
     const t = agentWith(BASE, { [`${HOST}/paid`]: (r) => (r.headers.get('payment-signature') ? paidOk() : r402([req()])) });
     const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
     expect(r.receipt).toBeUndefined();
+  });
+});
+
+describe('seller lock requirement (asset-neutral registration + on-chain Jupiter Lock)', () => {
+  const DAY = 86_400;
+  const nowSec = () => Math.floor(Date.now() / 1000);
+  function lockBytes(o: { recipient: string; mint: string; cancel?: number; update?: number; cliffInDays: number; amount: bigint }): Uint8Array {
+    const b = Buffer.alloc(296);
+    Buffer.from([244, 119, 183, 4, 73, 116, 135, 195]).copy(b, 0);
+    Buffer.from(bs58(o.recipient)).copy(b, 8);
+    Buffer.from(bs58(o.mint)).copy(b, 40);
+    b.writeUInt8(o.update ?? 0, 137); b.writeUInt8(o.cancel ?? 0, 138); b.writeUInt8(1, 139);
+    b.writeBigUInt64LE(BigInt(nowSec() + o.cliffInDays * DAY), 144); // cliff_time
+    b.writeBigUInt64LE(BigInt(30 * DAY), 152); // frequency
+    b.writeBigUInt64LE(o.amount, 160); // cliff_unlock_amount (all released at the cliff)
+    return b;
+  }
+  const bs58 = (a: string) => new PublicKey(a).toBytes();
+  const LOCK = pk();
+  const preqEnv = { ...BASE, X402_PREQ_MINT: PREQ, X402_REQUIRE_LOCK: 'yes', X402_MIN_LOCK_PREQ_ATOMIC: '5000000' };
+  async function setup(o: { env?: PolicyEnv; lock?: Partial<Parameters<typeof lockBytes>[0]>; signWith?: Keypair; noDoc?: boolean } = {}) {
+    const seller = Keypair.generate();
+    const data = lockBytes({ recipient: seller.publicKey.toBase58(), mint: PREQ, cliffInDays: 200, amount: 10_000_000n, ...o.lock });
+    const accounts: AccountsFetcher = async (addrs) => addrs.map((a) => (a === LOCK ? { owner: JUPITER_LOCK_PROGRAM, data } : null));
+    const signer = await receiptSignerFromBytes((o.signWith ?? seller).secretKey);
+    const doc = await signRegistration({ host: HOST, payTo: [TRUSTED], locks: [{ protocol: 'jupiter-lock', account: LOCK }] }, [signer]);
+    const dir = mkdtempSync(join(tmpdir(), 'lock-'));
+    const policy = policyFromEnv(o.env ?? preqEnv);
+    const history = jsonlHistory(join(dir, 'h.jsonl'), () => policy.mints);
+    const wallet = fakeWallet();
+    const srv = server({
+      [`${HOST}/paid`]: (r) => (r.headers.get('payment-signature') ? paidOk() : r402([req()])),
+      ...(o.noDoc ? {} : { [`${HOST}/.well-known/agent402.json`]: () => Response.json(doc) }),
+    });
+    const agent = createAgent({ policy, wallet, history, fetch: srv.f, confirm: async () => 'accept', accounts });
+    return { agent, wallet, srv };
+  }
+  it('irrevocable lock signed by its recipient, enough still locked 90 days from now → paid, facts shown', async () => {
+    const t = await setup();
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('paid');
+    expect(r.lock).toMatchObject({ ok: true, registration: 'ok', totalsAtDeadline: { PREQ: '10 PREQ' }, locks: [{ account: LOCK, asset: 'PREQ', counted: true, lockedAtDeadline: '10 PREQ' }] });
+  });
+  it('not enough locked → refused before signing', async () => {
+    const t = await setup({ env: { ...preqEnv, X402_MIN_LOCK_PREQ_ATOMIC: '20000000' } });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('refused');
+    expect(r.reasons!.join(' ')).toContain('lock_requirement_not_met');
+    expect(r.reasons!.join(' ')).toContain('10 PREQ of 20 PREQ');
+    expect(t.wallet.n).toBe(0);
+  });
+  it('lock released before the deadline (cliff in 30 days, minimum 90 days) → refused', async () => {
+    const t = await setup({ lock: { cliffInDays: 30 } });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('refused');
+    expect(r.lock!.locks[0].lockedAtDeadline).toBe('0 PREQ');
+  });
+  it('revocable lock does not count', async () => {
+    const t = await setup({ lock: { cancel: 1 } });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('refused');
+    expect(r.lock!.locks[0]).toMatchObject({ counted: false, reason: expect.stringContaining('revocable_lock: cancel=creator') });
+  });
+  it("someone else's lock (registration not signed by the lock's recipient) does not count", async () => {
+    const t = await setup({ signWith: Keypair.generate() });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('refused');
+    expect(r.lock!.locks[0].reason).toContain('recipient_did_not_sign');
+  });
+  it('no registration document → refused, 0 signatures', async () => {
+    const t = await setup({ noDoc: true });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.reasons!.join(' ')).toContain('lock_registration_missing');
+    expect(t.wallet.n).toBe(0);
+  });
+  it('lock required only above an amount: a 0.02 USDC payment below it does not even fetch the registration', async () => {
+    const t = await setup({ env: { ...BASE, X402_PREQ_MINT: PREQ, X402_REQUIRE_LOCK_ABOVE_USD: '0.05', X402_MIN_LOCK_PREQ_ATOMIC: '5000000' } });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('paid');
+    expect(r.lock).toBeUndefined();
+    expect(t.srv.seen.requests.some((u) => u.includes('.well-known'))).toBe(false);
+  });
+  it('turning the lock requirement on without any minimum stops at start with a clear error', () => {
+    expect(() => policyFromEnv({ ...BASE, X402_REQUIRE_LOCK: 'yes' })).toThrow(/X402_MIN_LOCK_PREQ_ATOMIC/);
+    expect(policyFromEnv(BASE).lock).toEqual({ always: false, aboveUsd: null, minDays: 90, min: {} });
+  });
+});
+
+describe('Streamflow locks (same registration, asset-neutral)', () => {
+  const DAY = 86_400n;
+  const T = 1_800_000_000n;
+  function stream(o: { contract: PublicKey; recipient: PublicKey; mint: string; cancelableBySender?: boolean; canUpdateRate?: boolean; escrow?: PublicKey }): Uint8Array {
+    const b = Buffer.alloc(819);
+    o.recipient.toBuffer().copy(b, 113);
+    new PublicKey(o.mint).toBuffer().copy(b, 177);
+    const escrow = o.escrow ?? PublicKey.findProgramAddressSync([Buffer.from('strm'), o.contract.toBuffer()], new PublicKey(STREAMFLOW_PROGRAM))[0];
+    escrow.toBuffer().copy(b, 209);
+    b.writeBigUInt64LE(T, 409); // start
+    b.writeBigUInt64LE(150_000_000n, 417); // net deposited
+    b.writeBigUInt64LE(30n * DAY, 425); // period
+    b.writeBigUInt64LE(12_500_000n, 433); // per period
+    b.writeBigUInt64LE(T + 365n * DAY, 441); // cliff
+    b.writeBigUInt64LE(0n, 449); // cliff amount
+    b.writeUInt8(o.cancelableBySender ? 1 : 0, 457);
+    b.writeUInt8(o.canUpdateRate ? 1 : 0, 540);
+    return b;
+  }
+  it('decodes the fields at the check-engine offsets and computes what is still locked', () => {
+    const contract = Keypair.generate().publicKey;
+    const s = decodeStreamflow(stream({ contract, recipient: contract, mint: PREQ }))!;
+    expect(s).toMatchObject({ mint: PREQ, netAmountDeposited: 150_000_000n, period: 30n * DAY, amountPerPeriod: 12_500_000n, cliff: T + 365n * DAY });
+    expect(streamflowNotFixed(s)).toBeNull();
+    expect(streamflowLockedAt(s, T)).toBe(150_000_000n);
+    expect(streamflowLockedAt(s, T + 365n * DAY + 30n * DAY)).toBe(137_500_000n);
+    expect(streamflowLockedAt(s, T + 365n * DAY + 360n * DAY)).toBe(0n);
+    expect(streamflowNotFixed(decodeStreamflow(stream({ contract, recipient: contract, mint: PREQ, cancelableBySender: true, canUpdateRate: true }))!)).toBe('cancelable by sender, rate can be updated');
+  });
+  it('readLock rejects an account whose escrow is not the Streamflow PDA of that contract', async () => {
+    const contract = Keypair.generate().publicKey;
+    const data = stream({ contract, recipient: contract, mint: PREQ, escrow: Keypair.generate().publicKey });
+    expect(await readLock('streamflow', contract.toBase58(), { owner: STREAMFLOW_PROGRAM, data })).toBe('streamflow_escrow_mismatch');
+    expect(await readLock('streamflow', contract.toBase58(), { owner: JUPITER_LOCK_PROGRAM, data })).toBe('not_a_streamflow_account');
+  });
+  it('end to end: a fixed Streamflow lock signed by its recipient satisfies the PREQ minimum', async () => {
+    const seller = Keypair.generate();
+    const contract = Keypair.generate().publicKey;
+    const data = stream({ contract, recipient: seller.publicKey, mint: PREQ });
+    // Put the cliff 200 days from now so the whole deposit is still locked at the 90-day deadline
+    const cliffLater = BigInt(Math.floor(Date.now() / 1000)) + 200n * DAY;
+    (data as Buffer).writeBigUInt64LE(cliffLater, 441);
+    const accounts: AccountsFetcher = async (addrs) => addrs.map((a) => (a === contract.toBase58() ? { owner: STREAMFLOW_PROGRAM, data } : null));
+    const doc = await signRegistration({ host: HOST, payTo: [TRUSTED], locks: [{ protocol: 'streamflow', account: contract.toBase58() }, { protocol: 'streamflow', account: contract.toBase58() }] }, [await receiptSignerFromBytes(seller.secretKey)]);
+    const policy = policyFromEnv({ ...BASE, X402_PREQ_MINT: PREQ, X402_REQUIRE_LOCK: 'yes', X402_MIN_LOCK_PREQ_ATOMIC: '100000000' });
+    const srv = server({
+      [`${HOST}/paid`]: (r) => (r.headers.get('payment-signature') ? paidOk() : r402([req()])),
+      [`${HOST}/.well-known/agent402.json`]: () => Response.json(doc),
+    });
+    const agent = createAgent({ policy, wallet: fakeWallet(), history: jsonlHistory(join(mkdtempSync(join(tmpdir(), 'sf-')), 'h.jsonl'), () => policy.mints), fetch: srv.f, confirm: async () => 'accept', accounts });
+    const r = await agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.result).toBe('paid');
+    expect(r.lock).toMatchObject({ ok: true, totalsAtDeadline: { PREQ: '150 PREQ' } });
+    // The same lock listed twice is counted once
+    expect(r.lock!.locks[1]).toMatchObject({ counted: false, reason: 'duplicate' });
   });
 });

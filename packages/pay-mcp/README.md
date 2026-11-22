@@ -43,6 +43,23 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 
 Other settings: `X402_KEYPAIR_PATH` (wallet key file, Solana CLI JSON; without it nothing is paid), `X402_NETWORK` (`mainnet` | `devnet`), `X402_RPC_URL`, `X402_PAY_WITH` (`USDC` | `PREQ`), `X402_HISTORY_PATH` (default `~/.agent402/payments.jsonl`).
 
+## Require a seller lock (optional)
+For larger payments you can pay only sellers that have locked funds on-chain for a fixed time. A lock is a commitment signal: nobody can confiscate it, so it does not cover losses.
+
+| Rule | Variable | Default |
+|---|---|---|
+| Require a lock for every payment | `X402_REQUIRE_LOCK=yes` | off |
+| Require a lock only for USDC payments at or above this amount (USD) | `X402_REQUIRE_LOCK_ABOVE_USD` | off |
+| The minimum must still be locked this many days from now | `X402_MIN_LOCK_DAYS` | `90` |
+| Minimum PREQ locked (PREQ smallest units; 1 PREQ = 1,000,000) | `X402_MIN_LOCK_PREQ_ATOMIC` | not set |
+| Minimum USDC locked (USDC smallest units; 1 USDC = 1,000,000) | `X402_MIN_LOCK_USDC_ATOMIC` | not set |
+| Minimum SOL locked as wrapped SOL (smallest units, lamports; 1 SOL = 1,000,000,000) | `X402_MIN_LOCK_SOL_ATOMIC` | not set |
+
+- Assets are treated the same way: the seller passes if any asset you set meets its minimum. Turning the requirement on without any minimum stops the server at start.
+- Before signing, pay-mcp reads `https://<seller host>/.well-known/agent402.json` (made with `signRegistration` from `@agent402-dev/pay-server`), checks the signatures, then reads each listed Jupiter Lock escrow on-chain (read-only, through `X402_RPC_URL` or the public RPC).
+- A lock counts only if nobody can cancel it or change its recipient, it was not cancelled, and its recipient key signed the seller's registration.
+- Results show the facts: each lock, how much is locked now and at the deadline, and why a lock did not count.
+
 ## Create a payment wallet
 ```bash
 npx -y @agent402-dev/pay-mcp init

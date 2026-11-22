@@ -13,6 +13,8 @@ import { clearSupportedCache, presentSignatures } from '@agent402-dev/pay-server
 import { ataOf, SPL_TOKEN, TOKEN_2022 } from '@agent402-dev/pay-server/chain';
 import { receiptSignerFromBytes, RECEIPT_HEADER } from '@agent402-dev/pay-server';
 import { checkReceipt } from '@agent402-dev/pay-mcp/receipt';
+import { buildRegistration } from '@agent402-dev/pay-server/register';
+import { verifyRegistration } from '@agent402-dev/pay-mcp/registration';
 
 const pk = () => Keypair.generate().publicKey.toBase58();
 const PAY_TO = pk();
@@ -371,5 +373,39 @@ describe('signed receipts (optional)', () => {
     const a = Keypair.generate().secretKey;
     const b = Keypair.generate().secretKey;
     await expect(receiptSignerFromBytes(Uint8Array.from([...a.slice(0, 32), ...b.slice(32)]))).rejects.toThrow(/does not match/);
+  });
+});
+
+describe('register command (seller registration from key files)', () => {
+  const kp = Keypair.generate();
+  const keyFile = JSON.stringify(Array.from(kp.secretKey));
+  const LOCK = pk();
+  const read = () => keyFile;
+  const NOW = new Date('2026-11-22T00:00:00Z');
+  it('signs host, receiving addresses and locks with the lock recipient key; pay-mcp verifies it', async () => {
+    const doc = await buildRegistration(['--host', 'API.Example.com', '--pay-to', PAY_TO, '--lock', `jupiter-lock:${LOCK}`, '--key', 'k.json', '--expires-days', '365'], NOW, read);
+    const v = await verifyRegistration(doc, 'api.example.com', NOW);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.payload).toMatchObject({ host: 'api.example.com', payTo: [PAY_TO], locks: [{ protocol: 'jupiter-lock', account: LOCK }], expiresAt: '2027-11-22T00:00:00.000Z' });
+    expect([...v.signers]).toEqual([kp.publicKey.toBase58()]);
+    expect(JSON.stringify(doc)).not.toContain(keyFile);
+    expect(await verifyRegistration(doc, 'other.example.com', NOW)).toMatchObject({ ok: false, reason: expect.stringContaining('host_mismatch') });
+    expect(await verifyRegistration(doc, 'api.example.com', new Date('2028-01-01T00:00:00Z'))).toMatchObject({ ok: false, reason: 'registration_expired' });
+  });
+  it('refuses incomplete or malformed input', async () => {
+    await expect(buildRegistration(['--pay-to', PAY_TO], NOW, read)).rejects.toThrow(/--host/);
+    await expect(buildRegistration(['--host', 'https://api.example.com/x', '--pay-to', PAY_TO], NOW, read)).rejects.toThrow(/--host/);
+    await expect(buildRegistration(['--host', 'api.example.com'], NOW, read)).rejects.toThrow(/--pay-to/);
+    await expect(buildRegistration(['--host', 'api.example.com', '--pay-to', PAY_TO, '--lock', `jupiter-lock:${LOCK}`], NOW, read)).rejects.toThrow(/--key is required/);
+    await expect(buildRegistration(['--host', 'api.example.com', '--pay-to', PAY_TO, '--lock', `other:${LOCK}`, '--key', 'k'], NOW, read)).rejects.toThrow(/jupiter-lock:<account> or streamflow/);
+  });
+  it('a tampered payload no longer verifies', async () => {
+    const doc = await buildRegistration(['--host', 'api.example.com', '--pay-to', PAY_TO, '--lock', `streamflow:${LOCK}`, '--key', 'k'], NOW, read);
+    const p = JSON.parse(Buffer.from(doc.payload, 'base64url').toString());
+    p.payTo = [pk()];
+    const tampered = { ...doc, payload: Buffer.from(JSON.stringify(p)).toString('base64url') };
+    const v = await verifyRegistration(tampered, 'api.example.com', NOW);
+    expect(v.ok && v.signers.size).toBe(0);
   });
 });
