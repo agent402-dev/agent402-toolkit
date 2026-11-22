@@ -20,6 +20,8 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 ## Agent402 Bond (Solana program, beta)
 A performance bond for one deal: the seller locks a bond, the buyer may lock a deposit, and the outcome follows only the parties' signatures and the Solana clock. Program `9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK` on mainnet, with no upgrade authority. Source, tests and how to check the deployed code: [`programs/`](programs). Terms: [docs/bond/TERMS.md](docs/bond/TERMS.md). Internal review (not an independent audit): [docs/bond/INTERNAL-REVIEW.md](docs/bond/INTERNAL-REVIEW.md).
 
+Example of two agents running a bonded job (seller HTTP service, buyer agent, local demo): [`packages/bond-client/examples/job`](packages/bond-client/examples/job).
+
 ## What this toolkit does not do
 - It **does not operate a facilitator.** Payment verification and settlement are done by external x402 facilitators (for example PayAI).
 - It **does not hold funds.** Payments go from the buyer's wallet directly to the seller's receiving address. The Bond program's deal vaults are controlled only by the program's rules; no Agent402 key can move them.

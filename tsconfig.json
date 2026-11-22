@@ -17,6 +17,7 @@
     "packages/*/scripts",
     "packages/*/test",
     "packages/pay-server/examples/node-server",
+    "packages/bond-client/examples/job",
     "test"
   ]
 }
