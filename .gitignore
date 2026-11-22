@@ -3,5 +3,7 @@ node_modules/
 keys/
 out/
 dist/
+target/
+*.so
 *.log
 .a402-export

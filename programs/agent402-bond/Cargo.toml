@@ -1,0 +1,30 @@
+[package]
+name = "agent402-bond"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Agent402 performance bond: deadline-based, keyless, capped escrow of seller bonds and buyer deposits."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "agent402_bond"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+# Allows any classic SPL mint, for local tests and devnet only. Never in a mainnet build.
+test-mints = []
+# Devnet build: devnet operator key and Circle devnet USDC. Never on mainnet.
+devnet = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+custom-heap = []
+custom-panic = []
+anchor-debug = []
+
+[dependencies]
+anchor-lang = "1.2.2"
+anchor-spl = "1.2.2"
+agent402-bond-core = { path = "../agent402-bond-core" }
