@@ -1,5 +1,7 @@
 # Agent402 toolkit (Solana)
 
+[![CI](https://github.com/agent402-dev/agent402-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/agent402-dev/agent402-toolkit/actions/workflows/ci.yml)
+
 > **A402 (v1) is deprecated.** The token payment option is now **PREQ** (mint `aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX`). Official addresses: https://claude.ai/artifact/S6UafAfViJk3DJeMsDMAja
 
 Open-source tools from Agent402 for Solana: factual token checks, and [x402](https://github.com/coinbase/x402) payments in USDC and PREQ (a Token-2022 token).

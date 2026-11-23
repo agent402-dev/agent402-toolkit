@@ -2,7 +2,7 @@
 name = "agent402-bond-core"
 version = "0.0.1"
 edition = "2021"
-license = "MIT"
+license = "Apache-2.0"
 description = "Pure settlement logic for the Agent402 performance-bond program (no dependencies)."
 
 [dependencies]
