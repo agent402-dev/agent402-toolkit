@@ -7,4 +7,5 @@ target/
 *.so
 *.log
 .surfpool/
+.bond-local/
 .a402-export

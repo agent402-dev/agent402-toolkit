@@ -68,7 +68,7 @@ async function once(label: string, address: import('@solana/web3.js').PublicKey,
 }
 
 await once('config', bond.configPda(), () => bond.initConfig(payer.publicKey));
-const EXPECTED_ADMIN = CLUSTER === 'mainnet' ? '36PdTtqfp4vNvJjn9stRFoymRFdMZ1NHU9kLvb82mScc' : 'BBbLANpYSs8L4SVKrZQ3fq62EdEcVLiiM3VrAvc5rLjz';
+const EXPECTED_ADMIN = CLUSTER === 'mainnet' ? '36PdTtqfp4vNvJjn9stRFoymRFdMZ1NHU9kLvb82mScc' : '83VvXU3uTypqKpRo9v9cg64aZ8UyCZSmEWseg76U9RxR';
 const cfg = await conn.getAccountInfo(bond.configPda());
 const admin = cfg ? new (await import('@solana/web3.js')).PublicKey(cfg.data.subarray(8, 40)).toBase58() : '(missing)';
 console.log(`config admin: ${admin} ${admin === EXPECTED_ADMIN ? '(as expected)' : '(UNEXPECTED: stop and check the build)'}`);

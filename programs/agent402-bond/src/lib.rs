@@ -31,9 +31,9 @@ declare_id!("Howw2bfGrx5QGWD79oUoaMhWEgEgeJgFgunQCZ7NbJ6f");
 /// Af32e2sJty7f6yLTmjUy2suregQdALR78GSBSCatnhWn (3 members, threshold 2).
 #[cfg(not(any(feature = "test-mints", feature = "devnet")))]
 pub const ADMIN: Pubkey = Pubkey::from_str_const("36PdTtqfp4vNvJjn9stRFoymRFdMZ1NHU9kLvb82mScc");
-/// Devnet-only operator key. Never used in a mainnet build.
+/// Devnet-only operator key (replaced 2026-11-23: the previous devnet key was partly exposed). Never used in a mainnet build.
 #[cfg(all(feature = "devnet", not(feature = "test-mints")))]
-pub const ADMIN: Pubkey = Pubkey::from_str_const("BBbLANpYSs8L4SVKrZQ3fq62EdEcVLiiM3VrAvc5rLjz");
+pub const ADMIN: Pubkey = Pubkey::from_str_const("83VvXU3uTypqKpRo9v9cg64aZ8UyCZSmEWseg76U9RxR");
 /// Test-only admin (ed25519 seed [7; 32]). Never used in a mainnet build.
 #[cfg(feature = "test-mints")]
 pub const ADMIN: Pubkey = Pubkey::from_str_const("GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB");
