@@ -1,0 +1,52 @@
+name: Release
+
+# Stages the packages whose version in packages/<p>/package.json is not on npm yet
+# (npm staged publishing). A maintainer approves each staged version on npmjs.com with 2FA
+# before it goes live; then registry.yml publishes server.json to the MCP Registry.
+# Runs when a tag release-* is pushed. No stored tokens: npm trusted publishing uses this
+# workflow's short-lived OIDC identity, and this publisher is limited to staging.
+
+on:
+  push:
+    tags: ['release-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest # staged publishing needs npm 11.15.0 or later
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx tsx scripts/prepare-npm.ts
+
+      - name: Stage new versions on npm (approve on npmjs.com)
+        run: |
+          set -euo pipefail
+          # dependencies first
+          for p in check-engine bond-client check-mcp pay-server pay-mcp bond-seller-mcp; do
+            name=$(node -p "require('./out/npm/$p/package.json').name")
+            ver=$(node -p "require('./out/npm/$p/package.json').version")
+            if npm view "$name@$ver" version >/dev/null 2>&1; then
+              echo "$name@$ver already on npm"
+            else
+              echo "staging $name@$ver"
+              (cd "out/npm/$p" && npm stage publish --provenance --access public)
+            fi
+          done

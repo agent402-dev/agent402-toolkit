@@ -3,7 +3,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Keypair } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import { createKeyPairSignerFromBytes, signBytes } from '@solana/kit';
 import { describe, expect, it } from 'vitest';
 import { checkJobQuote, deliverMessage, JOB_PROTOCOL, toBase64, verifyDeliverSignature } from '@agent402-dev/bond-client/job';
@@ -24,9 +24,10 @@ const signer: BondSigner = { publicKey: sellerKp.publicKey, async signTransactio
 const BASE = 'https://seller.test/jobs/words';
 
 type Svc = Partial<Parameters<typeof bondJobService>[0]>;
-async function world(o: { sellerTerms?: BondTermsConfig; tamper?: (path: string, body: any) => any; env?: Record<string, string>; buyer?: Keypair; job?: (input: string, ctx: { signal: AbortSignal }) => Promise<unknown>; svc?: Svc; store?: BondJobStore; c?: ReturnType<typeof chain> } = {}) {
+async function world(o: { sellerTerms?: BondTermsConfig; tamper?: (path: string, body: any) => any; env?: Record<string, string>; buyer?: Keypair; job?: (input: string, ctx: { signal: AbortSignal }) => Promise<unknown>; svc?: Svc; store?: BondJobStore; c?: ReturnType<typeof chain>; preq?: boolean } = {}) {
   const c = o.c ?? chain();
-  const seller = createBondSeller({ rpcUrl: 'http://rpc', signer, terms: o.sellerTerms ?? TERMS, fetchImpl: c.rpcFetch, store: o.store });
+  const seller = createBondSeller({ rpcUrl: 'http://rpc', signer, terms: o.sellerTerms ?? TERMS, fetchImpl: c.rpcFetch, store: o.store,
+    ...(o.preq ? { mint: new PublicKey('aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX'), tokenProgram: new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb') } : {}) });
   let jobs = 0;
   const service = bondJobService({ seller, basePath: '/jobs/words', description: 'Counts words', ...o.svc,
     doJob: async (input, ctx) => { jobs++; return o.job ? o.job(input, ctx) : { words: input.trim().split(/\s+/).length }; } });
@@ -419,5 +420,29 @@ describe('JobFailed', () => {
     expect(await w.service.processOpenJobs()).toEqual([{ deal, status: 'delivered' }]);
     expect((await w.seller.store.get(deal))!.meta).toMatchObject({ failed: true, attempts: 1, result: { error: 'job_failed', message: 'more than 1000 transactions in this range' } });
     expect(await bondJobResult(w.d, BASE, deal)).toMatchObject({ result: 'failed' });
+  });
+});
+
+describe('PREQ jobs (Token-2022)', () => {
+  const PREQ_ON = { X402_ALLOWED_ASSETS: 'USDC,PREQ', X402_BOND_MAX_PREQ_ATOMIC: String(100n * U), X402_MAX_PREQ_ATOMIC: '1', X402_MAX_PREQ_PER_DAY_ATOMIC: String(100n * U) };
+  it('a buyer that has not enabled PREQ sees the quote refused with the reasons, and nothing is opened', async () => {
+    const w = await world({ preq: true });
+    const q = await bondJobQuote(w.d, BASE);
+    expect(q).toMatchObject({ result: 'refused', asset: 'PREQ' });
+    expect(JSON.stringify(q)).toContain('X402_ALLOWED_ASSETS');
+    expect(JSON.stringify(await bondJobStart(w.d, BASE, 'a b'))).toContain('X402_ALLOWED_ASSETS');
+    expect(w.c.sent).toHaveLength(0);
+  });
+  it('with PREQ enabled: quote in PREQ → open (Token-2022 accounts) → delivered → confirm and pay → seller settles', async () => {
+    const w = await world({ preq: true, env: PREQ_ON });
+    expect(await bondJobQuote(w.d, BASE)).toMatchObject({ result: 'ok', asset: 'PREQ', price: '20 PREQ', depositNow: '5 PREQ' });
+    const s = await bondJobStart(w.d, BASE, 'one two three');
+    expect(s).toMatchObject({ result: 'opened', asset: 'PREQ', deposit: '5 PREQ' });
+    const deal = (s as { deal: string }).deal;
+    expect(await w.service.processOpenJobs()).toEqual([{ deal, status: 'delivered' }]);
+    expect(await bondJobResult(w.d, BASE, deal)).toMatchObject({ result: 'delivered', work: { words: 3 } });
+    expect(await bondConfirmAndPay(w.d, deal)).toMatchObject({ result: 'confirmed_and_paid', paid: '15 PREQ' });
+    expect(await w.service.processOpenJobs()).toEqual([{ deal, status: 'settled' }]);
+    expect(w.c.sent.map((x) => x.kind)).toEqual(['open', 'mark', 'confirm', 'pay', 'settle', 'claim_buyer', 'claim']);
   });
 });

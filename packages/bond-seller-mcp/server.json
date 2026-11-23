@@ -1,18 +1,18 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.agent402-dev/bond-seller-mcp",
-  "description": "Sell jobs backed by Agent402 Bond deals on Solana (USDC) from your own seller wallet.",
+  "description": "Sell jobs backed by Agent402 Bond deals on Solana (USDC or PREQ) from your own seller wallet.",
   "repository": {
     "url": "https://github.com/agent402-dev/agent402-toolkit",
     "source": "github",
     "subfolder": "packages/bond-seller-mcp"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agent402-dev/bond-seller-mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },
@@ -32,22 +32,29 @@
           "isSecret": true
         },
         {
-          "name": "BOND_SELL_PRICE_USD",
-          "description": "Price per job in USDC. Required.",
+          "name": "BOND_SELL_ASSET",
+          "description": "Deal asset: USDC (default) or PREQ (Token-2022)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_PRICE",
+          "description": "Price per job in the deal asset (decimal). Required.",
           "isRequired": true,
           "format": "string",
           "isSecret": false
         },
         {
-          "name": "BOND_SELL_BOND_USD",
-          "description": "Seller bond per job in USDC (at most 20% of the price). Required.",
+          "name": "BOND_SELL_BOND",
+          "description": "Seller bond per job in the deal asset (at most 20% of the price). Required.",
           "isRequired": true,
           "format": "string",
           "isSecret": false
         },
         {
-          "name": "BOND_SELL_DEPOSIT_USD",
-          "description": "Buyer deposit in USDC (default 0)",
+          "name": "BOND_SELL_DEPOSIT",
+          "description": "Buyer deposit in the deal asset (default 0)",
           "isRequired": false,
           "format": "string",
           "isSecret": false

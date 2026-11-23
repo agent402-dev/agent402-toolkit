@@ -1,4 +1,4 @@
-// Seller settings from environment variables. Amounts are given in USDC (decimal) and kept in smallest units.
+// Seller settings from environment variables. Amounts are decimals in the deal asset (USDC by default, or PREQ), kept in smallest units.
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { checkBondTerms, type BondTermsConfig } from '@agent402-dev/pay-server/bond';
@@ -10,6 +10,8 @@ export interface SellerConfig {
   rpcUrl: string | null;
   storePath: string;
   terms: BondTermsConfig | null;
+  /** Deal asset: USDC (default) or PREQ (Token-2022). Both have 6 decimals */
+  asset: 'USDC' | 'PREQ';
   /** Problems that keep the seller tools off (shown by sell_status) */
   problems: string[];
   description?: string;
@@ -36,12 +38,17 @@ export function sellerConfigFromEnv(env: Record<string, string | undefined>): Se
   const rpcUrl = env.BOND_SELLER_RPC_URL?.trim() || null;
   if (!rpcUrl) problems.push('BOND_SELLER_RPC_URL is not set');
 
-  const price = usdcToAtomic(env.BOND_SELL_PRICE_USD);
-  const bond = usdcToAtomic(env.BOND_SELL_BOND_USD);
-  const deposit = usdcToAtomic(env.BOND_SELL_DEPOSIT_USD ?? '0');
+  const assetRaw = (env.BOND_SELL_ASSET ?? 'USDC').trim().toUpperCase();
+  const asset: 'USDC' | 'PREQ' = assetRaw === 'PREQ' ? 'PREQ' : 'USDC';
+  if (assetRaw !== 'USDC' && assetRaw !== 'PREQ') problems.push('BOND_SELL_ASSET must be USDC or PREQ');
+  // BOND_SELL_PRICE / _BOND / _DEPOSIT are in the deal asset; the *_USD names stay as USDC aliases
+  const usdOnly = (v: string | undefined) => (asset === 'USDC' ? v : undefined);
+  const price = usdcToAtomic(env.BOND_SELL_PRICE ?? usdOnly(env.BOND_SELL_PRICE_USD));
+  const bond = usdcToAtomic(env.BOND_SELL_BOND ?? usdOnly(env.BOND_SELL_BOND_USD));
+  const deposit = usdcToAtomic(env.BOND_SELL_DEPOSIT ?? usdOnly(env.BOND_SELL_DEPOSIT_USD) ?? '0');
   let terms: BondTermsConfig | null = null;
   if (price === null || bond === null || deposit === null) {
-    problems.push('BOND_SELL_PRICE_USD and BOND_SELL_BOND_USD must be set (USDC, e.g. "5" and "0.5"); BOND_SELL_DEPOSIT_USD is optional');
+    problems.push(`BOND_SELL_PRICE and BOND_SELL_BOND must be set (${asset}, e.g. "5" and "0.5"); BOND_SELL_DEPOSIT is optional${asset === 'USDC' ? ' (the *_USD names also work)' : ''}`);
   } else {
     terms = {
       price, sellerBond: bond, buyerDeposit: deposit,
@@ -56,7 +63,7 @@ export function sellerConfigFromEnv(env: Record<string, string | undefined>): Se
   const port = env.BOND_SELL_PORT?.trim();
   const buyers = env.BOND_SELL_BUYERS?.trim();
   return {
-    keypairPath, rpcUrl, terms, problems,
+    keypairPath, rpcUrl, terms, problems, asset,
     storePath: env.BOND_SELLER_STORE?.trim() || DEFAULT_STORE,
     description: env.BOND_SELL_DESCRIPTION?.trim() || undefined,
     buyers: buyers ? buyers.split(',').map((x) => x.trim()).filter(Boolean) : null,

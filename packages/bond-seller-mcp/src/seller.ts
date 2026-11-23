@@ -3,6 +3,7 @@
 // deadline and delivers a failure (neutral outcome), so the bond is not lost while this process keeps running.
 import { readFileSync } from 'node:fs';
 import { Keypair } from '@solana/web3.js';
+import * as bond from '@agent402-dev/bond-client';
 import { bondJobService, createBondSeller, JobPending, type BondJobStore } from '@agent402-dev/pay-server/bond';
 import type { SellerConfig } from './config.js';
 import { fileBondStore } from './file-store.js';
@@ -20,6 +21,7 @@ export function buildSeller(cfg: SellerConfig, o: { keypair: Keypair; store?: Bo
     rpcUrl: cfg.rpcUrl,
     signer: { publicKey: kp.publicKey, async signTransaction(tx) { tx.partialSign(kp); return tx; } },
     terms: cfg.terms,
+    ...(cfg.asset === 'PREQ' ? { mint: bond.MINTS.mainnet.PREQ, tokenProgram: bond.TOKEN_2022_PROGRAM_ID } : {}),
     store: o.store ?? fileBondStore(cfg.storePath),
     fetchImpl: o.fetchImpl,
   });

@@ -99,7 +99,7 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 The log never stores keys or signed payment payloads.
 
 ## Agent402 Bond (buyer side)
-[Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) locks a seller bond and a buyer deposit for one deal (beta, USDC only in these tools). The signing tools refuse everything until you set both of these:
+[Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) locks a seller bond and a buyer deposit for one deal (beta). Deals in USDC, or in PREQ when you enable it (below). The signing tools refuse everything until you set both of these:
 
 | Variable | Meaning |
 |---|---|
@@ -108,8 +108,11 @@ The log never stores keys or signed payment payloads.
 | `X402_BOND_MIN_SELLER_BOND_BPS` | Minimum seller bond as a share of the price, in basis points (default 500 = 5%) |
 | `X402_BOND_MAX_DAYS` | Max days from now to the delivery deadline (default 30) |
 | `X402_BOND_CONFIRM_ABOVE_USD` | Ask a human when the amount at stake is at or above this: the deposit for `bond_open`, the whole price for `bond_confirm_and_pay` (default 0 = always ask; without elicitation support the tool refuses) |
+| `X402_BOND_MAX_PREQ_ATOMIC` | PREQ deals: max price per deal, in PREQ smallest units (1 PREQ = 1,000,000). Unset = refuse PREQ deals |
+| `X402_BOND_CONFIRM_ABOVE_PREQ_ATOMIC` | PREQ deals: ask a human at or above this amount, in PREQ smallest units (default 0 = always ask) |
 
 - `bond_open` takes the seller's partially signed `open` transaction (base64, legacy). It rebuilds the instruction for your wallet from the transaction's own terms and signs only if it matches byte for byte: one instruction, the seller as fee payer with a valid signature, your wallet as the only other signer, USDC, your token account.
+- **PREQ deals** (Token-2022) are refused unless you enable all of: `PREQ` in `X402_ALLOWED_ASSETS`, `X402_BOND_MAX_PREQ_ATOMIC`, and the PREQ daily cap `X402_MAX_PREQ_PER_DAY_ATOMIC` (shared with PREQ x402 payments). The transaction is rebuilt with the Token-2022 accounts and must match. Amounts are shown in PREQ. PREQ is not converted to USD anywhere in these checks.
 - Deposits and balances count toward `X402_MAX_USD_PER_DAY` and `X402_MAX_PAYMENTS_PER_DAY` (settling, which moves no tokens from the wallet, does not). `bond_open` also refuses when the balance alone is above the daily cap, since it could never be paid. Tools that spend run one at a time, so calls made in parallel cannot pass a cap together.
 - `bond_settle` sends settle and both claims; if the other side's token account is closed or frozen it claims only your share.
 - Confirming receipt releases the seller bond and your deposit to the seller. The program does not judge quality; confirm only if you received what was agreed. If you never confirm, each side gets its own money back after the deadlines.

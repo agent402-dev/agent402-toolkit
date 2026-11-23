@@ -141,7 +141,7 @@ describe('bond_open', () => {
     ['seller token account swapped', async () => ({ tx: sellerOpenTx([bc.open(ref(), terms(), Keypair.generate().publicKey)]) }), 'does not match'],
     ['extra instruction', async () => ({ tx: sellerOpenTx([bc.open(ref(), terms()), bc.open(ref(2n), terms())]) }), 'exactly 1 instruction'],
     ['buyer made fee payer', async () => ({ tx: sellerOpenTx([bc.open(ref(), terms())], buyerKp, [sellerKp]) }), 'does not match'],
-    ['other mint', async () => ({ tx: sellerOpenTx([bc.open({ ...ref(), mint: new PublicKey(bc.MINTS.devnet.USDC) }, terms())]) }), 'does not match'],
+    ['other mint', async () => ({ tx: sellerOpenTx([bc.open({ ...ref(), mint: new PublicKey(bc.MINTS.devnet.USDC) }, terms())]) }), 'is not supported'],
     ['not an open', async () => ({ tx: sellerOpenTx([bc.markDelivered(ref())]) }), 'not an Agent402 Bond open'],
     ['user declines', async () => ({ tx: sellerOpenTx([bc.open(ref(), terms())]), opts: { confirm: 'decline' } }), 'declined_by_user'],
     ['client cannot ask', async () => ({ tx: sellerOpenTx([bc.open(ref(), terms())]), opts: { confirm: 'unsupported' } }), 'confirmation_required'],
@@ -265,7 +265,7 @@ describe('security review fixes (buyer side)', () => {
     const wsol = dealBytes();
     wsol.set(new PublicKey('So11111111111111111111111111111111111111112').toBytes(), 8 + 64);
     const w = await setup({}, { deal: wsol, clock: NOW + 30n * DAY });
-    expect(JSON.stringify(await bondSettle(w.deps, deal))).toContain('only USDC');
+    expect(JSON.stringify(await bondSettle(w.deps, deal))).toContain('is not supported (USDC or PREQ)');
   });
 
   it('L-6: a settle (no tokens moved) does not count as a payment for the daily count', async () => {
@@ -281,5 +281,70 @@ describe('security review fixes (buyer side)', () => {
     const { checkJobTerms } = await import('@agent402-dev/bond-client/job');
     expect(checkJobTerms({ price: 'abc', sellerBond: '1', buyerDeposit: '1', deliverBy: '1', lateWindow: '0', payWindow: '1' })).toEqual(['terms.price must be a decimal string']);
     expect(checkJobTerms(null)).toHaveLength(6);
+  });
+});
+
+describe('PREQ deals (Token-2022), opt-in like PREQ x402 payments', () => {
+  const PREQ = new PublicKey('aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX');
+  const P = 1_000_000n; // 1 PREQ in smallest units
+  const pref = (nonce = 1n): bc.DealRef => ({ ...ref(nonce), mint: PREQ, tokenProgram: bc.TOKEN_2022_PROGRAM_ID });
+  const pterms = () => terms({ price: 50_000n * P, sellerBond: 5_000n * P, buyerDeposit: 10_000n * P });
+  const ON = { X402_ALLOWED_ASSETS: 'USDC,PREQ', X402_BOND_MAX_PREQ_ATOMIC: String(100_000n * P), X402_MAX_PREQ_ATOMIC: String(1n * P), X402_MAX_PREQ_PER_DAY_ATOMIC: String(200_000n * P) };
+  const preqDeal = (o: Parameters<typeof dealBytes>[0] = {}) => {
+    const b = dealBytes(o);
+    b.set(PREQ.toBytes(), 8 + 64);
+    const v = new DataView(b.buffer);
+    let i = 8 + 96 + 8; for (const x of [50_000n * P, 5_000n * P, 10_000n * P]) { v.setBigUint64(i, x, true); i += 8; }
+    return b;
+  };
+
+  it('refused unless enabled: PREQ in X402_ALLOWED_ASSETS, a PREQ per-deal cap and a PREQ daily cap', async () => {
+    const s = await setup();
+    const r = JSON.stringify(await bondOpen(s.deps, sellerOpenTx([bc.open(pref(), pterms())])));
+    expect(r).toContain('X402_ALLOWED_ASSETS');
+    expect(r).toContain('X402_BOND_MAX_PREQ_ATOMIC');
+    expect(r).toContain('X402_MAX_PREQ_PER_DAY_ATOMIC');
+    expect(s.signed()).toBe(0);
+  });
+
+  it('opens with the Token-2022 accounts; amounts shown in PREQ; the deposit counts toward the PREQ daily cap', async () => {
+    const s = await setup(ON);
+    const r = await bondOpen(s.deps, sellerOpenTx([bc.open(pref(), pterms())]));
+    expect(r).toMatchObject({ result: 'opened', asset: 'PREQ', deposit: '10,000 PREQ', balanceLater: '40,000 PREQ' });
+    const tx = Transaction.from(Buffer.from(s.sent[0]));
+    expect(tx.instructions[0].keys.some((k) => k.pubkey.equals(bc.TOKEN_2022_PROGRAM_ID))).toBe(true);
+    expect(s.history.today(new Date()).preq).toBe(10_000n * P);
+    expect(s.history.today(new Date()).usd).toBe(0);
+  });
+
+  it('refuses a PREQ open built with the classic token program, over the PREQ cap, or over the PREQ daily cap', async () => {
+    for (const [env, tx, text] of [
+      [ON, sellerOpenTx([bc.open({ ...pref(), tokenProgram: TOKEN_PROGRAM_ID }, pterms())]), 'does not match'],
+      [{ ...ON, X402_BOND_MAX_PREQ_ATOMIC: String(10_000n * P) }, sellerOpenTx([bc.open(pref(), pterms())]), 'X402_BOND_MAX_PREQ_ATOMIC'],
+      [{ ...ON, X402_MAX_PREQ_PER_DAY_ATOMIC: String(5_000n * P) }, sellerOpenTx([bc.open(pref(), pterms())]), 'daily PREQ cap'],
+    ] as const) {
+      const s = await setup(env as Record<string, string>);
+      expect(JSON.stringify(await bondOpen(s.deps, tx))).toContain(text);
+      expect(s.signed()).toBe(0);
+    }
+  });
+
+  it('confirm and pay uses Token-2022 and asks with PREQ amounts; settle works for PREQ deals', async () => {
+    let asked = '';
+    const s = await setup(ON, { deal: preqDeal({ mark: NOW + 10n }), clock: NOW + 100n });
+    s.deps.confirm = async (m) => { asked = m; return 'accept'; };
+    const deal = bc.dealOf(pref()).toBase58();
+    expect(await bondConfirmAndPay(s.deps, deal)).toMatchObject({ result: 'confirmed_and_paid', paid: '40,000 PREQ' });
+    expect(asked).toContain('total 50,000 PREQ');
+    const tx = Transaction.from(Buffer.from(s.sent[0]));
+    expect(tx.instructions.map((i) => i.data.toString('hex'))).toEqual([bc.confirmReceipt(pref()), bc.payBalance(pref())].map((i) => i.data.toString('hex')));
+    expect(tx.instructions[1].keys.map((k) => k.pubkey.toBase58())).toEqual(bc.payBalance(pref()).keys.map((k) => k.pubkey.toBase58()));
+
+    const z = await setup({}, { deal: preqDeal({ mark: NOW + 10n, confirm: NOW + 20n, paid: true }), clock: NOW + 30n });
+    const r = await bondSettle(z.deps, deal);
+    // From the vault: seller bond 5,000 + deposit 10,000 (the balance went to the seller directly at confirm)
+    expect(r).toMatchObject({ result: 'settled', outcome: 'delivered', toSeller: '15,000 PREQ', toBuyer: '0 PREQ' });
+    const st = Transaction.from(Buffer.from(z.sent[0]));
+    expect(st.instructions.map((i) => i.keys.map((k) => k.pubkey.toBase58()))).toEqual(bc.settleAndClaim(pref()).map((i) => i.keys.map((k) => k.pubkey.toBase58())));
   });
 });

@@ -31,7 +31,7 @@ async function setup(env: Record<string, string> = {}, o: { c?: ReturnType<typeo
   const c = o.c ?? chain();
   const config = sellerConfigFromEnv({ ...ENV, BOND_SELLER_STORE: o.storePath ?? join(mkdtempSync(join(tmpdir(), 'seller-')), 'jobs.json'), ...env });
   const built = config.problems.length ? null : buildSeller(config, { keypair: sellerKp, fetchImpl: c.rpcFetch });
-  const server = createSellerServer({ config, built, balances: async () => ({ sol: '0.1 SOL', usdc: '10 USDC' }) });
+  const server = createSellerServer({ config, built, balances: async () => ({ sol: '0.1 SOL', token: '10 USDC' }) });
   const [a, b] = InMemoryTransport.createLinkedPair();
   await server.connect(a);
   const client = new Client({ name: 't', version: '0' });
@@ -68,7 +68,7 @@ describe('configuration', () => {
     expect(usdcToAtomic('1.1234567')).toBeNull();
     expect(usdcToAtomic('-1')).toBeNull();
     const c = sellerConfigFromEnv({});
-    expect(c.problems.join(' ')).toMatch(/BOND_SELLER_KEYPAIR_PATH.*BOND_SELLER_RPC_URL.*BOND_SELL_PRICE_USD/);
+    expect(c.problems.join(' ')).toMatch(/BOND_SELLER_KEYPAIR_PATH.*BOND_SELLER_RPC_URL.*BOND_SELL_PRICE/);
     expect(sellerConfigFromEnv({ ...ENV, BOND_SELL_BOND_USD: '10' }).problems.join(' ')).toContain('20% of the price');
   });
   it('5 tools; without configuration nothing can be prepared', async () => {
@@ -82,7 +82,7 @@ describe('configuration', () => {
 describe('an agent sells a job', () => {
   it('status → prepare → buyer opens → job listed (input marked as data) → submit marks delivery → buyer pays → settled on its own', async () => {
     const s = await setup();
-    expect(await s.call('sell_status')).toMatchObject({ configured: true, seller: sellerKp.publicKey.toBase58(), terms: { price: '20 USDC', sellerBond: '2 USDC', buyerDeposit: '5 USDC' }, balances: { usdc: '10 USDC' } });
+    expect(await s.call('sell_status')).toMatchObject({ configured: true, seller: sellerKp.publicKey.toBase58(), terms: { price: '20 USDC', sellerBond: '2 USDC', buyerDeposit: '5 USDC' }, balances: { token: '10 USDC' } });
     const deal = await prepareAndOpen(s);
     const j = await s.call('sell_jobs');
     expect(j.todo).toEqual([expect.objectContaining({ deal, buyer: buyerKp.publicKey.toBase58(), input: 'Summarize: the cat sat on the mat.', price: '20 USDC' })]);
@@ -156,5 +156,19 @@ describe('an agent sells a job', () => {
       expect((await fetch(`${base}/open`, { method: 'POST', body: 'x'.repeat(90_000) })).status).toBe(413);
       expect((await fetch(`${base}/nope`)).status).toBe(404);
     } finally { srv.close(); }
+  });
+});
+
+describe('selling for PREQ', () => {
+  it('BOND_SELL_ASSET=PREQ: amounts in PREQ, the quote names the PREQ mint and Token-2022', async () => {
+    const s = await setup({ BOND_SELL_ASSET: 'PREQ', BOND_SELL_PRICE: '20000', BOND_SELL_BOND: '2000', BOND_SELL_DEPOSIT: '5000', BOND_SELL_PRICE_USD: '', BOND_SELL_BOND_USD: '', BOND_SELL_DEPOSIT_USD: '' });
+    expect(s.config.asset).toBe('PREQ');
+    expect(await s.call('sell_status')).toMatchObject({ configured: true, terms: { price: '20,000 PREQ', sellerBond: '2,000 PREQ', buyerDeposit: '5,000 PREQ' } });
+    const q = s.built!.seller.quote();
+    expect(q).toMatchObject({ mint: 'aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX', tokenProgram: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', price: '20000000000' });
+  });
+  it('the *_USD names do not set PREQ amounts', () => {
+    expect(sellerConfigFromEnv({ ...ENV, BOND_SELL_ASSET: 'PREQ' }).problems.join(' ')).toContain('BOND_SELL_PRICE and BOND_SELL_BOND must be set (PREQ');
+    expect(sellerConfigFromEnv({ ...ENV, BOND_SELL_ASSET: 'SOL' }).problems.join(' ')).toContain('USDC or PREQ');
   });
 });

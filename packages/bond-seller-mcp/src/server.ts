@@ -72,9 +72,10 @@ if (cmd === 'init') {
   const balances = built ? async () => {
     const owner = built!.seller.seller;
     const sol = (await rpc<{ value: number }>('getBalance', [owner])).value;
-    const ata = bond.associatedTokenAddress(new PublicKey(owner), bond.MINTS.mainnet.USDC, bond.TOKEN_PROGRAM_ID).toBase58();
+    const preq = config.asset === 'PREQ';
+    const ata = bond.associatedTokenAddress(new PublicKey(owner), preq ? bond.MINTS.mainnet.PREQ : bond.MINTS.mainnet.USDC, preq ? bond.TOKEN_2022_PROGRAM_ID : bond.TOKEN_PROGRAM_ID).toBase58();
     const t = await rpc<{ value: { amount: string } }>('getTokenAccountBalance', [ata]).catch(() => ({ value: { amount: '0' } }));
-    return { sol: `${sol / 1e9} SOL`, usdc: `${Number(t.value.amount) / 1e6} USDC` };
+    return { sol: `${sol / 1e9} SOL`, token: `${Number(t.value.amount) / 1e6} ${config.asset}` };
   } : undefined;
   await createSellerServer({ config, built, balances, endpoint }, run).connect(new StdioServerTransport());
 }

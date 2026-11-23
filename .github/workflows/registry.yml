@@ -1,0 +1,43 @@
+name: MCP Registry
+
+# Publishes server.json of each MCP server whose version is on npm but not yet in the official
+# MCP Registry (the registry checks the npm package's mcpName, so run this after npm approval).
+# Runs when a tag registry-* is pushed. Logs in with this workflow's GitHub OIDC identity.
+
+on:
+  push:
+    tags: ['registry-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install mcp-publisher
+        run: |
+          curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --help >/dev/null
+      - name: Publish new versions
+        run: |
+          set -euo pipefail
+          ./mcp-publisher login github-oidc
+          for p in check-mcp pay-mcp bond-seller-mcp; do
+            f="packages/$p/server.json"
+            name=$(node -p "require('./$f').name"); ver=$(node -p "require('./$f').version")
+            npm_name=$(node -p "require('./$f').packages[0].identifier")
+            if ! npm view "$npm_name@$ver" version >/dev/null 2>&1; then
+              echo "$npm_name@$ver is not on npm yet (approve the staged version first); skipping $name"; continue
+            fi
+            if curl -sf "https://registry.modelcontextprotocol.io/v0/servers?search=$name" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const j=JSON.parse(d);process.exit((j.servers||[]).some(s=>(s.server||s).name==='$name'&&(s.server||s).version==='$ver')?0:1)})"; then
+              echo "$name@$ver already in the registry"; continue
+            fi
+            (cd "packages/$p" && ../../mcp-publisher publish)
+          done

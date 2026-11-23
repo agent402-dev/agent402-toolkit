@@ -8,7 +8,7 @@
 // The seller key is a Worker secret (SELLER_KEY). Use a dedicated wallet that holds only what deals need
 // (network fees, deal rent, your bonds). The SDK itself never takes a key: this file builds the signer.
 import { DurableObject } from 'cloudflare:workers';
-import { Keypair } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import { type BondJob, type BondJobStore, bondJobService, createBondSeller } from '@agent402-dev/pay-server/bond';
 
 interface Env {
@@ -16,7 +16,9 @@ interface Env {
   SELLER_KEY: string;
   /** Secret: Solana mainnet RPC URL (with your provider key). `wrangler secret put RPC_URL` */
   RPC_URL: string;
-  /** Terms, in USDC smallest units (1 USDC = 1000000) and seconds */
+  /** Optional: deal asset, USDC (default) or PREQ (Token-2022). Buyers must enable PREQ deals in their own rules */
+  ASSET?: string;
+  /** Terms, in the asset's smallest units (both have 6 decimals: 1 USDC or 1 PREQ = 1000000) and seconds */
   PRICE: string;
   SELLER_BOND: string;
   BUYER_DEPOSIT: string;
@@ -72,6 +74,14 @@ function keypairFrom(secret: string): Keypair {
   return Keypair.fromSecretKey(bytes);
 }
 
+// USDC needs nothing extra. PREQ is a Token-2022 mint, so the deal uses that token program.
+function assetOptions(asset = 'USDC') {
+  const a = asset.trim().toUpperCase();
+  if (a === 'USDC') return {};
+  if (a === 'PREQ') return { mint: new PublicKey('aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX'), tokenProgram: new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb') };
+  throw new Error('ASSET must be USDC or PREQ');
+}
+
 function service(env: Env) {
   const kp = keypairFrom(env.SELLER_KEY);
   const big = (k: keyof Env) => BigInt(String(env[k]));
@@ -84,6 +94,7 @@ function service(env: Env) {
       deliverSeconds: big('DELIVER_SECONDS'), lateWindow: big('LATE_WINDOW'), payWindow: big('PAY_WINDOW'),
     },
     store: jobStore(env),
+    ...assetOptions(env.ASSET),
   });
   return { seller, jobs: bondJobService({ seller, description: env.DESCRIPTION, publicOrigin: env.PUBLIC_ORIGIN || undefined, doJob: (input, ctx) => doJob(input, ctx, env) }) };
 }

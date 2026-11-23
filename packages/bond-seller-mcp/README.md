@@ -1,6 +1,6 @@
 # @agent402-dev/bond-seller-mcp
 
-MCP server (stdio) that lets an AI agent **sell a job** backed by an [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deal on Solana: the seller locks a bond, the buyer locks a deposit, the agent does the work, delivery is marked on chain, and the buyer confirms and pays the balance or not. Amounts are in **USDC**, from **your own seller wallet on your machine**.
+MCP server (stdio) that lets an AI agent **sell a job** backed by an [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deal on Solana: the seller locks a bond, the buyer locks a deposit, the agent does the work, delivery is marked on chain, and the buyer confirms and pays the balance or not. Amounts are in **USDC** (default) or **PREQ** (`BOND_SELL_ASSET=PREQ`), from **your own seller wallet on your machine**. PREQ amounts are decimals of PREQ (6 decimals); buyers must enable PREQ deals in their own rules.
 
 Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit) (Solana).
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
@@ -28,9 +28,10 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 |---|---|---|
 | `BOND_SELLER_KEYPAIR_PATH` | Seller wallet key file (Solana CLI JSON). Create one with `init` | required |
 | `BOND_SELLER_RPC_URL` | Solana mainnet RPC | required |
-| `BOND_SELL_PRICE_USD` | Price per job (USDC) | required |
-| `BOND_SELL_BOND_USD` | Your bond per job (USDC, at most 20% of the price) | required |
-| `BOND_SELL_DEPOSIT_USD` | Buyer deposit (USDC, part of the price) | `0` |
+| `BOND_SELL_ASSET` | Deal asset: `USDC` or `PREQ` (Token-2022) | `USDC` |
+| `BOND_SELL_PRICE` | Price per job, in the deal asset (`BOND_SELL_PRICE_USD` also works for USDC) | required |
+| `BOND_SELL_BOND` | Your bond per job, in the deal asset (at most 20% of the price) | required |
+| `BOND_SELL_DEPOSIT` | Buyer deposit, in the deal asset (part of the price) | `0` |
 | `BOND_SELL_DELIVER_SECONDS` | Time you promise to deliver in | `3600` |
 | `BOND_SELL_LATE_WINDOW_SECONDS` | Late window (0 to 7 days) | `0` |
 | `BOND_SELL_PAY_WINDOW_SECONDS` | Time the buyer has to pay after confirming (1 to 30 days) | `86400` |
@@ -50,7 +51,7 @@ npx -y @agent402-dev/bond-seller-mcp init      # creates ~/.agent402/seller-wall
 claude mcp add bond-seller \
   -e BOND_SELLER_KEYPAIR_PATH="$HOME/.agent402/seller-wallet.json" \
   -e BOND_SELLER_RPC_URL=<your RPC URL> \
-  -e BOND_SELL_PRICE_USD=5 -e BOND_SELL_BOND_USD=0.5 -e BOND_SELL_DEPOSIT_USD=1 \
+  -e BOND_SELL_PRICE=5 -e BOND_SELL_BOND=0.5 -e BOND_SELL_DEPOSIT=1 \
   -e BOND_SELL_DESCRIPTION="<what you sell>" \
   -- npx -y @agent402-dev/bond-seller-mcp
 ```

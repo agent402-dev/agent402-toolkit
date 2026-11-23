@@ -3,15 +3,12 @@
 // and bond_open's own checks (rebuild and compare, policy, human confirmation) still run before anything is signed.
 import { checkJobQuote, checkJobTerms, deliverMessage, JOB_MAX_INPUT, type JobOpen, type JobQuote, termsMatchQuote, toBase64 } from '@agent402-dev/bond-client/job';
 import { BOND_PROGRAM, bondDealStatus } from './bond.js';
-import { bondOpen, type BondSignDeps } from './bond-sign.js';
+import { balanceFitsDaily, bondAsset, bondOpen, type BondSignDeps, fmt, priceCapCheck } from './bond-sign.js';
 import { dealPda, decodeOpenData, parseTx } from './bond-tx.js';
 import { domainCheck } from './policy.js';
-import { formatUnits } from './units.js';
 
 export interface BondJobDeps extends BondSignDeps { fetch: typeof fetch }
 
-const usdc = (v: bigint) => formatUnits(v, 'USDC');
-const toUsd = (v: bigint) => Number(v) / 1e6;
 const join = (base: string, p: string) => base.replace(/\/+$/, '') + p;
 
 async function getJson(d: BondJobDeps, url: string, init?: RequestInit, ms = 30_000): Promise<{ status: number; body: unknown }> {
@@ -28,16 +25,20 @@ function evaluate(d: BondJobDeps, q: JobQuote): string[] {
   const out: string[] = [];
   const price = BigInt(q.price), bondAmt = BigInt(q.sellerBond), dep = BigInt(q.buyerDeposit);
   if (q.program !== BOND_PROGRAM) out.push('not the Agent402 Bond program');
-  if (q.mint !== d.policy.mints.USDC) out.push('only USDC jobs are supported');
+  const ba = bondAsset(d.policy, d.bond, q.mint);
+  if ('refused' in ba) return [...out, ...ba.refused];
+  const a = ba.asset;
+  if (q.tokenProgram !== a.tokenProgram) out.push(`token program ${q.tokenProgram} does not match ${a.symbol}`);
   if (!d.bond.sellers.includes(q.seller)) out.push(`seller ${q.seller} is not in X402_BOND_SELLERS`);
-  if (d.bond.maxPriceUsd === null) out.push('X402_BOND_MAX_USD is not set');
-  else if (toUsd(price) > d.bond.maxPriceUsd) out.push(`price ${usdc(price)} is above X402_BOND_MAX_USD (${d.bond.maxPriceUsd} USD)`);
-  if (bondAmt * 10_000n < price * d.bond.minBondBps) out.push(`seller bond ${usdc(bondAmt)} is below ${Number(d.bond.minBondBps) / 100}% of the price`);
+  out.push(...priceCapCheck(d.bond, a, price));
+  if (bondAmt * 10_000n < price * d.bond.minBondBps) out.push(`seller bond ${fmt(a, bondAmt)} is below ${Number(d.bond.minBondBps) / 100}% of the price`);
   if (dep > price) out.push('deposit is larger than the price');
   if (Number(q.deliverSeconds) > d.bond.maxDays * 86_400) out.push(`delivery is more than ${d.bond.maxDays} days away (X402_BOND_MAX_DAYS)`);
-  if (toUsd(price - (dep > price ? price : dep)) > d.policy.maxUsdPerDay) out.push('the balance alone is above the daily USDC cap');
+  out.push(...balanceFitsDaily(d.policy, a, price - (dep > price ? price : dep)));
   return out;
 }
+/** Display in the quote's asset (USDC or PREQ); falls back to raw units for an unsupported mint */
+const show = (d: BondJobDeps, q: JobQuote, v: bigint) => { const ba = bondAsset(d.policy, d.bond, q.mint); return 'asset' in ba ? fmt(ba.asset, v) : `${v} (smallest units of ${q.mint})`; };
 
 async function fetchQuote(d: BondJobDeps, url: string): Promise<{ quote: JobQuote } | { refused: string[] }> {
   const dc = domainCheck(d.policy, url);
@@ -57,8 +58,9 @@ export async function bondJobQuote(d: BondJobDeps, url: string) {
   return {
     result: reasons.length ? 'refused' as const : 'ok' as const,
     seller: quote.seller, description: quote.description ?? null,
-    price: usdc(BigInt(quote.price)), sellerBond: usdc(BigInt(quote.sellerBond)), depositNow: usdc(BigInt(quote.buyerDeposit)),
-    balanceAfterConfirm: usdc(BigInt(quote.price) - BigInt(quote.buyerDeposit)),
+    asset: quote.mint === d.policy.mints.USDC ? 'USDC' : quote.mint === d.policy.mints.PREQ ? 'PREQ' : quote.mint,
+    price: show(d, quote, BigInt(quote.price)), sellerBond: show(d, quote, BigInt(quote.sellerBond)), depositNow: show(d, quote, BigInt(quote.buyerDeposit)),
+    balanceAfterConfirm: show(d, quote, BigInt(quote.price) - BigInt(quote.buyerDeposit)),
     deliverWithin: `${Number(quote.deliverSeconds) / 3600} h`, payWindow: `${Number(quote.payWindow) / 3600} h after delivery`,
     ...(reasons.length ? { reasons } : {}),
   };

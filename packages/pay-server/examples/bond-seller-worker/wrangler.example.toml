@@ -18,6 +18,7 @@ crons = ["*/2 * * * *"]
 
 [vars]
 # USDC smallest units: 1 USDC = 1000000. Beta limit: seller bond + buyer deposit at most 100 USDC per deal.
+# ASSET = "PREQ"            # optional: USDC (default) or PREQ; amounts below are in that asset
 PRICE = "20000000"          # 20 USDC
 SELLER_BOND = "2000000"     # 2 USDC (at most 20% of the price); you lock it and get it back on delivery
 BUYER_DEPOSIT = "5000000"   # 5 USDC, part of the price, locked by the buyer

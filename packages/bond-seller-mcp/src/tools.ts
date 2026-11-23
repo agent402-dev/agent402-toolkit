@@ -11,14 +11,15 @@ export interface SellerServerDeps {
   /** null when not configured (see config.problems) */
   built: BuiltSeller | null;
   /** SOL and USDC balance of the seller wallet, if available */
-  balances?: () => Promise<{ sol: string; usdc: string }>;
+  /** SOL and deal-asset balance (USDC or PREQ) of the seller wallet, if available */
+  balances?: () => Promise<{ sol: string; token: string }>;
   /** HTTP endpoint when the protocol is also served over HTTP */
   endpoint?: string;
 }
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
 const out = (obj: unknown, isError = false): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify(obj, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 2) }], ...(isError ? { isError } : {}) });
-const usdc = (v: string | bigint) => { const s = v.toString().padStart(7, '0'); const f = s.slice(-6).replace(/0+$/, ''); return `${s.slice(0, -6)}${f ? `.${f}` : ''} USDC`; };
+const units = (sym: string) => (v: string | bigint) => { const s = v.toString().padStart(7, '0'); const f = s.slice(-6).replace(/0+$/, ''); return `${BigInt(s.slice(0, -6)).toLocaleString('en-US')}${f ? `.${f}` : ''} ${sym}`; };
 const iso = (t: bigint) => new Date(Number(t) * 1000).toISOString();
 const GIVE_UP_BEFORE = 1800n;
 
@@ -31,11 +32,12 @@ export function serialRunner(b: BuiltSeller) {
 }
 
 export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRunner(d.built) : null) {
-  const server = new McpServer({ name: 'agent402-bond-seller', version: '0.1.0' });
+  const usdc = units(d.config.asset ?? 'USDC'); // amounts in the deal asset (USDC or PREQ)
+  const server = new McpServer({ name: 'agent402-bond-seller', version: '0.2.0' });
   const off = () => out({ result: 'not_configured', problems: d.config.problems }, true);
 
   server.tool('sell_status',
-    'Show this seller: wallet address, the job terms it sells (Agent402 Bond, USDC), how buyers reach it, balances and job counts. Read-only.',
+    'Show this seller: wallet address, the job terms it sells (Agent402 Bond, USDC or PREQ), how buyers reach it, balances and job counts. Read-only.',
     {},
     async () => {
       if (!d.built) return out({ configured: false, problems: d.config.problems });
