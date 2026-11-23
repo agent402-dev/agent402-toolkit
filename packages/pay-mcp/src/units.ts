@@ -3,6 +3,7 @@ export const DECIMALS = 6;
 
 /** Base-unit integer → "140,000 PREQ" */
 export function formatUnits(atomic: string | bigint, symbol: string, decimals = DECIMALS): string {
+  if (decimals === 0) return `${atomic.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')} ${symbol}`;
   const s = atomic.toString().padStart(decimals + 1, '0');
   const int = s.slice(0, -decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const frac = s.slice(-decimals).replace(/0+$/, '');

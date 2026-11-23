@@ -8,8 +8,8 @@ Use plain x402 (`@agent402-dev/pay-server`) for instant pay-per-request calls. U
 
 | File | What it does |
 | --- | --- |
-| `seller.ts` | HTTP service: `GET /quote`, `POST /open`, `POST /deliver` |
-| `buyer.ts` | Agent that checks the quote, verifies the `open` transaction, signs, checks the result, pays |
+| `seller.ts` | HTTP service: `GET /quote`, `POST /open`, `POST /deliver`, built on the seller SDK `@agent402-dev/pay-server/bond` |
+| `buyer.ts` | Agent that checks the quote, verifies the `open` transaction, signs, checks the result, pays. An AI agent can use `@agent402-dev/pay-mcp` (`bond_open`, `bond_confirm_and_pay`, `bond_settle`) instead |
 | `common.ts` | Wire format, sending by polling, buyer message signature |
 | `demo.ts` | Runs both sides end to end on a local mainnet fork |
 | `checks.ts` | Offline checks: the buyer refuses tampered `open` transactions and quotes outside its limits |

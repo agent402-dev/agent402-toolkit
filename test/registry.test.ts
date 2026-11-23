@@ -7,10 +7,11 @@ const json = (p: string) => JSON.parse(readFileSync(new URL(p, import.meta.url),
 describe.each([
   ['check-mcp', '@agent402-dev/check-mcp', 'io.github.agent402-dev/a402-check-mcp'],
   ['pay-mcp', '@agent402-dev/pay-mcp', 'io.github.agent402-dev/a402-pay-mcp'],
+  ['bond-seller-mcp', '@agent402-dev/bond-seller-mcp', 'io.github.agent402-dev/bond-seller-mcp'],
 ])('Registry %s', (dir, npmName, mcpName) => {
   const pkg = json(`../packages/${dir}/package.json`);
   const server = json(`../packages/${dir}/server.json`);
-  const src = ['server.ts', 'tools.ts', 'policy.ts'].map((f) => { try { return readFileSync(new URL(`../packages/${dir}/src/${f}`, import.meta.url), 'utf8'); } catch { return ''; } }).join('\n');
+  const src = ['server.ts', 'tools.ts', 'policy.ts', 'bond-sign.ts', 'config.ts'].map((f) => { try { return readFileSync(new URL(`../packages/${dir}/src/${f}`, import.meta.url), 'utf8'); } catch { return ''; } }).join('\n');
   it('name, version and package match', () => {
     expect(pkg.name).toBe(npmName);
     expect(pkg.publishConfig).toEqual({ access: 'public' });

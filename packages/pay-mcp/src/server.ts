@@ -12,6 +12,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { historyToCsv } from './csv.js';
 import { jsonlHistory } from './history.js';
 import { rpcAccounts } from './locks.js';
+import { rpcClock } from './bond.js';
+import { bondPolicyFromEnv, bondRpc } from './bond-sign.js';
 import { initWallet } from './init.js';
 import { policyFromEnv } from './policy.js';
 import { createPayServer } from './tools.js';
@@ -71,5 +73,5 @@ if (cmd === 'init') {
     : null;
   const history = jsonlHistory(process.env.X402_HISTORY_PATH ?? DEFAULT_HISTORY, () => policy.mints);
   const rpc = process.env.X402_RPC_URL ?? (policy.network.includes('EtWTRAB') ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com');
-  await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc) }).connect(new StdioServerTransport());
+  await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc), clock: rpcClock(rpc), bondPolicy: bondPolicyFromEnv(process.env), bondRpc: bondRpc(rpc) }).connect(new StdioServerTransport());
 }

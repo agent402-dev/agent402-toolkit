@@ -36,13 +36,18 @@ const [s0, b0] = [await usdc(seller.publicKey), await usdc(buyer.publicKey)];
 
 const PORT = 8787;
 const server = await startSeller({
-  conn, seller: seller, mint: USDC, tokenProgram: TOKEN_PROGRAM_ID,
-  price: 20n * U,        // 20 USDC
-  sellerBond: 2n * U,    // 10% of the price, locked by the seller
-  buyerDeposit: 5n * U,  // locked by the buyer, counts toward the price
-  deliverSeconds: 600n,  // 10 minutes
-  lateWindow: 0n,
-  payWindow: 86_400n,    // 1 day to pay the balance after confirming
+  rpcUrl: RPC,
+  // The SDK takes a signer, not a key. Here a throwaway key signs; in production use your wallet or KMS.
+  signer: { publicKey: seller.publicKey, async signTransaction(tx) { tx.partialSign(seller); return tx; } },
+  terms: {
+    price: 20n * U,        // 20 USDC
+    sellerBond: 2n * U,    // 10% of the price, locked by the seller
+    buyerDeposit: 5n * U,  // locked by the buyer, counts toward the price
+    deliverSeconds: 600n,  // 10 minutes
+    lateWindow: 0n,
+    payWindow: 86_400n,    // 1 day to pay the balance after confirming
+  },
+  description: 'Counts the words in a text',
   doJob: async (text) => ({ words: text.trim().split(/\s+/).length, chars: text.length }),
 }, PORT);
 

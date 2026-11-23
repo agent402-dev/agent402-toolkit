@@ -1,7 +1,7 @@
 // Payment wallet: signs x402 exact payment transactions with a key file on the user's computer (official @x402 client).
 // The key is never sent to the server; only the partially signed transaction goes in the PAYMENT-SIGNATURE header. This module signs only one requirement that passed the policy check
 import { readFileSync } from 'node:fs';
-import { createKeyPairSignerFromBytes } from '@solana/kit';
+import { createKeyPairSignerFromBytes, signBytes } from '@solana/kit';
 import { encodePaymentSignatureHeader } from '@x402/core/http';
 import type { PaymentRequired, PaymentRequirements } from '@x402/core/types';
 import { x402Client } from '@x402/fetch';
@@ -17,6 +17,8 @@ export interface Wallet {
   /** Number of signatures made in this process */
   readonly signedCount: number;
   balances(): Promise<Record<string, string>>;
+  /** Raw ed25519 signature over transaction message bytes (Agent402 Bond tools only; every rule is checked by the caller first) */
+  signBytes(message: Uint8Array): Promise<Uint8Array>;
 }
 
 export async function loadWallet(keyPath: string, policy: PayPolicy, rpcUrl?: string): Promise<Wallet> {
@@ -44,6 +46,11 @@ export async function loadWallet(keyPath: string, policy: PayPolicy, rpcUrl?: st
     address: signer.address,
     network: policy.network,
     get signedCount() { return signed; },
+    async signBytes(message) {
+      const sig = new Uint8Array(await signBytes(signer.keyPair.privateKey, message));
+      signed++;
+      return sig;
+    },
     async sign(resource, requirement) {
       const payload = await client.createPaymentPayload({ x402Version: 2, resource, accepts: [requirement] } as PaymentRequired);
       signed++;

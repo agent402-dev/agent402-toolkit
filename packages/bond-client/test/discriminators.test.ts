@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Keypair, PublicKey } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { describe, expect, it } from 'vitest';
 import * as bond from '../src/index.js';
 
@@ -46,5 +46,19 @@ describe('bond-client', () => {
     expect(d.outcome).toBe('delivered');
     expect(d.owedSeller).toBe(330n);
     expect(PublicKey.isOnCurve(bond.BOND_PROGRAM_ID.toBytes())).toBe(true);
+  });
+});
+
+// associatedTokenAddress must equal @solana/spl-token's derivation (bond-client no longer depends on spl-token).
+describe('associatedTokenAddress', () => {
+  it('matches spl-token for SPL Token and Token-2022', () => {
+    expect(bond.TOKEN_PROGRAM_ID.equals(TOKEN_PROGRAM_ID)).toBe(true);
+    expect(bond.TOKEN_2022_PROGRAM_ID.equals(TOKEN_2022_PROGRAM_ID)).toBe(true);
+    for (let i = 0; i < 20; i++) {
+      const owner = Keypair.generate().publicKey, mint = Keypair.generate().publicKey;
+      for (const tp of [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]) {
+        expect(bond.associatedTokenAddress(owner, mint, tp).equals(getAssociatedTokenAddressSync(mint, owner, false, tp))).toBe(true);
+      }
+    }
   });
 });

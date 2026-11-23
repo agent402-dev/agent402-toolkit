@@ -15,14 +15,13 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 
 ## Install
 ```bash
-npm install @agent402-dev/bond-client @solana/web3.js @solana/spl-token
+npm install @agent402-dev/bond-client @solana/web3.js
 ```
-`@solana/web3.js` (v1) and `@solana/spl-token` are peer dependencies. Node 20+.
+`@solana/web3.js` (v1) is a peer dependency. `@agent402-dev/bond-client/rules` (deadlines, possible actions, settlement preview) has no dependencies at all. Node 20+.
 
 ## Usage
 ```ts
 import { Transaction } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import * as bond from '@agent402-dev/bond-client';
 
 const U = 1_000_000n; // USDC has 6 decimals; all amounts are in the smallest unit
@@ -30,7 +29,7 @@ const now = BigInt((await connection.getBlockTime(await connection.getSlot()))!)
 const deal: bond.DealRef = {
   seller, buyer,                    // PublicKey
   mint: bond.MINTS.mainnet.USDC,
-  tokenProgram: TOKEN_PROGRAM_ID,
+  tokenProgram: bond.TOKEN_PROGRAM_ID,
   nonce: 1n,                        // unique per seller + buyer pair
 };
 const terms: bond.Terms = {
@@ -60,6 +59,9 @@ Both sides can end a deal early with `cancelAndClaim` (both sign; each side gets
 | `cancel`, `cancelAndClaim` | Closing a deal by mutual agreement |
 | `dealPda`, `vaultPda`, `counterPda`, `configPda`, `dealOf` | Addresses |
 | `decodeDeal`, `OUTCOMES` | Reading a deal |
+| `timeline`, `settlePreview`, `buyerDeadline`, `possibleActions`, `settleBy` | The program's settlement rules in TypeScript (also at `@agent402-dev/bond-client/rules`, no dependencies): deadlines, what each side can do, what settlement pays |
+| `associatedTokenAddress`, `TOKEN_PROGRAM_ID`, `TOKEN_2022_PROGRAM_ID` | Token account helpers |
+| `JOB_PROTOCOL`, `checkJobQuote`, `termsMatchQuote`, `deliverMessage`, `verifyDeliverSignature` | [Bond Job Protocol](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md) helpers shared by sellers and buyers (also at `@agent402-dev/bond-client/job`, no dependencies) |
 | `setPaused`, `setAdmin`, `acceptAdmin`, `proposeCaps`, `observePrice`, `activatePriceMode` | Operator and price-record instructions (the operator is a Squads multisig) |
 
 ## Things to get right

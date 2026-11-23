@@ -5,7 +5,7 @@
 import { type Connection, type Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import * as bond from '../../src/index.js';
 import {
-  chainNow, deliverMessage, getJson, type OpenResponse, postJson, type Quote, send, sendSigned, signMessage, termsFromJson,
+  chainNow, getJson, type OpenResponse, postJson, type Quote, send, sendSigned, signDeliver, termsFromJson,
 } from './common.js';
 
 export interface BuyerLimits {
@@ -74,17 +74,14 @@ export async function buy(o: BuyOptions): Promise<BuyResult> {
     terms.deliverBy <= now || terms.deliverBy > now + o.limits.maxDeliverSeconds + 120n
   ) throw new Error('terms differ from the quote');
   const ref: bond.DealRef = { seller, buyer: o.buyer.publicKey, mint: new PublicKey(q.mint), tokenProgram: new PublicKey(q.tokenProgram), nonce: BigInt(res.nonce) };
-  const tx = Transaction.from(Buffer.from(res.tx, 'base64'));
+  const tx = Transaction.from(Buffer.from(res.transaction, 'base64'));
   checkOpenTx(tx, bond.open(ref, terms), seller);
   tx.partialSign(o.buyer);
   const deal = bond.dealOf(ref);
   log(`open: ${await sendSigned(o.conn, tx)} (deal ${deal.toBase58()})`);
 
   // 3. Ask for the result. Only the buyer's signature unlocks it.
-  const { result } = await postJson<{ result: unknown }>(`${o.sellerUrl}/deliver`, {
-    deal: deal.toBase58(),
-    signature: signMessage(o.buyer, deliverMessage(deal)),
-  });
+  const { result } = await postJson<{ result: unknown }>(`${o.sellerUrl}/deliver`, signDeliver(o.buyer, deal.toBase58(), o.sellerUrl));
 
   // 4. Our own check. The program never judges quality.
   if (!o.accept(result)) {

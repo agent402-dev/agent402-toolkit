@@ -45,7 +45,8 @@ export function jsonlHistory(path: string, mints: () => { USDC: string; PREQ: st
   // A signed payment counts as spent regardless of result (succeeded, rejected, unknown), to be conservative
   const signedOn = (now: Date) => {
     const day = now.toISOString().slice(0, 10);
-    return read().filter((e) => e.signed && e.at.slice(0, 10) === day);
+    // Fee-only signatures (amount "0", e.g. settling a bond deal) move no tokens and do not count as payments
+    return read().filter((e) => e.signed && e.at.slice(0, 10) === day && e.amount !== '0');
   };
   const usdOf = (xs: HistoryEntry[], usdc: string) => xs.filter((e) => e.mint === usdc && e.amount).reduce((s, e) => s + Number(e.amount) / 1e6, 0);
   const sumOf = (xs: HistoryEntry[], mint: string) => (mint ? xs.filter((e) => e.mint === mint && e.amount && /^\d+$/.test(e.amount)).reduce((s, e) => s + BigInt(e.amount!), 0n) : 0n);

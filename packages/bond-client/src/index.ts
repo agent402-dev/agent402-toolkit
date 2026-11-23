@@ -11,7 +11,6 @@
  * amount is returned to the buyer.
  */
 import { PublicKey, SystemProgram, TransactionInstruction, type AccountMeta } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 
 /** Same program id on devnet and mainnet. */
 export const BOND_PROGRAM_ID = new PublicKey('9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK');
@@ -123,7 +122,15 @@ export interface DealRef {
 }
 
 export const dealOf = (d: DealRef) => dealPda(d.seller, d.buyer, d.nonce);
-const ata = (owner: PublicKey, d: DealRef) => getAssociatedTokenAddressSync(d.mint, owner, false, d.tokenProgram);
+/** SPL Token and Token-2022 program ids (so you do not need @solana/spl-token for these). */
+export const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+export const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+/** Associated token account program (same derivation as @solana/spl-token getAssociatedTokenAddressSync; checked in tests). */
+export const ATA_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+/** The owner's associated token account for a mint under a token program (SPL Token or Token-2022). */
+export const associatedTokenAddress = (owner: PublicKey, mint: PublicKey, tokenProgram: PublicKey) =>
+  PublicKey.findProgramAddressSync([owner.toBytes(), tokenProgram.toBytes(), mint.toBytes()], ATA_PROGRAM_ID)[0];
+const ata = (owner: PublicKey, d: DealRef) => associatedTokenAddress(owner, d.mint, d.tokenProgram);
 
 /** Both seller and buyer must sign. Locks the bond and the deposit. */
 export function open(d: DealRef, t: Terms, sellerToken = ata(d.seller, d), buyerToken = ata(d.buyer, d)) {
@@ -223,3 +230,9 @@ export function decodeDeal(raw: Uint8Array): DealState {
     balancePaid, outcome, owedSeller,
   };
 }
+
+// Settlement rules (deadlines, possible actions, settlement preview), ported from the program's Rust core.
+export * from './rules.js';
+
+// Bond Job Protocol v1 (shared by sellers and buyers): quote checks, deliver message, signature check.
+export * from './job.js';

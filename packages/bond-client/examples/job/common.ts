@@ -1,29 +1,11 @@
-// Shared helpers for the bonded-job example: wire format, sending, and
-// a small ed25519 message signature so only the deal's buyer can fetch the result.
-import { createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
-import { type Connection, type Keypair, PublicKey, type Transaction } from '@solana/web3.js';
-import type { Terms } from '../../src/index.js';
+// Shared helpers for the bonded-job example: sending by polling, and the buyer's signed delivery request
+// (Agent402 Bond Job Protocol v1, see docs/bond/JOB-PROTOCOL.md).
+import { createPrivateKey, sign } from 'node:crypto';
+import type { Connection, Keypair, Transaction } from '@solana/web3.js';
+import { deliverMessage, type JobOpen, type JobQuote, type Terms, toBase64 } from '../../src/index.js';
 
-/** What the seller advertises before any money moves. Amounts are strings (bigint over JSON). */
-export interface Quote {
-  seller: string;
-  mint: string;
-  tokenProgram: string;
-  price: string;
-  sellerBond: string;
-  buyerDeposit: string;
-  /** How long after opening the seller promises to deliver. */
-  deliverSeconds: string;
-  lateWindow: string;
-  payWindow: string;
-}
-
-export interface OpenResponse {
-  nonce: string;
-  terms: Record<keyof Terms, string>;
-  /** `open` transaction, signed by the seller only, base64. */
-  tx: string;
-}
+export type Quote = JobQuote;
+export type OpenResponse = JobOpen;
 
 export const termsToJson = (t: Terms) =>
   Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v.toString()])) as Record<keyof Terms, string>;
@@ -65,18 +47,15 @@ export async function send(conn: Connection, tx: Transaction, signers: Keypair[]
 
 // ed25519 via node:crypto, using the raw Solana key bytes.
 const PKCS8 = Buffer.from('302e020100300506032b657004220420', 'hex');
-const SPKI = Buffer.from('302a300506032b6570032100', 'hex');
 
-export const deliverMessage = (deal: PublicKey) => `agent402-bond-job:deliver:${deal.toBase58()}`;
-
-export function signMessage(kp: Keypair, msg: string): string {
+/**
+ * The buyer's delivery request: ed25519 over deliverMessage(deal, origin, expires) (starts with 0xff, never a transaction).
+ * Bound to the seller's origin and valid for 5 minutes.
+ */
+export function signDeliver(kp: Keypair, deal: string, sellerUrl: string, expires = Math.floor(Date.now() / 1000) + 300) {
   const key = createPrivateKey({ key: Buffer.concat([PKCS8, Buffer.from(kp.secretKey.slice(0, 32))]), format: 'der', type: 'pkcs8' });
-  return sign(null, Buffer.from(msg), key).toString('base64');
-}
-
-export function verifyMessage(signer: PublicKey, msg: string, sigB64: string): boolean {
-  const key = createPublicKey({ key: Buffer.concat([SPKI, signer.toBuffer()]), format: 'der', type: 'spki' });
-  return verify(null, Buffer.from(msg), key, Buffer.from(sigB64, 'base64'));
+  const signature = toBase64(new Uint8Array(sign(null, Buffer.from(deliverMessage(deal, new URL(sellerUrl).origin, expires)), key)));
+  return { deal, expires, signature };
 }
 
 export async function postJson<T>(url: string, body: unknown): Promise<T> {

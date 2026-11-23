@@ -1,7 +1,11 @@
-// @agent402-dev/pay-mcp's 4 tools: x402_fetch, x402_quote, wallet_status, payment_history
+// @agent402-dev/pay-mcp's 11 tools: x402_fetch, x402_quote, wallet_status, payment_history, and Agent402 Bond: bond_deal_status (read-only), bond_open, bond_confirm_and_pay, bond_settle, and the Bond Job Protocol: bond_job_quote (read-only), bond_job_start, bond_job_result
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createAgent, type ConfirmAnswer } from './agent.js';
+import { bondDealStatus } from './bond.js';
+import { bondConfirmAndPay, bondOpen, type BondPolicy, type BondRpc, bondSettle } from './bond-sign.js';
+import { bondJobQuote, bondJobResult, bondJobStart } from './bond-job.js';
+import { withSpendLock } from './spend-lock.js';
 import type { History } from './history.js';
 import type { AccountsFetcher } from './locks.js';
 import { historyToCsv } from './csv.js';
@@ -15,8 +19,14 @@ export interface PayServerDeps {
   history: History;
   fetch: typeof fetch;
   now?: () => Date;
-  /** Read-only account reader for seller lock checks */
+  /** Read-only account reader for seller lock checks and bond_deal_status */
   accounts?: AccountsFetcher;
+  /** Solana clock (unix seconds) for the bond tools */
+  clock?: () => Promise<bigint>;
+  /** Agent402 Bond signing rules (bondPolicyFromEnv). Missing = bond signing tools refuse */
+  bondPolicy?: BondPolicy;
+  /** RPC for sending bond transactions */
+  bondRpc?: BondRpc;
 }
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -53,7 +63,7 @@ function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown>
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.4.0' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.5.0' });
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!server.server.getClientCapabilities()?.elicitation) return 'unsupported';
     const r = await server.server.elicitInput({
@@ -69,7 +79,7 @@ export function createPayServer(d: PayServerDeps): McpServer {
     'x402_fetch',
     'Fetch a URL and, if it answers HTTP 402 (x402), pay from the configured wallet only when every rule passes before signing: allowed domain (X402_ALLOWED_DOMAINS), trusted recipient (X402_TRUSTED_PAY_TO), allowed asset (USDC by default; PREQ only if listed; A402 (v1) is deprecated), per-payment and daily limits, and human confirmation above the configured amount. Signs at most once per call. Pass quoteId from x402_quote to refuse if the requirements changed. The wallet key never leaves this machine.',
     { ...req, quoteId: z.string().optional() },
-    async (a) => { const r = await agent.payAndFetch(a); return out(withUnits(r), !['paid', 'not_required'].includes(r.result)); },
+    async (a) => { const r = await withSpendLock(() => agent.payAndFetch(a)); return out(withUnits(r), !['paid', 'not_required'].includes(r.result)); },
   );
   server.tool(
     'x402_quote',
@@ -112,6 +122,11 @@ export function createPayServer(d: PayServerDeps): McpServer {
         units: '…Usd = US dollars (USDC); …Atomic = token smallest unit (1 PREQ = 1,000,000)',
       },
       allowedDomains: d.policy.allowedDomains, trustedPayTo: d.policy.trustedPayTo, allowedAssets: d.policy.allowedAssets,
+      bond: d.bondPolicy ? {
+        sellers: d.bondPolicy.sellers, maxUsdPerDeal: d.bondPolicy.maxPriceUsd ?? 'not set (X402_BOND_MAX_USD) — bond_open refused',
+        minSellerBondBps: d.bondPolicy.minBondBps.toString(), maxDays: d.bondPolicy.maxDays, confirmAboveUsd: d.bondPolicy.confirmAboveUsd,
+        note: 'Bond deposits and balances count toward the daily USDC cap and payment count.',
+      } : 'off',
       ...(d.policy.warnings.length || near.length ? { warnings: [...d.policy.warnings, ...near] } : {}),
       ...(d.wallet ? {} : { note: 'No wallet configured (X402_KEYPAIR_PATH): x402_fetch will not pay.' }),
       }));
@@ -125,6 +140,64 @@ export function createPayServer(d: PayServerDeps): McpServer {
       const xs = d.history.list(limit ?? 20);
       return format === 'csv' ? { content: [{ type: 'text' as const, text: historyToCsv([...xs].reverse()) }] } : out(withUnits(xs));
     },
+  );
+  server.tool(
+    'bond_deal_status',
+    'Read-only. Show an Agent402 Bond deal (program 9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK): parties, amounts with units, deadlines on the Solana clock, what each side can still do, and the settlement that applies now or the earliest time it opens. Never signs. Predicted from the program rules; the program on chain decides.',
+    { deal: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Solana base58 deal account address') },
+    async ({ deal }) => {
+      if (!d.accounts || !d.clock) return out({ result: 'unavailable', message: 'No RPC configured for reading accounts (X402_RPC_URL).' }, true);
+      try {
+        const r = await bondDealStatus({ accounts: d.accounts, clock: d.clock, wallet: d.wallet?.address ?? null }, deal);
+        return out(r, r.result === 'not_found' || r.result === 'not_a_deal');
+      } catch {
+        return out({ result: 'rpc_error', message: 'Could not read the deal from the configured RPC.' }, true);
+      }
+    },
+  );
+  // Signing tools refuse by themselves when there is no wallet (signer null)
+  const bondDeps = () => (d.accounts && d.clock && d.bondPolicy && d.bondRpc
+    ? { policy: d.policy, bond: d.bondPolicy, signer: d.wallet ? { address: d.wallet.address, signBytes: (m: Uint8Array) => d.wallet!.signBytes(m) } : null,
+      rpc: d.bondRpc, history: d.history, confirm, accounts: d.accounts, clock: d.clock, wallet: d.wallet?.address ?? null, now: d.now, fetch: d.fetch }
+    : null);
+  const noBond = () => out({ result: 'refused', reasons: ['Agent402 Bond is not configured (RPC and bond rules)'] }, true);
+  const ADDR = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Solana base58 address');
+  server.tool(
+    'bond_open',
+    'Agent402 Bond, buyer side. Sign an `open` transaction that the seller built and signed as fee payer (base64, legacy). Before signing, the instruction is rebuilt for this wallet from its own terms and must match byte for byte (one instruction, seller and this wallet as the only signers, USDC). Rules: seller in X402_BOND_SELLERS, price at most X402_BOND_MAX_USD, seller bond at least X402_BOND_MIN_SELLER_BOND_BPS (default 5%), delivery within X402_BOND_MAX_DAYS (default 30), the deposit within the daily USDC cap, and human confirmation (by default always). Empty settings refuse everything. Locks this wallet\'s deposit in the deal vault.',
+    { transaction: z.string().min(100).max(4000) },
+    async ({ transaction }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondOpen(b, transaction)); return out(r, r.result !== 'opened'); },
+  );
+  server.tool(
+    'bond_confirm_and_pay',
+    'Agent402 Bond, buyer side. Confirm receipt and pay the balance (price minus deposit) directly to the seller. Only for deals where this wallet is the buyer, before the buyer deadline, within the daily USDC cap, with human confirmation (by default always). Confirming releases the seller bond and the deposit to the seller; the program does not judge quality.',
+    { deal: ADDR },
+    async ({ deal }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondConfirmAndPay(b, deal)); return out(r, r.result !== 'confirmed_and_paid'); },
+  );
+  server.tool(
+    'bond_settle',
+    'Agent402 Bond. Settle a deal whose outcome is fixed by signatures and time, then send both claims in the same transaction (buyer share, then seller share). Only for deals where this wallet is the buyer or the seller; this wallet pays only the network fee.',
+    { deal: ADDR },
+    async ({ deal }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondSettle(b, deal)); return out(r, r.result !== 'settled'); },
+  );
+  const URL_ = z.string().url();
+  server.tool(
+    'bond_job_quote',
+    'Agent402 Bond Job Protocol v1. Read a seller\'s job quote (GET {url}/quote) and check it against this wallet\'s bond rules: seller in X402_BOND_SELLERS, price at most X402_BOND_MAX_USD, seller bond at least the minimum share, delivery time, and the daily USDC cap. The URL host must be in X402_ALLOWED_DOMAINS. Never signs.',
+    { url: URL_ },
+    async ({ url }) => { const b = bondDeps(); if (!b) return noBond(); const r = await bondJobQuote(b, url); return out(r, r.result !== 'ok'); },
+  );
+  server.tool(
+    'bond_job_start',
+    'Agent402 Bond Job Protocol v1, buyer side. Send the job input (POST {url}/open), receive the seller-signed open transaction, check that the quote, the reported terms and the transaction terms all agree, then run bond_open (rebuild and compare, bond rules, human confirmation). Locks your deposit. Returns the deal address.',
+    { url: URL_, input: z.string().min(1).max(16_384) },
+    async ({ url, input }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondJobStart(b, url, input)); return out(r, r.result !== 'opened'); },
+  );
+  server.tool(
+    'bond_job_result',
+    'Agent402 Bond Job Protocol v1, buyer side. Fetch the delivered work for a deal where this wallet is the buyer (POST {url}/deliver with a signed request; the signed bytes start with 0xff so they can never be a transaction). Does not confirm or pay: check the work, then call bond_confirm_and_pay only if it is acceptable.',
+    { url: URL_, deal: ADDR },
+    async ({ url, deal }) => { const b = bondDeps(); if (!b) return noBond(); const r = await bondJobResult(b, url, deal); return out(r, r.result !== 'delivered'); },
   );
   return server;
 }

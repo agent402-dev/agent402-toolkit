@@ -1,18 +1,18 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.agent402-dev/a402-pay-mcp",
-  "description": "A402 (v1) deprecated, now PREQ. Pay x402 APIs (USDC, PREQ) from your own wallet. Refuses by default.",
+  "description": "Pay x402 APIs (USDC, PREQ) and run Agent402 Bond deals from your own wallet. Refuses by default.",
   "repository": {
     "url": "https://github.com/agent402-dev/agent402-toolkit",
     "source": "github",
     "subfolder": "packages/pay-mcp"
   },
-  "version": "0.4.0",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agent402-dev/pay-mcp",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "transport": {
         "type": "stdio"
       },
@@ -146,6 +146,41 @@
         {
           "name": "X402_MIN_LOCK_SOL_ATOMIC",
           "description": "Minimum wrapped SOL locked by the seller, lamports (1 SOL = 1,000,000,000)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_BOND_SELLERS",
+          "description": "Agent402 Bond: seller addresses you may open deals with, comma-separated. Empty: bond_open refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_BOND_MAX_USD",
+          "description": "Agent402 Bond: max price per deal (USD). Unset: bond_open refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_BOND_MIN_SELLER_BOND_BPS",
+          "description": "Agent402 Bond: minimum seller bond as a share of the price, basis points (default 500 = 5%).",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_BOND_MAX_DAYS",
+          "description": "Agent402 Bond: max days from now to the delivery deadline (default 30).",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_BOND_CONFIRM_ABOVE_USD",
+          "description": "Agent402 Bond: ask a human at or above this amount in USD (default 0 = always ask).",
           "isRequired": false,
           "format": "string",
           "isSecret": false

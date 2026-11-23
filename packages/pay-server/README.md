@@ -22,7 +22,7 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 - It **does not operate a facilitator.** Verification and settlement are done by the external facilitators you configure.
 - It **does not hold funds.** Payments go from the buyer's wallet directly to your receiving address.
 - It **does not exchange** currencies. The PREQ rate is used only to compute the PREQ amount; there is no PREQ ↔ USDC conversion.
-- It **does not accept or send payments on anyone's behalf.** Your server receives only your receiving address (public key); there is no API that takes a private key.
+- It **does not accept or send payments on anyone's behalf.** The x402 gate receives only your receiving address (public key). No API takes a private key: the optional Bond seller helper (below) asks for a signer function that you provide (a wallet, a KMS, or your own wrapper) and never reads or stores keys.
 
 ## PREQ option
 PREQ is offered only when all of these hold for the request:
@@ -108,6 +108,45 @@ npx -y @agent402-dev/pay-server register --host api.example.com --pay-to <receiv
 - Sign offline and serve only the resulting document. The gate never needs the lock key or the receiving wallet's key.
 - Use a lock received by a regular key. A lock received by a multisig vault cannot sign the registration yet.
 - The format is the same for every asset. A lock is a commitment signal only; nothing can be confiscated.
+
+## Agent402 Bond, seller side (optional)
+`@agent402-dev/pay-server/bond` helps a seller run [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deals (beta): the seller locks a bond, the buyer locks a deposit, and the outcome follows only signatures and the Solana clock. Use it for work that takes time; use the x402 gate for instant pay-per-request.
+
+```ts
+import { createBondSeller } from '@agent402-dev/pay-server/bond';
+
+const seller = createBondSeller({
+  rpcUrl,
+  signer,                       // { publicKey, signTransaction(tx) } — your wallet or KMS; the SDK never sees the key
+  terms: { price: 20_000_000n, sellerBond: 2_000_000n, buyerDeposit: 5_000_000n, deliverSeconds: 3_600n, lateWindow: 0n, payWindow: 86_400n },
+  store,                        // persist jobs (default: in memory)
+});
+
+seller.quote();                                   // terms to show the buyer
+const p = await seller.prepareOpen(buyerAddress); // `open` with you as fee payer, signed by you → send p.transaction to the buyer
+await seller.requireOpen(p.deal);                 // start work only after this passes (deposit locked, terms as prepared)
+await seller.markDelivered(p.deal);               // when you hand over the work, before the deadline
+await seller.settle(p.deal);                      // once the outcome is fixed (you pay the network fee)
+await seller.unmarked();                          // open deals you have not marked yet, earliest deadline first
+```
+
+- Terms are checked against the program limits before anything is signed (bond at most 20% of the price, late window up to 7 days, pay window 1 to 30 days).
+- If nothing is marked or confirmed by the deadline (delivery time + 1 day + late window), the bond and the deposit go to the buyer. Run `unmarked()` on a timer.
+- The program does not judge quality. If the buyer never confirms, each side gets its own money back; quality disputes are resolved between the parties.
+- `bondJobService({ seller, doJob })` serves the whole [Bond Job Protocol](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md) (`GET /quote`, `POST /open`, `POST /deliver`) as a Fetch-style `handle(req)` (Node, Cloudflare Workers): it checks the buyer's signature, starts work only once the deal is open on chain, marks delivery, and returns the same result on repeat calls. **Run its `processOpenJobs()` on a timer**: it does the work and marks delivery for every deal the buyer has opened, without waiting for the buyer to ask (otherwise a buyer who never fetches the result would get your bond at the deadline); it also settles and claims once the outcome is fixed, retries failed jobs without re-running finished ones, and drops prepared deals that were never opened. Long jobs answer `202 working` on `/deliver`.
+- Protections in `bondJobService` (all configurable):
+  - each run of `doJob` is aborted after `jobTimeoutSeconds` (default 120; `ctx.signal` fires). After `maxAttempts` failures (default 3), or 30 minutes before the mark deadline with no result, it delivers `{ "error": "job_failed" }` and marks, so a bad input ends neutral (each side gets its own money back) instead of costing your bond;
+  - `validateInput(input)` refuses inputs before any deal is prepared;
+  - a buyer sees the work before deciding to confirm, and a deal never confirmed ends neutral, so the buyer could keep the work without paying. `maxUnconfirmedPerBuyer` (default 2) refuses buyers with that history (403); a buyer can switch wallets, so price jobs with this in mind or allowlist buyers for valuable work;
+  - `maxPendingPerBuyer` (default 3) and `maxPending` (default 50) cap deals in progress (each one locks your bond); over the cap `/open` answers 429;
+  - `processOpenJobs()` reads all deals in one batch, works on the earliest deadlines first (`concurrency`, default 4), and one failing deal does not stop the others;
+  - when several processes share one store (several Worker isolates, several servers), give the store `lock`/`unlock` so a job runs once (the in-memory store and the Workers example have it);
+  - if the buyer's token account is frozen or closed, settling falls back to claiming only your share;
+  - delivery requests are signed for your origin and expire within 10 minutes; set `publicOrigin` if you run behind a proxy that changes the scheme or host;
+  - USDC prices above the program's 100 USDC beta cap, `deliverSeconds` under 60 and `prepareTtlSeconds` under 300 are refused at startup.
+- Buyers can use `@agent402-dev/pay-mcp` (`bond_job_start`, or `bond_open` for a transaction you deliver another way), which rebuilds your `open` transaction for its own wallet and signs only if it matches.
+- Ready-to-deploy Cloudflare Workers seller (Durable Object job store, cron that delivers and marks): [`examples/bond-seller-worker`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/bond-seller-worker).
+- Full example with a seller service and a buyer agent: [`packages/bond-client/examples/job`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/bond-client/examples/job).
 
 ## Data
 - No telemetry and no analytics.

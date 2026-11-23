@@ -1,14 +1,18 @@
 {
   "name": "@agent402-dev/bond-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./rules": "./src/rules.ts",
+    "./job": "./src/job.ts"
+  },
   "description": "Instruction builders for the Agent402 Bond Solana program (beta).",
   "author": "Agent402",
   "license": "Apache-2.0",
   "type": "module",
   "main": "src/index.ts",
-  "dependencies": {
-    "@solana/web3.js": "^1.99.0",
-    "@solana/spl-token": "^0.4.15"
+  "peerDependencies": {
+    "@solana/web3.js": "^1.99.0"
   }
 }

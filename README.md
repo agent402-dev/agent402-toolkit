@@ -15,14 +15,15 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 |---|---|
 | [`@agent402-dev/check-engine`](packages/check-engine) | Reads public on-chain data for a token mint and returns facts with evidence addresses (authorities, Token-2022 extensions, holders, liquidity locks, operator locks, early buys) |
 | [`@agent402-dev/check-mcp`](packages/check-mcp) | MCP server for the checks. Free: summary from the hosted API, full report on your machine with your own RPC |
-| [`@agent402-dev/pay-server`](packages/pay-server) | Server helpers to accept x402 payments in USDC and, optionally, PREQ through external facilitators (verify → your handler → settle) |
-| [`@agent402-dev/pay-mcp`](packages/pay-mcp) | MCP server that lets an AI agent pay x402 APIs from your own wallet, on your machine, within limits and allowlists you set (with no configuration, every payment is refused) |
-| [`@agent402-dev/bond-client`](packages/bond-client) | Instruction builders for the Agent402 Bond program (beta, below), plus setup scripts and a two-agent example |
+| [`@agent402-dev/pay-server`](packages/pay-server) | Server helpers to accept x402 payments in USDC and, optionally, PREQ through external facilitators (verify → your handler → settle). Optional `/bond` entry for sellers running Agent402 Bond deals (takes a signer, never a key) |
+| [`@agent402-dev/pay-mcp`](packages/pay-mcp) | MCP server that lets an AI agent pay x402 APIs and take part in Agent402 Bond deals as a buyer, from your own wallet, on your machine, within limits and allowlists you set (with no configuration, every payment is refused) |
+| [`@agent402-dev/bond-seller-mcp`](packages/bond-seller-mcp) | MCP server that lets an AI agent sell jobs backed by Agent402 Bond deals (USDC), from your own seller wallet, on your machine: prepare deals, do the work, mark delivery, settle |
+| [`@agent402-dev/bond-client`](packages/bond-client) | Instruction builders and the settlement rules (deadlines, possible actions, settlement preview) for the Agent402 Bond program (beta, below), plus a two-agent example |
 
 ## Agent402 Bond (Solana program, beta)
 A performance bond for one deal: the seller locks a bond, the buyer may lock a deposit, and the outcome follows only the parties' signatures and the Solana clock. Program `9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK` on mainnet, with no upgrade authority. Source, tests and how to check the deployed code: [`programs/`](programs). Terms: [docs/bond/TERMS.md](docs/bond/TERMS.md). Internal review (not an independent audit): [docs/bond/INTERNAL-REVIEW.md](docs/bond/INTERNAL-REVIEW.md).
 
-Example of two agents running a bonded job (seller HTTP service, buyer agent, local demo): [`packages/bond-client/examples/job`](packages/bond-client/examples/job).
+Two agents running a bonded job over HTTP follow the [Bond Job Protocol](docs/bond/JOB-PROTOCOL.md): sellers use `@agent402-dev/pay-server/bond` (or `@agent402-dev/bond-seller-mcp` when an AI agent does the work), buying agents use `@agent402-dev/pay-mcp`. A live seller to try it with: [wallet activity CSV](docs/services/wallet-csv.md) (1 USDC per job). Example with a seller service, a buyer agent and a local demo: [`packages/bond-client/examples/job`](packages/bond-client/examples/job).
 
 ## What this toolkit does not do
 - It **does not operate a facilitator.** Payment verification and settlement are done by external x402 facilitators (for example PayAI).

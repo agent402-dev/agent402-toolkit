@@ -6,4 +6,5 @@ dist/
 target/
 *.so
 *.log
+.surfpool/
 .a402-export

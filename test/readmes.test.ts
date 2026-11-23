@@ -1,4 +1,4 @@
-// Shared rules for the 5 public READMEs (root + 4 packages): disclaimer, the 4 things it does not do, unrelated to similar names, no rating or recommendation wording, units for token (PREQ, A402) amounts, English only
+// Shared rules for the public READMEs (root + packages): disclaimer, the 4 things it does not do, unrelated to similar names, no rating or recommendation wording, units for token (PREQ, A402) amounts, English only
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
@@ -8,6 +8,7 @@ const files = {
   'check-mcp': '../packages/check-mcp/README.md',
   'pay-server': '../packages/pay-server/README.md',
   'pay-mcp': '../packages/pay-mcp/README.md',
+  'bond-seller-mcp': '../packages/bond-seller-mcp/README.md',
 };
 const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
 

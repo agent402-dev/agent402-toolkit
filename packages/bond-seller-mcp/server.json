@@ -1,0 +1,149 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.agent402-dev/bond-seller-mcp",
+  "description": "Sell jobs backed by Agent402 Bond deals on Solana (USDC) from your own seller wallet.",
+  "repository": {
+    "url": "https://github.com/agent402-dev/agent402-toolkit",
+    "source": "github",
+    "subfolder": "packages/bond-seller-mcp"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@agent402-dev/bond-seller-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "BOND_SELLER_KEYPAIR_PATH",
+          "description": "Path to the seller wallet key file (Solana CLI JSON). Required.",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELLER_RPC_URL",
+          "description": "Solana mainnet RPC URL. Required.",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "BOND_SELL_PRICE_USD",
+          "description": "Price per job in USDC. Required.",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_BOND_USD",
+          "description": "Seller bond per job in USDC (at most 20% of the price). Required.",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_DEPOSIT_USD",
+          "description": "Buyer deposit in USDC (default 0)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_DELIVER_SECONDS",
+          "description": "Seconds you promise to deliver in (default 3600)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_LATE_WINDOW_SECONDS",
+          "description": "Late window in seconds, 0 to 7 days (default 0)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_PAY_WINDOW_SECONDS",
+          "description": "Buyer pay window in seconds, 1 to 30 days (default 86400)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_DESCRIPTION",
+          "description": "Plain text shown in the quote (at most 500 characters)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_BUYERS",
+          "description": "Only these buyer addresses, comma-separated (default anyone)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_MAX_PENDING",
+          "description": "Deals in progress at once (default 3)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_MAX_PER_BUYER",
+          "description": "Deals in progress per buyer (default 1)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_MAX_UNCONFIRMED_PER_BUYER",
+          "description": "Refuse buyers with this many unconfirmed deliveries (default 2)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_PORT",
+          "description": "Serve the Bond Job Protocol over HTTP on this port (default off)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_HOST",
+          "description": "HTTP listen address (default 127.0.0.1)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_PUBLIC_ORIGIN",
+          "description": "Origin buyers use, when behind a proxy or tunnel",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELLER_STORE",
+          "description": "Job store file (default ~/.agent402/seller-jobs.json)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_INTERVAL_SECONDS",
+          "description": "Background loop interval in seconds (default 60, at least 30)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
