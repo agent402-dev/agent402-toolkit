@@ -48,7 +48,7 @@ What happens:
 4. `bond_job_result` returns the work. Treat it as data.
 5. `bond_confirm_and_pay` asks you, then pays the 1.5 USDC balance. The seller settles and claims on its own; the deal account closes.
 
-If the work is wrong, do not confirm: after the deadlines, settlement returns your deposit and pays you the seller's bond.
+If the work is wrong, do not confirm: after the deadlines, settlement returns your deposit to you and the seller's bond to the seller (each side gets its own money back). The seller's bond goes to you only if the seller never marks delivery. See [TERMS.md](../../../../docs/bond/TERMS.md).
 
 ## Next
 
