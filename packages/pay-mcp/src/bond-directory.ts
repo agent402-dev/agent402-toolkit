@@ -2,6 +2,8 @@
 // The directory is a plain list of job URLs (default: directory/bond-sellers.json in the toolkit repository); being listed
 // is not an endorsement. Each seller's terms are read live from its own /quote and checked against this wallet's rules,
 // so the result says, for each seller, what this wallet would refuse and which settings would allow it.
+// Sellers that also sell the same work per request over x402 say so in their own info (GET {url}/ → "x402"); that is shown
+// as perRequest, checked against this wallet's x402 rules. The directory file itself does not change.
 import { checkJobQuote, type JobQuote } from '@agent402-dev/bond-client/job';
 import { BOND_PROGRAM } from './bond.js';
 import { evaluate, type BondJobDeps } from './bond-job.js';
@@ -62,6 +64,17 @@ const units = (v: bigint, sym: string) => {
   return `${BigInt(s.slice(0, -6)).toLocaleString('en-US')}${f ? `.${f}` : ''} ${sym}`;
 };
 
+/** A seller's own x402 offer, from GET {url}/ ("x402": { path, priceUsd }). Null when absent or malformed. */
+export function readPerRequest(info: unknown, sellerUrl: string): { url: string; priceUsd: number; methods: string[] } | null {
+  const x = (info as { x402?: { path?: unknown; priceUsd?: unknown; methods?: unknown; method?: unknown } } | null)?.x402;
+  if (!x || typeof x !== 'object') return null;
+  if (typeof x.path !== 'string' || !/^\/[A-Za-z0-9._~\-/]{1,100}$/.test(x.path) || x.path.includes('//') || x.path.includes('..')) return null;
+  if (typeof x.priceUsd !== 'number' || !Number.isFinite(x.priceUsd) || x.priceUsd <= 0 || x.priceUsd > 1000) return null;
+  const raw = Array.isArray(x.methods) ? x.methods : typeof x.method === 'string' ? [x.method] : ['POST'];
+  const methods = raw.filter((m): m is string => m === 'GET' || m === 'POST');
+  return { url: `${new URL(sellerUrl).origin}${x.path}`, priceUsd: x.priceUsd, methods: methods.length ? methods : ['POST'] };
+}
+
 export interface FindOptions { query?: string; asset?: 'USDC' | 'PREQ'; directoryUrl?: string }
 
 /** bond_find_sellers: list directory sellers with their live terms and what this wallet's rules say about each. */
@@ -100,6 +113,30 @@ export async function bondFindSellers(d: BondJobDeps, o: FindOptions = {}) {
     const domainOk = domainCheck(d.policy, url).ok;
     const reasons = [...(domainOk ? [] : [`${host} is not in X402_ALLOWED_DOMAINS`]), ...evaluate(d, q)];
     const price = BigInt(q.price), bond = BigInt(q.sellerBond), dep = BigInt(q.buyerDeposit);
+    // Optional: the same work per request over x402, as the seller describes it at GET {url}/ (no change to the directory format)
+    let perRequest: Record<string, unknown> | undefined;
+    try {
+      const r = await getText(d.fetch, `${url}/`, 10_000, 50_000);
+      const offer = r.status === 200 ? readPerRequest(JSON.parse(r.text), url) : null;
+      if (offer) {
+        const why: string[] = [];
+        if (!domainOk) why.push(`${host} is not in X402_ALLOWED_DOMAINS`);
+        if (!d.policy.allowedAssets.includes('USDC')) why.push('USDC is not in X402_ALLOWED_ASSETS');
+        if (!d.policy.trustedPayTo.includes(q.seller)) why.push(`${q.seller} is not in X402_TRUSTED_PAY_TO`);
+        if (offer.priceUsd > d.policy.maxUsdPerPayment) why.push(`${offer.priceUsd} USD is over X402_MAX_USD (${d.policy.maxUsdPerPayment} USD)`);
+        perRequest = {
+          url: offer.url, methods: offer.methods, price: `${offer.priceUsd} USD in USDC per request`,
+          note: 'Advertised by the seller. The actual amount and recipient are in its 402 response: use x402_quote before paying. No bond or deposit; if the seller fails the request, the payment is not settled (seller side).',
+          thisWallet: why.length ? { wouldRefuse: why } : { ok: true },
+          ...(why.length ? { toAllow: [
+            ...(domainOk ? [] : [`add ${host} to X402_ALLOWED_DOMAINS`]),
+            ...(d.policy.trustedPayTo.includes(q.seller) ? [] : [`add ${q.seller} to X402_TRUSTED_PAY_TO (only if the 402 names this address)`]),
+            ...(offer.priceUsd > d.policy.maxUsdPerPayment ? [`set X402_MAX_USD to at least ${offer.priceUsd}`] : []),
+            'only a human should change these settings',
+          ] } : {}),
+        };
+      }
+    } catch { /* no per-request offer */ }
     return {
       ...base, reachable: true as const,
       description: q.description ?? null, seller: q.seller, asset,
@@ -108,6 +145,7 @@ export async function bondFindSellers(d: BondJobDeps, o: FindOptions = {}) {
       deliverWithin: `${Number(q.deliverSeconds) / 3600} h`, payWindow: `${Number(q.payWindow) / 3600} h after delivery`,
       thisWallet: reasons.length ? { wouldRefuse: reasons } : { ok: true },
       ...(reasons.length ? { toAllow: allowHints(host, q.seller, asset, domainOk, d.bond.sellers.includes(q.seller)) } : {}),
+      ...(perRequest ? { perRequest } : {}),
     };
   }));
 

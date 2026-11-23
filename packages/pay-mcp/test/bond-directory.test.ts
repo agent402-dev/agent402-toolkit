@@ -102,9 +102,45 @@ describe('bond_find_sellers', () => {
     if (r.result !== 'ok') throw new Error('failed');
     expect(r.sellers[0]).toMatchObject({ reachable: false, problem: expect.stringContaining('unsupported mint') });
   });
-  it('reads only the directory and each /quote (never /open or /deliver)', async () => {
-    const { d, seen } = deps();
+  it('reads only the directory, each /quote and each seller\'s info (GET {url}/); never /open, /deliver or a paid route', async () => {
+    const { d, seen } = deps({}, { 'https://csv.example.com/': { x402: { path: '/x402/receipts', priceUsd: 0.05 } } });
     await bondFindSellers(d);
-    expect(seen.every((u) => u === DEFAULT_DIRECTORY_URL || u.endsWith('/quote'))).toBe(true);
+    expect(seen.filter((u) => !(u === DEFAULT_DIRECTORY_URL || u.endsWith('/quote') || u.endsWith('/')))).toEqual([]);
+    expect(seen.some((u) => /\/(open|deliver)$|x402/.test(u))).toBe(false);
+  });
+});
+
+describe('per-request (x402) offers from the seller\'s own info', () => {
+  const info = (x402: unknown) => ({ protocol: 'agent402-bond-job/1', x402 });
+  it('readPerRequest accepts a plain path and price, refuses odd ones', async () => {
+    const { readPerRequest } = await import('@agent402-dev/pay-mcp/bond-directory');
+    expect(readPerRequest(info({ path: '/x402/receipts', priceUsd: 0.05, methods: ['GET', 'POST', 'PUT'] }), 'https://r.example.com')).toEqual({ url: 'https://r.example.com/x402/receipts', priceUsd: 0.05, methods: ['GET', 'POST'] });
+    expect(readPerRequest(info({ path: '/x402/job', priceUsd: 0.02, method: 'POST' }), 'https://r.example.com/jobs')?.url).toBe('https://r.example.com/x402/job');
+    for (const bad of [{ path: 'https://evil.example/x', priceUsd: 1 }, { path: '//evil.example/x', priceUsd: 1 }, { path: '/a/../b', priceUsd: 1 }, { path: '/x?y=1', priceUsd: 1 }, { path: '/x', priceUsd: 0 }, { path: '/x', priceUsd: '0.05' }, { path: '/x', priceUsd: 5000 }])
+      expect(readPerRequest(info(bad), 'https://r.example.com'), JSON.stringify(bad)).toBeNull();
+    expect(readPerRequest({ protocol: 'agent402-bond-job/1' }, 'https://r.example.com')).toBeNull();
+  });
+  it('bond_find_sellers shows perRequest with this wallet\'s x402 rules; sellers without it are unchanged', async () => {
+    const { d } = deps({ X402_ALLOWED_DOMAINS: 'csv.example.com', X402_MAX_USD: '0.01' }, {
+      'https://csv.example.com/': info({ path: '/x402/receipts', priceUsd: 0.05, methods: ['GET', 'POST'] }),
+    });
+    const r = await bondFindSellers(d);
+    if (r.result !== 'ok') throw new Error(r.reason);
+    const a = r.sellers.find((s) => s.url === 'https://csv.example.com') as any;
+    expect(a.perRequest).toMatchObject({ url: 'https://csv.example.com/x402/receipts', methods: ['GET', 'POST'], price: '0.05 USD in USDC per request' });
+    expect(a.perRequest.thisWallet.wouldRefuse.join(' | ')).toMatch(/not in X402_TRUSTED_PAY_TO.*over X402_MAX_USD/);
+    expect(a.perRequest.toAllow.join(' | ')).toMatch(/X402_TRUSTED_PAY_TO.*set X402_MAX_USD to at least 0.05/);
+    const b = r.sellers.find((s) => s.url === 'https://preq.example.com/jobs') as any;
+    expect(b.perRequest).toBeUndefined();
+  });
+  it('allowed when domain, recipient and limit all pass', async () => {
+    const { d } = deps({ X402_ALLOWED_DOMAINS: 'csv.example.com', X402_TRUSTED_PAY_TO: SELLER_A, X402_MAX_USD: '0.05' }, {
+      'https://csv.example.com/': info({ path: '/x402/receipts', priceUsd: 0.05 }),
+    });
+    const r = await bondFindSellers(d);
+    if (r.result !== 'ok') throw new Error(r.reason);
+    const a = r.sellers.find((s) => s.url === 'https://csv.example.com') as any;
+    expect(a.perRequest.thisWallet).toEqual({ ok: true });
+    expect(a.perRequest.toAllow).toBeUndefined();
   });
 });
