@@ -256,7 +256,7 @@ describe('5 attack scenarios: rejected before signing (0 signatures, 0 payment h
   });
 });
 
-describe('MCP server (11 tools, elicitation)', () => {
+describe('MCP server (12 tools, elicitation)', () => {
   async function connect(elicit: 'accept' | 'decline' | null) {
     const dir = mkdtempSync(join(tmpdir(), 'paymcp-s-'));
     const policy = policyFromEnv({ ...BASE, X402_CONFIRM_ABOVE_USD: '0.01' });
@@ -273,10 +273,10 @@ describe('MCP server (11 tools, elicitation)', () => {
     };
     return { client, call, wallet };
   }
-  it('11 tools, pre-signing rules in the descriptions', async () => {
+  it('12 tools, pre-signing rules in the descriptions', async () => {
     const { client } = await connect(null);
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(['bond_confirm_and_pay', 'bond_deal_status', 'bond_job_quote', 'bond_job_result', 'bond_job_start', 'bond_open', 'bond_settle', 'payment_history', 'wallet_status', 'x402_fetch', 'x402_quote']);
+    expect(tools.map((t) => t.name).sort()).toEqual(['bond_confirm_and_pay', 'bond_deal_status', 'bond_find_sellers', 'bond_job_quote', 'bond_job_result', 'bond_job_start', 'bond_open', 'bond_settle', 'payment_history', 'wallet_status', 'x402_fetch', 'x402_quote']);
     expect(tools.find((t) => t.name === 'x402_fetch')!.description).toMatch(/before signing/);
   });
   it('client without elicitation support → no payment', async () => {

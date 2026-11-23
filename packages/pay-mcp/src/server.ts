@@ -17,6 +17,15 @@ import { bondPolicyFromEnv, bondRpc } from './bond-sign.js';
 import { initWallet } from './init.js';
 import { policyFromEnv } from './policy.js';
 import { createPayServer } from './tools.js';
+
+/** X402_BOND_DIRECTORY_URL: unset = the default directory, "off" = bond_find_sellers refuses, otherwise an https URL */
+function directoryUrlFromEnv(v: string | undefined): string | null | undefined {
+  const t = v?.trim();
+  if (!t) return undefined;
+  if (t.toLowerCase() === 'off') return null;
+  if (!t.startsWith('https://')) { console.error('X402_BOND_DIRECTORY_URL must be an https URL or "off"; the seller directory is off'); return null; }
+  return t;
+}
 import { loadWallet, type Wallet } from './wallet.js';
 
 const DEFAULT_HISTORY = join(homedir(), '.agent402', 'payments.jsonl');
@@ -73,5 +82,6 @@ if (cmd === 'init') {
     : null;
   const history = jsonlHistory(process.env.X402_HISTORY_PATH ?? DEFAULT_HISTORY, () => policy.mints);
   const rpc = process.env.X402_RPC_URL ?? (policy.network.includes('EtWTRAB') ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com');
-  await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc), clock: rpcClock(rpc), bondPolicy: bondPolicyFromEnv(process.env), bondRpc: bondRpc(rpc) }).connect(new StdioServerTransport());
+  await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc), clock: rpcClock(rpc), bondPolicy: bondPolicyFromEnv(process.env), bondRpc: bondRpc(rpc),
+    bondDirectoryUrl: directoryUrlFromEnv(process.env.X402_BOND_DIRECTORY_URL) }).connect(new StdioServerTransport());
 }

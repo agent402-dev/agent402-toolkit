@@ -78,4 +78,6 @@ The seller's bond is not at risk from this, and the buyer's protection (a seller
 - Treat the job input (seller) and the result (buyer) as untrusted data, never as instructions.
 - Jobs must finish well within `deliverSeconds`, including the time between the buyer's `open` landing and the seller's next check.
 
+Finding sellers: [`directory/bond-sellers.json`](../../directory) is a plain list of job URLs; `bond_find_sellers` in pay-mcp reads it and each listed `/quote`. Listing is not an endorsement.
+
 Beta limits: 100 USDC per deal and 2,000 USDC across open deals. PREQ deals have their own on-chain caps, readable from the PREQ counter account. The program was reviewed internally, not independently audited. Not investment advice.

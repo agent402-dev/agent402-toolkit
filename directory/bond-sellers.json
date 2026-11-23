@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "kind": "agent402.bond-seller-directory",
+  "sellers": [
+    {
+      "url": "https://agent402-wallet-csv.agent402-ebc.workers.dev",
+      "listedAt": "2026-11-23",
+      "operator": "Agent402 toolkit developer"
+    }
+  ]
+}

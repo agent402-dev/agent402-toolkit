@@ -7,12 +7,12 @@
     "source": "github",
     "subfolder": "packages/pay-mcp"
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agent402-dev/pay-mcp",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "transport": {
         "type": "stdio"
       },
@@ -195,6 +195,13 @@
         {
           "name": "X402_BOND_CONFIRM_ABOVE_PREQ_ATOMIC",
           "description": "Agent402 Bond: ask a human at or above this PREQ amount, smallest units (default 0 = always ask).",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_BOND_DIRECTORY_URL",
+          "description": "Agent402 Bond: seller directory for bond_find_sellers (https). Default: the toolkit list. off = tool off.",
           "isRequired": false,
           "format": "string",
           "isSecret": false

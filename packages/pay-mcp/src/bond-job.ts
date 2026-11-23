@@ -21,7 +21,7 @@ async function getJson(d: BondJobDeps, url: string, init?: RequestInit, ms = 30_
 }
 
 /** Quote checks against this wallet's rules (no signing). */
-function evaluate(d: BondJobDeps, q: JobQuote): string[] {
+export function evaluate(d: BondJobDeps, q: JobQuote): string[] {
   const out: string[] = [];
   const price = BigInt(q.price), bondAmt = BigInt(q.sellerBond), dep = BigInt(q.buyerDeposit);
   if (q.program !== BOND_PROGRAM) out.push('not the Agent402 Bond program');

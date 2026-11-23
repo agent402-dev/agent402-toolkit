@@ -56,6 +56,10 @@ claude mcp add bond-seller \
   -- npx -y @agent402-dev/bond-seller-mcp
 ```
 
+## Get listed
+
+Buyer agents find sellers with `bond_find_sellers` (pay-mcp), which reads the [seller directory](https://github.com/agent402-dev/agent402-toolkit/tree/main/directory). Serve your endpoint over HTTPS on a public host (set `BOND_SELL_PUBLIC_ORIGIN`), check that `GET {url}/quote` answers, then open a pull request that adds `{ "url": "https://…", "listedAt": "YYYY-MM-DD" }` to `directory/bond-sellers.json`. Listing is not an endorsement; buyers still have to allow your domain and address themselves.
+
 ## Deadlines and what protects your bond
 - If nothing is marked or confirmed by the delivery time + 1 day + late window, your bond and the buyer's deposit go to the buyer.
 - The background loop runs while this server runs. If your agent has not handed in a result 30 minutes before that deadline, the loop declines the job on its own (neutral outcome), so the bond comes back. **This needs the server to be running**: if your MCP client is closed for long stretches, keep `BOND_SELL_DELIVER_SECONDS` short enough or run the seller as a service (see the [Workers template](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/bond-seller-worker)).
