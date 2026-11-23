@@ -156,3 +156,29 @@ describe('options', () => {
     expect((await r.json()).allow).toBe('POST');
   });
 });
+
+describe('signed receipts through the route', () => {
+  it('a POST receipt binds the method and body the buyer sent (pay-mcp verifies it)', async () => {
+    const { receiptSignerFromBytes, RECEIPT_HEADER } = await import('@agent402-dev/pay-server');
+    const { checkReceipt } = await import('@agent402-dev/pay-mcp/receipt');
+    const signer = await receiptSignerFromBytes(Keypair.generate().secretKey);
+    clearSupportedCache();
+    const f = fac();
+    const usdcAta = await ataOf(PAY_TO, USDC_MAINNET.mint, SPL_TOKEN);
+    const chain: ChainReader = {
+      async loadTx(s) { return s === 'SETTLED' ? { signature: 'SETTLED', err: false, accountKeys: ['FEE'], signatures: ['SETTLED'], preTokenBalances: [{ accountIndex: 1, mint: USDC_MAINNET.mint, owner: PAY_TO, amount: '0' }], postTokenBalances: [{ accountIndex: 1, mint: USDC_MAINNET.mint, owner: PAY_TO, amount: '50000' }] } : null; },
+      async recentSignatures() { return []; },
+      async accounts(addrs) { return { slot: 1, accounts: addrs.map((a) => (a === usdcAta ? { owner: SPL_TOKEN, data: new Uint8Array(165) } : null)) }; },
+    };
+    const h = paidRouteHandler({ path: '/x402/receipts', priceUsd: 0.05, description: 'r', check, run: async () => ({ ok: 1 }) }, () => ({
+      payTo: PAY_TO, chain, facilitators: [{ name: 'fake', assets: ['USDC'], client: f.client }], gate: { confirmDelaysMs: [], receipts: { signer } },
+    }));
+    const a = await accepted(h);
+    const res = (await h(post(valid, { 'payment-signature': sign(a) })))!;
+    expect(res.status).toBe(200);
+    const token = res.headers.get(RECEIPT_HEADER)!;
+    const body = await res.arrayBuffer();
+    const rc = await checkReceipt(token, { method: 'POST', url: URL_, requestBody: valid, responseBody: body, payment: { network: a.network, asset: a.asset, amount: a.amount, payTo: a.payTo, transaction: 'SETTLED' } });
+    expect(rc).toMatchObject({ verified: true, signer: signer.publicKey, reasons: [] });
+  });
+});

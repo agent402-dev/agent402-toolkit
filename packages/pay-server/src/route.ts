@@ -90,11 +90,12 @@ export function paidRouteHandler(route: PaidRoute, options: () => PaidRouteOptio
     const url = new URL(req.url);
     if (url.pathname !== route.path) return null;
     let input: string | null;
+    let body: string | undefined;
     if (req.method === 'GET') input = route.fromQuery ? route.fromQuery(url.searchParams) : null;
     else if (req.method === 'POST') {
-      const text = await req.text();
-      if (text.length > MAX_BODY) return json(413, { error: 'too_large' });
-      input = text.trim() ? text : null;
+      body = await req.text();
+      if (body.length > MAX_BODY) return json(413, { error: 'too_large' });
+      input = body.trim() ? body : null;
     } else return json(405, { error: 'method_not_allowed', allow: route.fromQuery ? 'GET, POST' : 'POST' });
     // No input and no payment: answer with the 402, so clients and directories can read the price. The work never runs without input.
     if (input !== null) {
@@ -103,7 +104,8 @@ export function paidRouteHandler(route: PaidRoute, options: () => PaidRouteOptio
     } else if (req.headers.get('payment-signature')) {
       return json(400, { error: 'bad_request', message: 'No input. Nothing was charged.' });
     }
-    const forward = new Request(req.url, { method: 'GET', headers: req.headers });
+    // The body was read above: pass the same method and body on, so a signed receipt binds what the buyer actually sent.
+    const forward = new Request(req.url, { method: req.method, headers: req.headers, ...(body !== undefined ? { body } : {}) });
     return gateFor().withPayment(async () => {
       try {
         return Response.json(await route.run(input!));
