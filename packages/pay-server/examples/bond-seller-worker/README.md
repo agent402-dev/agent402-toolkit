@@ -8,7 +8,7 @@ A Worker that sells one kind of job over the [Bond Job Protocol v1](https://gith
 | `wrangler.example.toml` | Bindings, cron, and your terms (`[vars]`) |
 
 ## 1. Your work
-Replace `doJob()` in `index.ts`. It runs once per deal, after the buyer's deposit is locked on chain. Whatever it returns is what the buyer receives. Keep it well under `DELIVER_SECONDS`.
+Replace `checkInput()` and `doWork()` in `index.ts`. `checkInput` refuses malformed requests before any deal or payment. `doWork` runs once per deal, after the buyer's deposit is locked on chain. Whatever it returns is what the buyer receives. Keep it well under `DELIVER_SECONDS`.
 
 ## 2. A dedicated seller wallet
 The Worker signs as the seller (opening deals, marking delivery, settling), so it needs a key. Use **a new wallet used only for this Worker**, and keep in it only what deals need:
@@ -27,6 +27,15 @@ npx wrangler deploy
 Then open `https://<your-worker>/quote`. Buyers allow your host in `X402_ALLOWED_DOMAINS` and your seller address in `X402_BOND_SELLERS`.
 
 Buyers sign delivery requests for the address they use. If that differs from what the Worker sees (another proxy in front of it), set `PUBLIC_ORIGIN` in `[vars]` to that address.
+
+## Optional: also sell per request over x402
+Set `X402_PRICE_USD` in `[vars]` (for example `"0.05"`) to sell the same work at `POST /x402/job`, paid per request in USDC to the seller wallet, with no bond or deposit. It uses `@agent402-dev/pay-server/route`:
+- malformed input (your `checkInput`) gets 400 before any payment is asked; a request with no body gets the 402 so clients can read the price;
+- order: verify the payment → `doWork` → settle. If `doWork` throws (throw `RequestRefused` for "cannot be done", answered 422), the payment is **not settled**;
+- a payment cannot be used twice: the ledger is kept in the same Durable Object as the jobs;
+- `doWork` must finish within about 35 seconds here (the gate's limit is 40). Use Bond deals for longer work.
+
+The seller wallet must already have a USDC token account (`exact` payments do not create it). AI agents can pay with `@agent402-dev/pay-mcp` (`x402_fetch`, POST with a body).
 
 ## How it behaves
 - `POST /open` builds the `open` transaction with you as fee payer and signs it; the deal exists only once the buyer signs and sends it.

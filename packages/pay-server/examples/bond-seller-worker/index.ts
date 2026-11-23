@@ -1,7 +1,8 @@
 // Agent402 Bond seller on Cloudflare Workers — a template for selling one kind of job over the Bond Job Protocol v1.
-// Replace doJob() with your work, set the terms in wrangler.toml [vars], deploy. See README.md in this folder.
+// Replace checkInput() and doWork() with your work, set the terms in wrangler.toml [vars], deploy. See README.md in this folder.
 //
 // Routes: GET /quote, POST /open, POST /deliver (protocol) and GET / (info).
+// Optional: set X402_PRICE_USD to also sell the same work per request over x402 at POST /x402/job (USDC, no bond).
 // Cron:   every 2 minutes, does the work and marks delivery for deals buyers have opened (never wait for the buyer),
 //         settles and claims deals whose outcome is fixed, retries failed jobs, drops deals never opened.
 //
@@ -10,6 +11,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import { type BondJob, type BondJobStore, bondJobService, createBondSeller } from '@agent402-dev/pay-server/bond';
+import type { LedgerEntry } from '@agent402-dev/pay-server';
+import { paidRouteHandler, storageLedger } from '@agent402-dev/pay-server/route';
 
 interface Env {
   /** Secret: the seller key, as the Solana CLI JSON array ([12,34,...]). `wrangler secret put SELLER_KEY` */
@@ -28,14 +31,19 @@ interface Env {
   DESCRIPTION: string;
   /** Optional: the origin buyers use (e.g. https://jobs.example.com). Delivery requests are signed for it. Default: the request URL's origin */
   PUBLIC_ORIGIN?: string;
+  /** Optional: price in USD to also sell the work per request over x402 at POST /x402/job (USDC to the seller wallet). Unset = off */
+  X402_PRICE_USD?: string;
   JOBS: DurableObjectNamespace<JobStoreDO>;
 }
 
 // ---------------------------------------------------------------------------------------------
-// YOUR WORK. Runs once per deal, after the buyer's deposit is locked on chain.
-// Keep it well under DELIVER_SECONDS. Whatever you return is what the buyer receives.
-// `input` comes from whoever opened the deal: treat it as untrusted. Stop when ctx.signal aborts.
-async function doJob(input: string, _ctx: { deal: string; buyer: string; signal: AbortSignal }, _env: Env): Promise<unknown> {
+// YOUR WORK. For a Bond deal it runs once, after the buyer's deposit is locked on chain; over x402 it runs after the
+// payment is verified and before it is settled. Keep it well under DELIVER_SECONDS (x402: under 40 seconds).
+// Whatever you return is what the buyer receives. `input` is untrusted. Stop when `signal` aborts.
+function checkInput(input: string): string | null {
+  return input.trim() ? null : 'send some text';
+}
+async function doWork(input: string, _signal: AbortSignal, _env: Env): Promise<unknown> {
   return { words: input.trim().split(/\s+/).filter(Boolean).length, characters: input.length };
 }
 // ---------------------------------------------------------------------------------------------
@@ -55,7 +63,12 @@ export class JobStoreDO extends DurableObject<Env> {
     return true;
   }
   async unlockJob(deal: string) { await this.ctx.storage.delete(`lock:${deal}`); }
+  /** x402 payment ledger, so a payment cannot be used twice */
+  async ledgerGet(key: string) { return (await this.ctx.storage.get<LedgerEntry>(key)) ?? undefined; }
+  async ledgerPut(key: string, e: LedgerEntry) { await this.ctx.storage.put(key, e); }
+  async ledgerDelete(key: string) { await this.ctx.storage.delete(key); }
 }
+const doStub = (env: Env) => env.JOBS.get(env.JOBS.idFromName('jobs'));
 function jobStore(env: Env): BondJobStore {
   const stub = env.JOBS.get(env.JOBS.idFromName('jobs'));
   return {
@@ -96,11 +109,40 @@ function service(env: Env) {
     store: jobStore(env),
     ...assetOptions(env.ASSET),
   });
-  return { seller, jobs: bondJobService({ seller, description: env.DESCRIPTION, publicOrigin: env.PUBLIC_ORIGIN || undefined, doJob: (input, ctx) => doJob(input, ctx, env) }) };
+  return { seller, jobs: bondJobService({
+    seller, description: env.DESCRIPTION, publicOrigin: env.PUBLIC_ORIGIN || undefined,
+    validateInput: checkInput,
+    doJob: (input, ctx) => doWork(input, ctx.signal, env),
+  }) };
+}
+
+// Optional x402 route (X402_PRICE_USD). verify → doWork → settle; if doWork throws, the payment is not settled.
+let paid: ReturnType<typeof paidRouteHandler> | null = null;
+function paidRoute(env: Env) {
+  if (!env.X402_PRICE_USD) return null;
+  paid ??= paidRouteHandler({
+    path: '/x402/job',
+    priceUsd: Number(env.X402_PRICE_USD),
+    description: env.DESCRIPTION,
+    check: checkInput,
+    run: (input) => doWork(input, AbortSignal.timeout(35_000), env),
+  }, () => ({
+    payTo: keypairFrom(env.SELLER_KEY).publicKey.toBase58(),
+    rpcUrl: env.RPC_URL,
+    // A Durable Object stub belongs to one request: get a new one on every call.
+    ledger: storageLedger({
+      get: (k) => doStub(env).ledgerGet(k) as Promise<LedgerEntry | undefined>,
+      put: (k, e) => doStub(env).ledgerPut(k, e),
+      delete: (k) => doStub(env).ledgerDelete(k),
+    }),
+  }));
+  return paid;
 }
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    const p = await paidRoute(env)?.(req);
+    if (p) return p;
     const { seller, jobs } = service(env);
     const r = await jobs.handle(req);
     if (r) return r;
@@ -108,6 +150,7 @@ export default {
       return Response.json({
         protocol: 'agent402-bond-job/1', seller: seller.seller, quote: '/quote',
         spec: 'https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md',
+        ...(env.X402_PRICE_USD ? { x402: { path: '/x402/job', method: 'POST', priceUsd: Number(env.X402_PRICE_USD), asset: 'USDC (Solana)' } } : {}),
       });
     }
     return Response.json({ error: 'not found' }, { status: 404 });

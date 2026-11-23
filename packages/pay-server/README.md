@@ -109,6 +109,31 @@ npx -y @agent402-dev/pay-server register --host api.example.com --pay-to <receiv
 - Use a lock received by a regular key. A lock received by a multisig vault cannot sign the registration yet.
 - The format is the same for every asset. A lock is a commitment signal only; nothing can be confiscated.
 
+## One paid route with input checks (optional)
+`@agent402-dev/pay-server/route` wraps the gate for the common case of selling one piece of work per request: check the input, ask for payment, do the work, settle.
+
+```ts
+import { paidRouteHandler, RequestRefused, storageLedger } from '@agent402-dev/pay-server/route';
+
+const handle = paidRouteHandler({
+  path: '/x402/job',
+  priceUsd: 0.05,                       // example setting; paid in USDC
+  description: 'Counts the words in a text',
+  check: (input) => (input.trim() ? null : 'send some text'),   // malformed → 400, no payment asked
+  run: async (input) => {
+    if (input.length > 10_000) throw new RequestRefused('text too long'); // 422, not settled
+    return { words: input.trim().split(/\s+/).length };
+  },
+}, () => ({ payTo: 'YOUR_RECEIVING_ADDRESS', rpcUrl: RPC_URL, ledger: storageLedger(yourStorage) }));
+
+// in fetch(): const r = await handle(req); if (r) return r;
+```
+- A request with no input gets the 402 (so clients and directories can read the price); a payment header with no input gets 400 and nothing is verified.
+- If `run` throws, the payment is **not settled** (`RequestRefused` → 422, any other error → 502).
+- `storageLedger()` keeps the payment ledger in your own key-value storage (for example a Durable Object), so a payment cannot be used twice across instances. Without it, the gate's in-memory ledger protects one process only.
+- USDC only. Optional `fromQuery` accepts GET `?…` input; optional `openapi(origin)` returns a document you can serve at `/openapi.json`.
+- The [Workers template](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/bond-seller-worker) uses it to sell the same work as a Bond job and per request (`X402_PRICE_USD`).
+
 ## Agent402 Bond, seller side (optional)
 `@agent402-dev/pay-server/bond` helps a seller run [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deals (beta): the seller locks a bond, the buyer locks a deposit, and the outcome follows only signatures and the Solana clock. Use it for work that takes time; use the x402 gate for instant pay-per-request.
 
