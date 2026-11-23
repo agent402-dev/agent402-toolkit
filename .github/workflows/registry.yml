@@ -29,7 +29,6 @@ jobs:
       - name: Publish new versions
         run: |
           set -euo pipefail
-          ./mcp-publisher login github-oidc
           for p in check-mcp pay-mcp bond-seller-mcp; do
             f="packages/$p/server.json"
             name=$(node -p "require('./$f').name"); ver=$(node -p "require('./$f').version")
@@ -42,5 +41,7 @@ jobs:
             if curl -sf "https://registry.modelcontextprotocol.io/v0/servers?search=$name" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const j=JSON.parse(d);process.exit((j.servers||[]).some(s=>(s.server||s).name==='$name'&&(s.server||s).version==='$ver')?0:1)})"; then
               echo "$name@$ver already in the registry"; continue
             fi
+            # log in right before publishing: the registry login expires after a few minutes, and the wait above can be longer
+            ./mcp-publisher login github-oidc
             (cd "packages/$p" && ../../mcp-publisher publish)
           done
