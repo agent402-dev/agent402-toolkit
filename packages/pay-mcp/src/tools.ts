@@ -11,6 +11,7 @@ import type { History } from './history.js';
 import type { AccountsFetcher } from './locks.js';
 import { historyToCsv } from './csv.js';
 import { reportRange, spendingReport } from './report.js';
+import { verifyReceipt, type ChainTx } from './verify-receipt.js';
 import { nearLimits, tokenEnv, type PayPolicy, type TokenSymbol } from './policy.js';
 import { formatUnits } from './units.js';
 import type { Wallet } from './wallet.js';
@@ -31,6 +32,8 @@ export interface PayServerDeps {
   bondRpc?: BondRpc;
   /** Bond seller directory URL (X402_BOND_DIRECTORY_URL). undefined = the default list, null = bond_find_sellers off */
   bondDirectoryUrl?: string | null;
+  /** Read-only transaction reader (getTransaction) for verify_receipt. Missing = the on-chain check is skipped */
+  readTx?: (signature: string) => Promise<ChainTx | null>;
 }
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -67,7 +70,7 @@ function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown>
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.9.0' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.10.0' });
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!server.server.getClientCapabilities()?.elicitation) return 'unsupported';
     const r = await server.server.elicitInput({
@@ -154,6 +157,39 @@ export function createPayServer(d: PayServerDeps): McpServer {
       const range = reportRange({ from, to }, now);
       if (typeof range === 'string') return out({ result: 'refused', reasons: [range] }, true);
       return out(spendingReport([...d.history.list(1_000_000)].reverse(), d.policy, range, now));
+    },
+  );
+  server.tool(
+    'verify_receipt',
+    'Read only. Check a seller\'s signed x402 receipt (the X-Agent402-Receipt header value) for anyone holding one: the signature always; and, when given, the signer (expectedSigner, or the key the seller publishes at sellerUrl GET /), the request (method, url, requestBody), the response body (responseBody or responseBodySha256), and the settlement transaction on chain (when an RPC is configured). Says what was not checked. Never signs or pays.',
+    {
+      receipt: z.string().min(10).max(8_000),
+      expectedSigner: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/).optional(),
+      sellerUrl: z.string().url().optional(),
+      method: z.string().max(10).optional(), url: z.string().max(2_000).optional(),
+      requestBody: z.string().max(100_000).optional(), responseBody: z.string().max(5_000_000).optional(),
+      responseBodySha256: z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
+    },
+    async (a) => {
+      let sellerPublishedSigner: string | null | undefined;
+      if (a.sellerUrl) {
+        const u = new URL(a.sellerUrl);
+        if (u.protocol !== 'https:') return out({ result: 'refused', reasons: ['sellerUrl must be https'] }, true);
+        try {
+          const r = await d.fetch(`${u.origin}/`, { headers: { accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(15_000) });
+          const j = (await r.json()) as { x402?: { receiptSigner?: unknown } };
+          sellerPublishedSigner = typeof j?.x402?.receiptSigner === 'string' ? j.x402.receiptSigner : null;
+        } catch { return out({ result: 'refused', reasons: [`could not read ${u.origin}/ (GET, JSON)`] }, true); }
+      }
+      const token = a.receipt.trim();
+      let chainTx: ChainTx | null | undefined;
+      const tx = (() => { try { return JSON.parse(Buffer.from(token.split('.')[0] ?? '', 'base64url').toString()).payment?.transaction as string | undefined; } catch { return undefined; } })();
+      if (d.readTx && typeof tx === 'string' && /^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(tx)) {
+        try { chainTx = await d.readTx(tx); } catch { chainTx = undefined; }
+      }
+      const r = await verifyReceipt(token, { expectedSigner: a.expectedSigner, sellerPublishedSigner, method: a.method, url: a.url, requestBody: a.requestBody,
+        responseBody: a.responseBody, responseBodySha256: a.responseBodySha256, chainTx });
+      return out(r, !r.verified);
     },
   );
   server.tool(

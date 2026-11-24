@@ -45,7 +45,7 @@ export interface FetchOutcome {
   /** Seller lock check, when the policy required one */
   lock?: CommitmentResult['facts'] & { ok: boolean };
   /** Seller's signed receipt, if the server sent one (X-Agent402-Receipt) */
-  receipt?: { signer: string | null; verified: boolean; reasons: string[] };
+  receipt?: { signer: string | null; verified: boolean; reasons: string[]; token: string };
 }
 
 /** Adds the deprecation warning if the chosen asset is A402 (v1) (there is no path that silently pays with A402) */
@@ -183,8 +183,9 @@ export function createAgent(d: AgentDeps) {
       const rc = rt
         ? await checkReceipt(rt, { method: spec.method ?? 'GET', url: a.finalUrl, requestBody: spec.body, responseBody: buf, payment: { network: r.network, asset: r.asset, amount: r.amount, payTo: r.payTo, transaction: tx } })
         : null;
-      const receipt = rc ? { signer: rc.signer, verified: rc.verified, reasons: rc.reasons } : undefined;
-      record({ ...base, ...pay, result: 'paid', httpStatus: res.status, settlementTx: tx, signed: true, ...(rc ? { receipt: { ...receipt!, token: rc.token } } : {}) });
+      // token: the receipt as received, to keep as evidence or check later with verify_receipt
+      const receipt = rc ? { signer: rc.signer, verified: rc.verified, reasons: rc.reasons, token: rc.token } : undefined;
+      record({ ...base, ...pay, result: 'paid', httpStatus: res.status, settlementTx: tx, signed: true, ...(receipt ? { receipt } : {}) });
       const near = nearLimits(d.policy, d.history.today(now()));
       return { result: 'paid', httpStatus: res.status, body, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, settlementTx: tx }, ...(a.lock ? { lock: a.lock } : {}), ...(receipt ? { receipt } : {}), ...(near.length ? { warnings: near } : {}) };
     }

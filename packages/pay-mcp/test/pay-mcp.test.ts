@@ -276,7 +276,7 @@ describe('MCP server (12 tools, elicitation)', () => {
   it('12 tools, pre-signing rules in the descriptions', async () => {
     const { client } = await connect(null);
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(['bond_confirm_and_pay', 'bond_deal_status', 'bond_find_sellers', 'bond_job_quote', 'bond_job_result', 'bond_job_start', 'bond_open', 'bond_settle', 'payment_history', 'spending_report', 'wallet_status', 'x402_fetch', 'x402_quote']);
+    expect(tools.map((t) => t.name).sort()).toEqual(['bond_confirm_and_pay', 'bond_deal_status', 'bond_find_sellers', 'bond_job_quote', 'bond_job_result', 'bond_job_start', 'bond_open', 'bond_settle', 'payment_history', 'spending_report', 'verify_receipt', 'wallet_status', 'x402_fetch', 'x402_quote']);
     expect(tools.find((t) => t.name === 'x402_fetch')!.description).toMatch(/before signing/);
   });
   it('client without elicitation support → no payment', async () => {
