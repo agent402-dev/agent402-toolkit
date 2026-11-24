@@ -1,0 +1,5 @@
+# Host toolchain for the rules crate and the tests. The on-chain program is built with
+# cargo-build-sbf --tools-version v1.58 (Agave 4.4.1), which brings its own compiler.
+[toolchain]
+channel = "1.100.0"
+profile = "minimal"

@@ -25,6 +25,10 @@ BUYER_DEPOSIT = "5000000"   # 5 USDC, part of the price, locked by the buyer
 DELIVER_SECONDS = "3600"    # you promise to deliver within 1 hour of opening
 LATE_WINDOW = "0"           # 0..604800 seconds of late delivery with a pro-rata bond deduction
 PAY_WINDOW = "86400"        # 1..30 days for the buyer to pay the balance after confirming
+# Bond v2 (when its program is deployed): PROTOCOL = "2" ignores LATE_WINDOW and PAY_WINDOW and uses these
+# PROTOCOL = "2"
+# GRACE = "86400"           # 1 hour .. 1 day after the delivery deadline to still mark
+# REVIEW_WINDOW = "86400"   # 1 hour .. 7 days for the buyer to accept after delivery
 DESCRIPTION = "Counts the words in a text"
 # Optional: also sell the same work per request over x402 at POST /x402/job (USDC, no bond, paid to the seller wallet,
 # which must already have a USDC token account). Not settled if your work throws.

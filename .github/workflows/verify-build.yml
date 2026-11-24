@@ -1,4 +1,4 @@
-# Rebuilds the Agent402 Bond program from this repository and compares it with the code deployed on mainnet.
+# Rebuilds the Agent402 Bond programs (v1 and v2) from this repository and compares them with the code deployed on mainnet.
 # Read only: deploys nothing and uses no secrets. Runs on demand (Actions → Verify build → Run workflow) or on a verify-* tag.
 #   1. The documented v1 recipe (Agave 4.4.1, platform-tools v1.58) → sha256 against the on-chain code.
 #   2. solana-verify (deterministic Docker build) → hash against the on-chain hash. v1 was not built this way, so a
@@ -19,6 +19,44 @@ env:
   RPC: https://api.mainnet-beta.solana.com
 
 jobs:
+  v2-recipe:
+    name: v2 recipe (Agave 4.4.1, platform-tools v1.58)
+    runs-on: ubuntu-latest
+    env:
+      V2_PROGRAM_ID: Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev
+      V2_EXPECTED_SHA256: a87a1830fd24d5aadeec0e91ed4678bc62c6e695a824d4ffba14d385c00aa739
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Agave 4.4.1
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v4.4.1/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Build (mainnet id = default features)
+        run: cargo-build-sbf --tools-version v1.58 --manifest-path programs-v2/agent402-bond-v2/Cargo.toml
+      - name: Compare with mainnet
+        run: |
+          so=programs-v2/target/deploy/agent402_bond_v2.so
+          built=$(sha256sum "$so" | cut -d' ' -f1)
+          solana program dump "$V2_PROGRAM_ID" onchain-v2.so --url "$RPC"
+          onchain=$(head -c "$(stat -c %s "$so")" onchain-v2.so | sha256sum | cut -d' ' -f1)
+          authority=$(solana program show "$V2_PROGRAM_ID" --url "$RPC" | sed -n 's/^Authority: //p')
+          {
+            echo "### v2 recipe"
+            echo "| | sha256 | bytes |"
+            echo "|---|---|---|"
+            echo "| built here | \`$built\` | $(stat -c %s "$so") |"
+            echo "| on mainnet | \`$onchain\` | $(stat -c %s onchain-v2.so) |"
+            echo "| published (programs-v2/README.md) | \`$V2_EXPECTED_SHA256\` | |"
+            echo "Upgrade authority on mainnet: \`$authority\`"
+            if [ "$built" = "$onchain" ]; then echo; echo "**Match:** this commit rebuilds the deployed program."; else echo; echo "**No match** on this runner (Solana builds are not guaranteed reproducible across machines)."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$onchain" = "$V2_EXPECTED_SHA256" ] || { echo "on-chain code differs from the published hash"; exit 1; }
+          [ "$authority" = "none" ] || { echo "upgrade authority is not none"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent402_bond_v2-recipe
+          path: programs-v2/target/deploy/agent402_bond_v2.so
+
   recipe:
     name: v1 recipe (Agave 4.4.1, platform-tools v1.58)
     runs-on: ubuntu-latest

@@ -123,12 +123,12 @@ export interface BondSignDeps extends BondStatusDeps {
 type Refused = { result: 'refused'; reasons: string[] } | { result: 'declined_by_user' | 'confirmation_required'; message: string };
 const toUsd = (v: bigint) => Number(v) / 1e6;
 
-function record(d: BondSignDeps, action: string, deal: string, e: Partial<HistoryEntry>, mint = d.policy.mints.USDC) {
+export function record(d: BondSignDeps, action: string, deal: string, e: Partial<HistoryEntry>, mint = d.policy.mints.USDC) {
   d.history.add({ at: (d.now?.() ?? new Date()).toISOString(), url: `bond:${action}:${deal}`, host: 'agent402-bond', network: d.policy.network, mint, signed: false, result: 'refused', ...e });
 }
 
 /** Daily cap of the deal's asset and the payment count, shared with x402 payments. */
-function dailyCheck(d: BondSignDeps, a: BondAsset, amount: bigint): string[] {
+export function dailyCheck(d: BondSignDeps, a: BondAsset, amount: bigint): string[] {
   const t = d.history.today(d.now?.());
   const out: string[] = [];
   if (t.count + 1 > d.policy.maxPaymentsPerDay) out.push(`daily payment count reached (${d.policy.maxPaymentsPerDay}, X402_MAX_PAYMENTS_PER_DAY)`);
@@ -141,7 +141,7 @@ function dailyCheck(d: BondSignDeps, a: BondAsset, amount: bigint): string[] {
   return out;
 }
 
-async function askHuman(d: BondSignDeps, a: BondAsset, amount: bigint, text: string): Promise<Refused | null> {
+export async function askHuman(d: BondSignDeps, a: BondAsset, amount: bigint, text: string): Promise<Refused | null> {
   if (a.symbol === 'USDC' ? toUsd(amount) < d.bond.confirmAboveUsd : amount < d.bond.confirmAbovePreqAtomic) return null;
   const ans = await d.confirm(text);
   if (ans === 'accept') return null;

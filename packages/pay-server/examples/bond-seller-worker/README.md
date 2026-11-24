@@ -59,3 +59,13 @@ Set the `RECEIPT_KEY` secret to sign a receipt for every paid response. The rece
 - Try it first against a local mainnet fork (see `packages/bond-client/examples/job`).
 - Beta limits: 100 USDC locked per deal, 2,000 USDC across all open deals (all sellers). The program was reviewed internally, not independently audited. [Terms](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS.md).
 - Not investment advice.
+
+## Bond v2 (not deployed yet)
+
+Set `PROTOCOL = "2"` (with `GRACE` and `REVIEW_WINDOW`) to sell over the Job Protocol v2 once the Bond v2 program is deployed and its id is in the SDK. Until then the Worker refuses to start the v2 service, except against a local test fork (`RPC_URL` on 127.0.0.1 with `V2_PROGRAM`).
+
+What changes for the seller:
+- `open` carries a job hash that binds the buyer's exact input; marking delivery stores a hash of the exact result, and the seller key signs that hash. Buyers accept only when the result they received matches both.
+- `doWork` results are sent as text: objects become JSON text, and those exact bytes are what you commit to.
+- The buyer accepts and pays the balance in one step. If a delivered job is never accepted, each side gets its own money back.
+- A job you cannot do is committed as `job_failed`; the buyer does not accept and the deal ends neutral.

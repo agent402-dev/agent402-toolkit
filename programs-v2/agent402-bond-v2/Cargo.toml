@@ -1,0 +1,29 @@
+[package]
+name = "agent402-bond-v2"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "Agent402 Bond v2: per-deal seller bond and buyer deposit, settled by signatures and the Solana clock."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "agent402_bond_v2"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+# Allows any classic SPL mint with test caps, for local tests only. Never in a mainnet build.
+test-mints = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+custom-heap = []
+custom-panic = []
+anchor-debug = []
+
+[dependencies]
+anchor-lang = "1.2.2"
+anchor-spl = "1.2.2"
+agent402-bond-v2-core = { path = "../agent402-bond-v2-core" }
+solana-security-txt = "1.1.1"

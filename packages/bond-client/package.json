@@ -5,7 +5,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./rules": "./src/rules.ts",
-    "./job": "./src/job.ts"
+    "./job": "./src/job.ts",
+    "./v2": "./src/v2.ts",
+    "./job-v2": "./src/job-v2.ts"
   },
   "description": "Instruction builders for the Agent402 Bond Solana program (beta).",
   "author": "Agent402",

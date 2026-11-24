@@ -28,3 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cargo test --manifest-path programs/Cargo.toml -p agent402-bond-core --locked
+
+  bond-v2-core:
+    name: Agent402 Bond v2 core rules (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - working-directory: programs-v2
+        run: cargo test -p agent402-bond-v2-core --locked

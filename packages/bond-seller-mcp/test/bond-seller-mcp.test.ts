@@ -118,8 +118,10 @@ describe('an agent sells a job', () => {
     const deal = await prepareAndOpen(s);
     expect((await s.call('sell_jobs')).loop).toEqual([{ deal, status: 'working' }]); // waiting for the agent, not a failure
     expect((await s.built!.seller.store.get(deal))!.meta).not.toHaveProperty('attempts');
-    const d = (await s.built!.seller.readDeals([deal])).get(deal)!;
-    s.c.opts.now = t2(d.terms) - 600n;
+    const b = s.built!;
+    if (b.protocol !== 1) throw new Error('v1 seller expected');
+    const d = (await b.seller.readDeals([deal])).get(deal)!;
+    s.c.opts.now = t2(d!.terms) - 600n;
     expect((await s.call('sell_jobs')).loop).toEqual([{ deal, status: 'delivered' }]);
     expect((await s.built!.seller.store.get(deal))!.meta).toMatchObject({ failed: true });
     expect(s.c.sent.map((x) => x.kind)).toEqual(['open', 'mark']);

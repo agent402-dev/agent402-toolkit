@@ -1,0 +1,8 @@
+[package]
+name = "agent402-bond-v2-core"
+version = "0.0.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "Agent402 Bond v2: pure deal rules (deadlines, outcomes, payouts, caps). No Solana dependencies."
+
+[dependencies]

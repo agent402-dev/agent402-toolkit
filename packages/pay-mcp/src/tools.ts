@@ -6,6 +6,7 @@ import { bondDealStatus } from './bond.js';
 import { bondConfirmAndPay, bondOpen, type BondPolicy, bondPolicyFromEnv, type BondRpc, bondSettle } from './bond-sign.js';
 import { bondFindSellers } from './bond-directory.js';
 import { type BondJobDeps, bondJobQuote, bondJobResult, bondJobStart } from './bond-job.js';
+import { type BondV2Deps, type BondV2Policy, bondV2Accept, bondV2Quote, bondV2Result, bondV2Settle, bondV2Start } from './bond-v2.js';
 import { withSpendLock } from './spend-lock.js';
 import type { History } from './history.js';
 import type { AccountsFetcher } from './locks.js';
@@ -34,6 +35,10 @@ export interface PayServerDeps {
   bondDirectoryUrl?: string | null;
   /** Read-only transaction reader (getTransaction) for verify_receipt. Missing = the on-chain check is skipped */
   readTx?: (signature: string) => Promise<ChainTx | null>;
+  /** Agent402 Bond v2 program id (resolveV2Program). null/undefined = the bond_v2_* tools are not offered */
+  bondV2Program?: string | null;
+  /** Agent402 Bond v2 dispute-option rules (bondV2PolicyFromEnv) */
+  bondV2Policy?: BondV2Policy;
 }
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -261,5 +266,39 @@ export function createPayServer(d: PayServerDeps): McpServer {
     { url: URL_, deal: ADDR },
     async ({ url, deal }) => { const b = bondDeps(); if (!b) return noBond(); const r = await bondJobResult(b, url, deal); return out(r, r.result !== 'delivered'); },
   );
+  if (d.bondV2Program) {
+    const v2Program = d.bondV2Program;
+    const v2Deps = (): BondV2Deps | null => { const b = bondDeps(); return b ? { ...b, v2Program, v2: d.bondV2Policy ?? { arbiters: [], allowShare: false } } as unknown as BondV2Deps : null; };
+    server.tool(
+      'bond_v2_quote',
+      'Agent402 Bond v2 (Job Protocol v2). Read a seller\'s job quote (GET {url}/quote) and check it against this wallet\'s bond rules, including the dispute option: a non-refundable share of your deposit is refused unless X402_BOND_V2_ALLOW_SHARE=1, and a named arbiter must be in X402_BOND_V2_ARBITERS. Never signs.',
+      { url: URL_ },
+      async ({ url }) => { const b = v2Deps(); if (!b) return noBond(); const r = await bondV2Quote(b, url); return out(r, r.result !== 'ok'); },
+    );
+    server.tool(
+      'bond_v2_start',
+      'Agent402 Bond v2, buyer side. Send the job input (POST {url}/open), then before signing: recompute the job hash from your own input, rebuild the open instruction (terms, job hash, both payout accounts, your token account) and compare it byte for byte, check the bond rules, and ask a human. Locks your deposit. Returns the deal address.',
+      { url: URL_, input: z.string().min(1).max(16_384) },
+      async ({ url, input }) => { const b = v2Deps(); if (!b) return noBond(); const r = await withSpendLock(() => bondV2Start(b, url, input)); return out(bigintSafe(r), r.result !== 'opened'); },
+    );
+    server.tool(
+      'bond_v2_result',
+      'Agent402 Bond v2, buyer side. Fetch the delivered work (signed request; the signed bytes start with 0xff so they can never be a transaction) and verify it: the output hash recomputed from the received result must match the one the seller stored on chain, and the seller must have signed it. Never pays.',
+      { url: URL_, deal: ADDR },
+      async ({ url, deal }) => { const b = v2Deps(); if (!b) return noBond(); const r = await bondV2Result(b, url, deal); return out(r, r.result !== 'verified'); },
+    );
+    server.tool(
+      'bond_v2_accept',
+      'Agent402 Bond v2, buyer side. Fetch and verify the delivery again, then accept and pay the balance to the seller in one instruction (before the accept deadline, within the daily cap, with human confirmation). Refuses if the result does not match what the seller committed to on chain. The program does not judge quality: accept only work you checked.',
+      { url: URL_, deal: ADDR },
+      async ({ url, deal }) => { const b = v2Deps(); if (!b) return noBond(); const r = await withSpendLock(() => bondV2Accept(b, url, deal)); return out(r, r.result !== 'accepted'); },
+    );
+    server.tool(
+      'bond_v2_settle',
+      'Agent402 Bond v2. Once time has decided the outcome (or after accept or another decision), settle if needed and claim what each side is owed to their recorded payout accounts; the last claim closes the deal and returns the rent. No funds leave this wallet except the network fee.',
+      { deal: ADDR },
+      async ({ deal }) => { const b = v2Deps(); if (!b) return noBond(); const r = await bondV2Settle(b, deal); return out(r, r.result !== 'done' && r.result !== 'nothing_to_do'); },
+    );
+  }
   return server;
 }
