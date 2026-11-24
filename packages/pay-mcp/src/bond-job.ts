@@ -33,6 +33,7 @@ export function evaluate(d: BondJobDeps, q: JobQuote): string[] {
   out.push(...priceCapCheck(d.bond, a, price));
   if (bondAmt * 10_000n < price * d.bond.minBondBps) out.push(`seller bond ${fmt(a, bondAmt)} is below ${Number(d.bond.minBondBps) / 100}% of the price`);
   if (dep > price) out.push('deposit is larger than the price');
+  if (BigInt(q.lateWindow) > BigInt(q.payWindow) + 86_400n) out.push('late window is more than 1 day longer than the pay window: with an early delivery mark, a confirmed balance could no longer be paid under the Bond v1 rules');
   if (Number(q.deliverSeconds) > d.bond.maxDays * 86_400) out.push(`delivery is more than ${d.bond.maxDays} days away (X402_BOND_MAX_DAYS)`);
   out.push(...balanceFitsDaily(d.policy, a, price - (dep > price ? price : dep)));
   return out;

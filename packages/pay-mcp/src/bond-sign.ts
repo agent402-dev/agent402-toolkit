@@ -196,6 +196,7 @@ export async function bondOpen(d: BondSignDeps, txBase64: string) {
   reasons.push(...priceCapCheck(d.bond, asset, t.price));
   if (t.sellerBond * 10_000n < t.price * d.bond.minBondBps) reasons.push(`seller bond ${fmt(asset, t.sellerBond)} is below ${Number(d.bond.minBondBps) / 100}% of the price`);
   if (t.buyerDeposit > t.price) reasons.push('deposit is larger than the price');
+  if (t.lateWindow > t.payWindow + 86_400n) reasons.push('late window is more than 1 day longer than the pay window: with an early delivery mark, a confirmed balance could no longer be paid under the Bond v1 rules');
   if (t.deliverBy <= now) reasons.push('delivery deadline is in the past');
   else if (t.deliverBy - now > BigInt(Math.round(d.bond.maxDays * 86_400))) reasons.push(`delivery deadline is more than ${d.bond.maxDays} days away (X402_BOND_MAX_DAYS)`);
   if (t.price >= t.buyerDeposit) reasons.push(...balanceFitsDaily(d.policy, asset, t.price - t.buyerDeposit));
@@ -245,6 +246,9 @@ export async function bondConfirmAndPay(d: BondSignDeps, deal: string) {
   if ('refused' in ba) { reasons.push(...ba.refused); record(d, 'confirm_and_pay', deal, { payTo: a.seller, reasons }, a.mint); return { result: 'refused' as const, deal, reasons }; }
   const asset = ba.asset;
   if (now > buyerDeadline(a)) reasons.push('the buyer deadline has passed');
+  // Bond v1: once confirmed, the pay deadline runs from the earlier of mark and confirm, without the T2 floor. Refuse here
+  // instead of sending a confirm + pay that the program would reject (PayTooLate).
+  else if (now > buyerDeadline({ ...a, buyerConfirm: now })) reasons.push('the balance can no longer be paid after confirming (the pay window after the seller\'s delivery mark has passed); nothing was signed');
   const balance = a.terms.price - a.terms.buyerDeposit;
   reasons.push(...dailyCheck(d, asset, balance));
   if (reasons.length) { record(d, 'confirm_and_pay', deal, { amount: balance.toString(), payTo: a.seller, reasons }, asset.mint); return { result: 'refused' as const, deal, reasons }; }

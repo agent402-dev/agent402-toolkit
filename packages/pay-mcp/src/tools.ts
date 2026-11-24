@@ -70,7 +70,7 @@ function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown>
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.10.0' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.10.1' });
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!server.server.getClientCapabilities()?.elicitation) return 'unsupported';
     const r = await server.server.elicitInput({

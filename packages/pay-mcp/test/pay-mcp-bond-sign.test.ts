@@ -40,8 +40,8 @@ function sellerOpenTx(ixs: TransactionInstruction[], feePayer = sellerKp, signer
   return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
 }
 
-function dealBytes(o: { mark?: bigint; confirm?: bigint; paid?: boolean; outcome?: number; deliverBy?: bigint } = {}): Uint8Array {
-  const t = terms(o.deliverBy ? { deliverBy: o.deliverBy } : {});
+function dealBytes(o: { mark?: bigint; confirm?: bigint; paid?: boolean; outcome?: number; deliverBy?: bigint; t?: Partial<bc.Terms> } = {}): Uint8Array {
+  const t = terms({ ...(o.deliverBy ? { deliverBy: o.deliverBy } : {}), ...o.t });
   const b = new Uint8Array(196);
   const v = new DataView(b.buffer);
   b.set(DEAL_DISCRIMINATOR, 0);
@@ -346,5 +346,35 @@ describe('PREQ deals (Token-2022), opt-in like PREQ x402 payments', () => {
     expect(r).toMatchObject({ result: 'settled', outcome: 'delivered', toSeller: '15,000 PREQ', toBuyer: '0 PREQ' });
     const st = Transaction.from(Buffer.from(z.sent[0]));
     expect(st.instructions.map((i) => i.keys.map((k) => k.pubkey.toBase58()))).toEqual(bc.settleAndClaim(pref()).map((i) => i.keys.map((k) => k.pubkey.toBase58())));
+  });
+});
+
+describe('Bond v1: late window longer than pay window + 1 day (confirm possible, pay impossible)', () => {
+  const deal = bc.dealOf(ref()).toBase58();
+  const long = { lateWindow: 7n * DAY, payWindow: DAY };
+  it('bond_open refuses such terms before signing', async () => {
+    const s = await setup();
+    const r = await bondOpen(s.deps, sellerOpenTx([bc.open(ref(), terms(long))]));
+    expect(JSON.stringify(r)).toContain('late window is more than 1 day longer than the pay window');
+    expect(s.signed()).toBe(0);
+  });
+  it('bond_confirm_and_pay refuses instead of sending a confirm + pay the program would reject', async () => {
+    const t1 = NOW + 3_600n + DAY;
+    // seller marked early; 3 days after T1 the buyer may still confirm (deadline T2 = T1 + 7 days), but the pay deadline is T1 + 2 days
+    const late = await setup({}, { deal: dealBytes({ mark: NOW + 10n, t: long }), clock: t1 + 3n * DAY });
+    const r = await bondConfirmAndPay(late.deps, deal);
+    expect(JSON.stringify(r)).toContain('can no longer be paid after confirming');
+    expect(late.signed()).toBe(0);
+    // inside the pay deadline it still works
+    const ok = await setup({}, { deal: dealBytes({ mark: NOW + 10n, t: long }), clock: t1 + DAY });
+    expect(await bondConfirmAndPay(ok.deps, deal)).toMatchObject({ result: 'confirmed_and_paid' });
+  });
+  it('bond_job_quote evaluation refuses such quotes', async () => {
+    const { evaluate } = await import('@agent402-dev/pay-mcp/bond-job');
+    const s = await setup();
+    const q = { protocol: 'agent402-bond-job/1', program: BOND_PROGRAM, seller, mint: USDC.toBase58(), tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      price: String(20n * U), sellerBond: String(2n * U), buyerDeposit: String(5n * U), deliverSeconds: '600', lateWindow: String(7n * DAY), payWindow: String(DAY), description: 'x' };
+    expect(evaluate({ policy: s.deps.policy, bond: s.deps.bond } as never, q as never).join()).toContain('late window is more than 1 day longer');
+    expect(evaluate({ policy: s.deps.policy, bond: s.deps.bond } as never, { ...q, lateWindow: String(2n * DAY) } as never).join()).not.toContain('late window');
   });
 });
