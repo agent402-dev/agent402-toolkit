@@ -1,5 +1,5 @@
 // Agent402 Bond seller on Cloudflare Workers — a template for selling one kind of job over the Bond Job Protocol
-// (v1 today; set PROTOCOL=2 for Bond v2 once its program is deployed).
+// (Bond Job Protocol v1 by default; set PROTOCOL=2 for Bond v2).
 // Replace checkInput() and doWork() with your work, set the terms in wrangler.toml [vars], deploy. See README.md in this folder.
 //
 // Routes: GET /quote, POST /open, POST /deliver (protocol) and GET / (info).
