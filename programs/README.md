@@ -30,7 +30,7 @@ solana program dump 9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK bond.so --url m
 sha256sum bond.so   # abf47892163cda590b22ed662826973df2d0deb90f17f1f1eec6cc8da5836076
 ```
 
-The build used Agave platform-tools v1.58 (`cargo build-sbf --tools-version v1.58`). Solana builds are not guaranteed to be byte-for-byte reproducible across machines; the hash above identifies the reviewed binary.
+The build used Agave 4.4.1 with platform-tools v1.58 (`cargo build-sbf --tools-version v1.58`, default features). The [Verify build](../.github/workflows/verify-build.yml) workflow rebuilds it from this repository on a clean GitHub runner and compares it with the code on mainnet; anyone can run it from the Actions tab. On 2026-11-24 the rebuild matched the deployed code byte for byte ([run #1](https://github.com/agent402-dev/agent402-toolkit/actions/runs/45339915163)). It was not built with `solana-verify`, so explorers do not show a verified-build badge.
 
 ## Test
 
