@@ -1,12 +1,14 @@
-// Agent402 Bond seller directory, buyer side: find sellers that speak the Bond Job Protocol v1. Read only, never signs.
+// Agent402 Bond seller directory, buyer side: find sellers that speak the Bond Job Protocol v1 or v2. Read only, never signs.
 // The directory is a plain list of job URLs (default: directory/bond-sellers.json in the toolkit repository); being listed
 // is not an endorsement. Each seller's terms are read live from its own /quote and checked against this wallet's rules,
 // so the result says, for each seller, what this wallet would refuse and which settings would allow it.
 // Sellers that also sell the same work per request over x402 say so in their own info (GET {url}/ → "x402"); that is shown
 // as perRequest, checked against this wallet's x402 rules. The directory file itself does not change.
 import { checkJobQuote, type JobQuote } from '@agent402-dev/bond-client/job';
+import { checkJobQuoteV2, JOB_PROTOCOL_V2, type JobQuoteV2 } from '@agent402-dev/bond-client/job-v2';
 import { BOND_PROGRAM } from './bond.js';
 import { evaluate, type BondJobDeps } from './bond-job.js';
+import { evaluateV2, type BondV2Deps, type BondV2Policy } from './bond-v2.js';
 import { domainCheck } from './policy.js';
 
 export const DEFAULT_DIRECTORY_URL = 'https://raw.githubusercontent.com/agent402-dev/agent402-toolkit/main/directory/bond-sellers.json';
@@ -75,7 +77,11 @@ export function readPerRequest(info: unknown, sellerUrl: string): { url: string;
   return { url: `${new URL(sellerUrl).origin}${x.path}`, priceUsd: x.priceUsd, methods: methods.length ? methods : ['POST'] };
 }
 
-export interface FindOptions { query?: string; asset?: 'USDC' | 'PREQ'; directoryUrl?: string }
+export interface FindOptions {
+  query?: string; asset?: 'USDC' | 'PREQ'; directoryUrl?: string;
+  /** Bond v2 program and dispute-option rules; without it, Job Protocol v2 sellers are shown as not usable here */
+  v2?: { program: string; policy: BondV2Policy } | null;
+}
 
 /** bond_find_sellers: list directory sellers with their live terms and what this wallet's rules say about each. */
 export async function bondFindSellers(d: BondJobDeps, o: FindOptions = {}) {
@@ -96,22 +102,28 @@ export async function bondFindSellers(d: BondJobDeps, o: FindOptions = {}) {
   const rows = await Promise.all(dir.sellers.map(async (e) => {
     const url = e.url.replace(/\/+$/, '');
     const base = { url, listedAt: e.listedAt, ...(e.operator ? { operator: e.operator } : {}) };
-    let q: JobQuote;
+    let body: unknown;
     try {
       const r = await getText(d.fetch, `${url}/quote`, 10_000, 100_000);
       if (r.status !== 200) return { ...base, reachable: false as const, problem: `quote: HTTP ${r.status}` };
-      const body = JSON.parse(r.text) as unknown;
-      const bad = checkJobQuote(body);
-      if (bad.length) return { ...base, reachable: false as const, problem: `quote: ${bad[0]}` };
-      q = body as JobQuote;
+      body = JSON.parse(r.text) as unknown;
     } catch (err) {
       return { ...base, reachable: false as const, problem: `quote: ${err instanceof Error ? err.name === 'TimeoutError' ? 'timed out' : err.message : 'failed'}` };
     }
+    const isV2 = (body as { protocol?: unknown } | null)?.protocol === JOB_PROTOCOL_V2;
+    const bad = isV2 ? checkJobQuoteV2(body) : checkJobQuote(body);
+    if (bad.length) return { ...base, reachable: false as const, problem: `quote: ${bad[0]}` };
+    const q = body as JobQuote | JobQuoteV2;
     const asset = sym(q.mint);
-    if (q.program !== BOND_PROGRAM || !asset) return { ...base, reachable: false as const, problem: !asset ? `unsupported mint ${q.mint}` : 'not the Agent402 Bond program' };
+    if (!asset) return { ...base, reachable: false as const, problem: `unsupported mint ${q.mint}` };
+    if (isV2 && !o.v2) return { ...base, reachable: false as const, problem: 'Job Protocol v2 seller; Bond v2 is not available in this server' };
+    if (isV2 ? q.program !== o.v2!.program : q.program !== BOND_PROGRAM) return { ...base, reachable: false as const, problem: isV2 ? 'not the Agent402 Bond v2 program' : 'not the Agent402 Bond program' };
     const host = new URL(url).host.toLowerCase();
     const domainOk = domainCheck(d.policy, url).ok;
-    const reasons = [...(domainOk ? [] : [`${host} is not in X402_ALLOWED_DOMAINS`]), ...evaluate(d, q)];
+    const rules = isV2
+      ? evaluateV2({ ...d, v2Program: o.v2!.program, v2: o.v2!.policy } as unknown as BondV2Deps, q as JobQuoteV2)
+      : evaluate(d, q as JobQuote);
+    const reasons = [...(domainOk ? [] : [`${host} is not in X402_ALLOWED_DOMAINS`]), ...rules];
     const price = BigInt(q.price), bond = BigInt(q.sellerBond), dep = BigInt(q.buyerDeposit);
     // Optional: the same work per request over x402, as the seller describes it at GET {url}/ (no change to the directory format)
     let perRequest: Record<string, unknown> | undefined;
@@ -142,9 +154,14 @@ export async function bondFindSellers(d: BondJobDeps, o: FindOptions = {}) {
       description: q.description ?? null, seller: q.seller, asset,
       price: units(price, asset), sellerBond: units(bond, asset), depositNow: units(dep, asset),
       sellerBondShare: `${Number((bond * 10_000n) / (price || 1n)) / 100}%`,
-      deliverWithin: `${Number(q.deliverSeconds) / 3600} h`, payWindow: `${Number(q.payWindow) / 3600} h after delivery`,
+      deliverWithin: `${Number(q.deliverSeconds) / 3600} h`,
+      ...(isV2 ? (() => { const v = q as JobQuoteV2; return {
+        protocol: 'v2' as const, reviewWindow: `${Number(v.reviewWindow) / 3600} h after delivery to accept`,
+        ifNotAccepted: v.sellerShareBps > 0 ? `the seller keeps ${v.sellerShareBps / 100}% of your deposit; the rest comes back` : 'each side gets its own money back',
+        arbiter: v.arbiter, tools: 'bond_v2_quote → bond_v2_start → bond_v2_result → bond_v2_accept → bond_v2_settle',
+      }; })() : { protocol: 'v1' as const, payWindow: `${Number((q as JobQuote).payWindow) / 3600} h after delivery`, tools: 'bond_job_quote → bond_job_start → bond_job_result → bond_confirm_and_pay → bond_settle' }),
       thisWallet: reasons.length ? { wouldRefuse: reasons } : { ok: true },
-      ...(reasons.length ? { toAllow: allowHints(host, q.seller, asset, domainOk, d.bond.sellers.includes(q.seller)) } : {}),
+      ...(reasons.length ? { toAllow: allowHints(host, q.seller, asset, domainOk, d.bond.sellers.includes(q.seller), isV2) } : {}),
       ...(perRequest ? { perRequest } : {}),
     };
   }));
@@ -161,13 +178,14 @@ export async function bondFindSellers(d: BondJobDeps, o: FindOptions = {}) {
   };
 }
 
-function allowHints(host: string, seller: string, asset: 'USDC' | 'PREQ', domainOk: boolean, sellerOk: boolean): string[] {
+function allowHints(host: string, seller: string, asset: 'USDC' | 'PREQ', domainOk: boolean, sellerOk: boolean, v2 = false): string[] {
   const out: string[] = [];
   if (!domainOk) out.push(`add ${host} to X402_ALLOWED_DOMAINS`);
   if (!sellerOk) out.push(`add ${seller} to X402_BOND_SELLERS`);
   out.push(asset === 'PREQ'
     ? 'PREQ deals also need PREQ in X402_ALLOWED_ASSETS, X402_BOND_MAX_PREQ_ATOMIC and X402_MAX_PREQ_PER_DAY_ATOMIC'
     : 'set X402_BOND_MAX_USD at or above the price if it is not set');
+  if (v2) out.push('a non-refundable share or an arbiter also needs X402_BOND_V2_ALLOW_SHARE=1 or the arbiter in X402_BOND_V2_ARBITERS');
   out.push('only a human should change these settings, after reading the seller\'s terms');
   return out;
 }

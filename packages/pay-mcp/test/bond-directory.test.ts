@@ -144,3 +144,49 @@ describe('per-request (x402) offers from the seller\'s own info', () => {
     expect(a.perRequest.toAllow).toBeUndefined();
   });
 });
+
+describe('Job Protocol v2 sellers in the directory', () => {
+  const V2 = 'Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev';
+  const quoteV2 = (over: Record<string, unknown> = {}) => ({
+    protocol: 'agent402-bond-job/2', program: V2, seller: SELLER_B, sellerPayout: SELLER_A,
+    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', tokenProgram: T,
+    price: String(2n * U), sellerBond: String(U / 5n), buyerDeposit: String(U / 2n),
+    deliverSeconds: '3600', grace: '86400', reviewWindow: '86400', sellerShareBps: 0, arbiter: null, arbiterWindow: '0',
+    description: 'Word count of a short text', ...over,
+  });
+  const v2 = { program: V2, policy: { arbiters: [], allowShare: false } };
+
+  it('shows a v2 seller with its protocol, review window, what happens if not accepted, and the v2 tools', async () => {
+    const { d } = deps({}, { 'https://down.example.com/quote': quoteV2() });
+    const r = await bondFindSellers(d, { v2 });
+    if (r.result !== 'ok') throw new Error('failed');
+    const s = r.sellers[2] as any;
+    expect(s).toMatchObject({ reachable: true, protocol: 'v2', asset: 'USDC', price: '2 USDC', reviewWindow: '24 h after delivery to accept', ifNotAccepted: 'each side gets its own money back', arbiter: null });
+    expect(s.tools).toMatch(/^bond_v2_quote/);
+    expect(s.thisWallet.wouldRefuse.join(' ')).toMatch(/X402_ALLOWED_DOMAINS.*X402_BOND_SELLERS/);
+    expect((r.sellers[0] as any)).toMatchObject({ protocol: 'v1', tools: expect.stringMatching(/^bond_job_quote/) });
+  });
+  it('a v2 seller allowed by this wallet is ok; a non-refundable share or an unknown arbiter is refused unless allowed', async () => {
+    const env = { X402_ALLOWED_DOMAINS: 'down.example.com', X402_BOND_SELLERS: SELLER_B, X402_BOND_MAX_USD: '5' };
+    const ok = await bondFindSellers(deps(env, { 'https://down.example.com/quote': quoteV2() }).d, { v2, query: 'word count' });
+    if (ok.result !== 'ok') throw new Error('failed');
+    expect(ok.sellers[0]).toMatchObject({ protocol: 'v2', thisWallet: { ok: true } });
+    const share = await bondFindSellers(deps(env, { 'https://down.example.com/quote': quoteV2({ sellerShareBps: 2000, arbiter: SELLER_A, arbiterWindow: '3600' }) }).d, { v2, query: 'word count' });
+    if (share.result !== 'ok') throw new Error('failed');
+    const s = share.sellers[0] as any;
+    expect(s.ifNotAccepted).toMatch(/keeps 20% of your deposit/);
+    expect(s.thisWallet.wouldRefuse.join(' ')).toMatch(/X402_BOND_V2_ALLOW_SHARE.*X402_BOND_V2_ARBITERS/);
+    expect(s.toAllow.join(' ')).toMatch(/X402_BOND_V2_ALLOW_SHARE/);
+  });
+  it('a v2 quote for another program, or with no v2 support in this server, is not usable', async () => {
+    const other = await bondFindSellers(deps({}, { 'https://down.example.com/quote': quoteV2({ program: SELLER_A }) }).d, { v2 });
+    if (other.result !== 'ok') throw new Error('failed');
+    expect(other.sellers[2]).toMatchObject({ reachable: false, problem: 'not the Agent402 Bond v2 program' });
+    const off = await bondFindSellers(deps({}, { 'https://down.example.com/quote': quoteV2() }).d);
+    if (off.result !== 'ok') throw new Error('failed');
+    expect(off.sellers[2]).toMatchObject({ reachable: false, problem: expect.stringContaining('Bond v2 is not available') });
+    const bad = await bondFindSellers(deps({}, { 'https://down.example.com/quote': quoteV2({ grace: 'soon' }) }).d, { v2 });
+    if (bad.result !== 'ok') throw new Error('failed');
+    expect(bad.sellers[2]).toMatchObject({ reachable: false, problem: expect.stringContaining('grace') });
+  });
+});

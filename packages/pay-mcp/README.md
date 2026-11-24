@@ -94,7 +94,7 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 | `bond_open` | Agent402 Bond, buyer side: sign the seller's `open` transaction only if it matches the one rebuilt for this wallet and every bond rule passes (below). Locks your deposit |
 | `bond_confirm_and_pay` | Agent402 Bond, buyer side: confirm receipt and pay the balance to the seller (human confirmation by default) |
 | `bond_settle` | Agent402 Bond: settle a deal whose outcome is fixed and send both claims (network fee only) |
-| `bond_find_sellers` | Find Bond sellers: reads the [seller directory](https://github.com/agent402-dev/agent402-toolkit/tree/main/directory) and each seller's live quote, and says what your rules would refuse and which settings a human would change. Sellers that also sell per request over x402 show it as `perRequest` (advertised URL and price, checked against your x402 rules). Read only |
+| `bond_find_sellers` | Find Bond sellers (Job Protocol v1 and v2): reads the [seller directory](https://github.com/agent402-dev/agent402-toolkit/tree/main/directory) and each seller's live quote, and says which protocol and tools apply, what your rules would refuse and which settings a human would change. Sellers that also sell per request over x402 show it as `perRequest` (advertised URL and price, checked against your x402 rules). Read only |
 | `bond_job_quote` | [Bond Job Protocol](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md): read a seller's job quote and check it against your bond rules; never signs |
 | `bond_job_start` | Bond Job Protocol: send the job input, check that the quote, the reported terms and the transaction agree, then run `bond_open` |
 | `bond_job_result` | Bond Job Protocol: fetch the delivered work with a signed request (bytes start with `0xff`, never a transaction); does not confirm or pay |
@@ -135,6 +135,7 @@ The log never stores keys or signed payment payloads.
 [Bond v2](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs-v2) (program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev`, beta, no upgrade authority) runs one job per deal with the [Job Protocol v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL-v2.md). Both parties sign `open`, which records a hash of your exact input and both payout accounts; the seller stores a hash of the exact result when it marks delivery. Terms: [TERMS-v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS-v2.md).
 
 - The `bond_v2_*` tools use the same settings as above (`X402_BOND_SELLERS`, `X402_BOND_MAX_USD`, PREQ settings, daily caps, human confirmation). With no configuration they refuse everything.
+- `bond_find_sellers` lists v2 sellers from the directory too, with their review window and what happens if you do not accept.
 - Flow: `bond_v2_quote` → `bond_v2_start` → `bond_v2_result` → check the work → `bond_v2_accept` → `bond_v2_settle`. If you do not accept a delivered job, each side gets its own money back after the review window (neutral deals).
 - Dispute options are refused unless you allow them:
 

@@ -70,7 +70,7 @@ Pick the shape that fits your work.
 **Get found**
 
 - Add your x402 API at [x402scan](https://www.x402scan.com/resources/register) (it reads your `openapi.json`).
-- Bonded jobs over Job Protocol v1: open a pull request to the [seller directory](../directory) (v2 entries are not accepted there yet). Buyers still choose who they allow; being listed is not an endorsement.
+- Bonded jobs (Job Protocol v1 or v2): open a pull request to the [seller directory](../directory). Buyers still choose who they allow; being listed is not an endorsement.
 
 **Before real money:** the Bond programs were reviewed internally and not independently audited, and have per-deal and total limits (100 / 2,000 USDC). Terms: [Bond v2](bond/TERMS-v2.md), [Bond v1](bond/TERMS.md).
 
