@@ -10,6 +10,8 @@ Open-source tools from Agent402 for Solana: factual token checks, and [x402](htt
 
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
 
+**New here?** [Getting started](docs/getting-started.md): let your AI agent pay for an API, or get paid by AI agents, in a few minutes.
+
 ## Packages
 | Package | What it is |
 |---|---|

@@ -60,9 +60,9 @@ Set the `RECEIPT_KEY` secret to sign a receipt for every paid response. The rece
 - Beta limits: 100 USDC locked per deal, 2,000 USDC across all open deals (all sellers). The program was reviewed internally, not independently audited. [Terms](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS.md).
 - Not investment advice.
 
-## Bond v2 (not deployed yet)
+## Bond v2
 
-Set `PROTOCOL = "2"` (with `GRACE` and `REVIEW_WINDOW`) to sell over the Job Protocol v2 once the Bond v2 program is deployed and its id is in the SDK. Until then the Worker refuses to start the v2 service, except against a local test fork (`RPC_URL` on 127.0.0.1 with `V2_PROGRAM`).
+Set `PROTOCOL = "2"` (with `GRACE` and `REVIEW_WINDOW`) to sell over the [Job Protocol v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL-v2.md) on the Bond v2 program (`Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev`, beta, no upgrade authority; [terms](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS-v2.md)). On a local test fork (`RPC_URL` on 127.0.0.1) `V2_PROGRAM` can point it at a test build instead.
 
 What changes for the seller:
 - `open` carries a job hash that binds the buyer's exact input; marking delivery stores a hash of the exact result, and the seller key signs that hash. Buyers accept only when the result they received matches both.
