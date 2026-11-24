@@ -10,6 +10,7 @@ import { withSpendLock } from './spend-lock.js';
 import type { History } from './history.js';
 import type { AccountsFetcher } from './locks.js';
 import { historyToCsv } from './csv.js';
+import { reportRange, spendingReport } from './report.js';
 import { nearLimits, tokenEnv, type PayPolicy, type TokenSymbol } from './policy.js';
 import { formatUnits } from './units.js';
 import type { Wallet } from './wallet.js';
@@ -66,7 +67,7 @@ function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown>
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.8.0' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.9.0' });
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!server.server.getClientCapabilities()?.elicitation) return 'unsupported';
     const r = await server.server.elicitInput({
@@ -142,6 +143,17 @@ export function createPayServer(d: PayServerDeps): McpServer {
     async ({ limit, format }) => {
       const xs = d.history.list(limit ?? 20);
       return format === 'csv' ? { content: [{ type: 'text' as const, text: historyToCsv([...xs].reverse()) }] } : out(withUnits(xs));
+    },
+  );
+  server.tool(
+    'spending_report',
+    'Read only. Spending summary from the local payment log for a date range (UTC days, default this month to today, at most 366 days): totals per asset, by recipient, by host and by day, result counts, how many paid responses carried a verified seller receipt, and what is left of today\'s limits. Signed payments count as spent whatever their result, as the daily limits count them.',
+    { from: z.string().optional(), to: z.string().optional() },
+    async ({ from, to }) => {
+      const now = d.now?.() ?? new Date();
+      const range = reportRange({ from, to }, now);
+      if (typeof range === 'string') return out({ result: 'refused', reasons: [range] }, true);
+      return out(spendingReport([...d.history.list(1_000_000)].reverse(), d.policy, range, now));
     },
   );
   server.tool(

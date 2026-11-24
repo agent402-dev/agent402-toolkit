@@ -88,6 +88,7 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 | `x402_quote` | Show payment requirements and which rules pass; never signs; returns `quoteId` |
 | `wallet_status` | Address, balances, today's usage (count, USDC, PREQ), limits including both PREQ limits, allowlists |
 | `payment_history` | Local log: time, URL, asset, amount, recipient, result, settlement transaction id (JSON, or CSV with `format: "csv"`) |
+| `spending_report` | Read only. Totals for a date range (UTC, default this month): per asset, by recipient, host and day; results; verified seller receipts; what is left of today's limits |
 | `bond_deal_status` | Read-only. An [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deal: parties, amounts with units, deadlines on the Solana clock, what each side can still do, and the settlement that applies now (or the earliest time it opens). Predicted from the program rules; the program on chain decides. Never signs |
 | `bond_open` | Agent402 Bond, buyer side: sign the seller's `open` transaction only if it matches the one rebuilt for this wallet and every bond rule passes (below). Locks your deposit |
 | `bond_confirm_and_pay` | Agent402 Bond, buyer side: confirm receipt and pay the balance to the seller (human confirmation by default) |
