@@ -29,7 +29,7 @@ Status: deployed on mainnet as `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev` on
 - Program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev`, ProgramData `7VmjJPMQXLrGGQhiAewCHpHiJkdBvJLHKdgSt3LptvCM`, deployed in slot 473343504. On-chain code SHA-256 `a87a1830fd24d5aadeec0e91ed4678bc62c6e695a824d4ffba14d385c00aa739` (370,560 bytes), the same as the reviewed build (reproduced several times from clean checkouts with the recipe in `programs-v2/README.md`).
 - Config `Gi4cmk4aJsM9LPXQg2t4qp7a4F6KYVuG7upCbehP94gY` with the Squads vault as admin; limit records for USDC, wSOL and PREQ.
 - Small test deals on mainnet (accept, cancel, seller release) settled and closed as specified.
-- The deploy key had been retired earlier for exposure and should not have been used. Before removing the upgrade authority, the on-chain code was checked again: same hash, last deployed in the original slot. The authority was then removed (`none`); the key controls nothing in this program and is not an Agent402 key.
+- Before removing the upgrade authority, the on-chain code was checked again: same hash, last deployed in the original slot. The authority is now `none`.
 - Pause and unpause were tested through the Squads vault (2 of 3 approvals).
 
 ## What this review cannot tell you
