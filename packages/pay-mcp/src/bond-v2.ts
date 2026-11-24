@@ -1,7 +1,7 @@
 // Agent402 Bond v2, buyer side, with the Job Protocol v2: quote → start (open) → result (fetch + verify) → accept, and settle.
 // Nothing from the seller is trusted: the job hash is recomputed from this wallet's own input, the open instruction is rebuilt
 // and compared byte for byte, and accept runs only when the result, its hash on chain and the seller's signature all agree.
-// Off until the v2 program id is set in code (BOND_V2_PROGRAM); a local test fork may set X402_BOND_V2_PROGRAM.
+// Uses the deployed program (BOND_V2_PROGRAM); a local test fork (RPC on 127.0.0.1/localhost) may set X402_BOND_V2_PROGRAM instead.
 import { getPublicKeyFromAddress, verifySignature, type Address, type SignatureBytes } from '@solana/kit';
 import {
   checkDeliveryV2, checkJobQuoteV2, checkJobTermsV2, deliverMessageV2, fromHex, JOB_MAX_INPUT_V2, jobHashV2, type JobDeliveryV2,
@@ -15,7 +15,7 @@ import {
 import { domainCheck } from './policy.js';
 
 /** The deployed v2 program. null until mainnet deploy, verification and authority removal (spec 9, 11). */
-export const BOND_V2_PROGRAM: string | null = null;
+export const BOND_V2_PROGRAM: string | null = 'Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev';
 
 export interface BondV2Policy {
   /** Arbiters this wallet accepts in a deal. Empty = refuse deals that name an arbiter */
@@ -32,9 +32,9 @@ export function bondV2PolicyFromEnv(env: BondV2Env): BondV2Policy {
 }
 /** The v2 program in use: the code constant, or (local fork only) the env override. */
 export function resolveV2Program(env: BondV2Env, rpcUrl: string): string | null {
-  if (BOND_V2_PROGRAM) return BOND_V2_PROGRAM;
   const local = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(rpcUrl);
-  return local && env.X402_BOND_V2_PROGRAM ? env.X402_BOND_V2_PROGRAM : null;
+  if (local && env.X402_BOND_V2_PROGRAM) return env.X402_BOND_V2_PROGRAM;
+  return BOND_V2_PROGRAM;
 }
 
 export interface BondV2Deps extends BondSignDeps { fetch: typeof fetch; v2Program: string; v2: BondV2Policy }

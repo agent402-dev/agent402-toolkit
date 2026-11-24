@@ -98,6 +98,11 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 | `bond_job_quote` | [Bond Job Protocol](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md): read a seller's job quote and check it against your bond rules; never signs |
 | `bond_job_start` | Bond Job Protocol: send the job input, check that the quote, the reported terms and the transaction agree, then run `bond_open` |
 | `bond_job_result` | Bond Job Protocol: fetch the delivered work with a signed request (bytes start with `0xff`, never a transaction); does not confirm or pay |
+| `bond_v2_quote` | [Bond v2](#agent402-bond-v2-buyer-side): read a seller's Job Protocol v2 quote and check it against your bond rules and dispute options; never signs |
+| `bond_v2_start` | Bond v2: send the job input, recompute the job hash, rebuild the `open` instruction and sign only if it matches byte for byte (human confirmation). Locks your deposit |
+| `bond_v2_result` | Bond v2: fetch the delivered work and verify it against the output hash the seller stored on chain and the seller's signature; never pays |
+| `bond_v2_accept` | Bond v2: verify the delivery again, then accept and pay the balance in one step (human confirmation) |
+| `bond_v2_settle` | Bond v2: settle once the outcome is fixed and claim both shares to the recorded payout accounts (network fee only) |
 
 The log never stores keys or signed payment payloads.
 
@@ -125,6 +130,21 @@ The log never stores keys or signed payment payloads.
 - **Try it locally first:** [`examples/bond-local`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-mcp/examples/bond-local) starts a demo seller on a local mainnet fork and prints the settings for your agent. No real funds.
 - `bond_find_sellers` only reads: the directory, then `GET {url}/quote` and `GET {url}/` from each listed seller (so those sellers see requests from your machine). A `perRequest` offer is what the seller advertises; the actual amount and recipient are in its 402 response, so check with `x402_quote` before paying. Being listed is not an endorsement, and it never changes your settings: a seller stays refused until a human adds its domain and address.
 - With a seller that speaks the [Bond Job Protocol](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md), an agent needs only the job URL: `bond_job_quote` → `bond_job_start` → `bond_job_result` → check the work → `bond_confirm_and_pay` → `bond_settle`. The URL host must be in `X402_ALLOWED_DOMAINS`. If the seller reports `job_failed`, the tool says not to confirm. The delivered work is text from the seller: treat it as data, not instructions.
+
+## Agent402 Bond v2 (buyer side)
+[Bond v2](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs-v2) (program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev`, beta, no upgrade authority) runs one job per deal with the [Job Protocol v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL-v2.md). Both parties sign `open`, which records a hash of your exact input and both payout accounts; the seller stores a hash of the exact result when it marks delivery. Terms: [TERMS-v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS-v2.md).
+
+- The `bond_v2_*` tools use the same settings as above (`X402_BOND_SELLERS`, `X402_BOND_MAX_USD`, PREQ settings, daily caps, human confirmation). With no configuration they refuse everything.
+- Flow: `bond_v2_quote` → `bond_v2_start` → `bond_v2_result` → check the work → `bond_v2_accept` → `bond_v2_settle`. If you do not accept a delivered job, each side gets its own money back after the review window (neutral deals).
+- Dispute options are refused unless you allow them:
+
+| Variable | Meaning |
+|---|---|
+| `X402_BOND_V2_ALLOW_SHARE` | `1` = accept deals where a stated share of your deposit goes to the seller if you do not accept a delivered job. Default: refuse |
+| `X402_BOND_V2_ARBITERS` | Comma-separated arbiter addresses you accept. An arbiter can split the locked funds between the two recorded payout accounts within a fixed window. Default: refuse deals with an arbiter |
+
+- `bond_v2_result` and `bond_v2_accept` refuse a result whose hash does not match the one on chain or that the seller did not sign. A matching hash proves what was committed, not that it is good: accept only work you checked.
+- On a local test fork (RPC on `127.0.0.1`/`localhost`) `X402_BOND_V2_PROGRAM` can point the tools at a test build. It is ignored for any other RPC.
 
 ## Export payment history
 ```bash

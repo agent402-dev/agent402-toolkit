@@ -8,7 +8,7 @@ A performance bond for one job between a seller and a buyer. The seller locks a 
 - Operator: Squads v4 multisig vault `36PdTtqfp4vNvJjn9stRFoymRFdMZ1NHU9kLvb82mScc` (2 of 3). It can only pause new deals, hand over the role in two steps, and move per-token limits within bounds written into the program (at most 2x per change, 48 hours later). It cannot move locked funds, change an open deal, or stop settlement, claims or cancellation.
 - Mints: USDC (SPL Token), wSOL, PREQ (Token-2022). Starting limits: 100 USDC per deal and 2,000 USDC across open deals; 0.5 / 10 wSOL; 688,000 / 13,760,000 PREQ.
 - Terms: [docs/bond/TERMS-v2.md](../docs/bond/TERMS-v2.md) · Job protocol: [docs/bond/JOB-PROTOCOL-v2.md](../docs/bond/JOB-PROTOCOL-v2.md) · Review: [docs/bond/INTERNAL-REVIEW-v2.md](../docs/bond/INTERNAL-REVIEW-v2.md) (internal review, **not an independent audit**)
-- The published SDK does not turn v2 on yet (`BOND_V2_DEPLOYED` is unset in `@agent402-dev/bond-client/v2`). Bond v1 ([`programs/`](../programs)) is unchanged.
+- Supported by the toolkit from `@agent402-dev/bond-client` 0.3.0, `pay-server` 0.7.0, `pay-mcp` 0.11.0 and `bond-seller-mcp` 0.3.0 (`BOND_V2_DEPLOYED` in `@agent402-dev/bond-client/v2`). Bond v1 ([`programs/`](../programs)) is unchanged.
 
 ## Layout
 

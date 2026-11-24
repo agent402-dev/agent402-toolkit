@@ -111,10 +111,10 @@ function assetOptions(asset = 'USDC'): { mint?: PublicKey; tokenProgram?: Public
 }
 
 function v2Program(env: Env): PublicKey {
-  if (BOND_V2_DEPLOYED) return BOND_V2_DEPLOYED;
   const local = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(env.RPC_URL);
   if (local && env.V2_PROGRAM) return new PublicKey(env.V2_PROGRAM);
-  throw new Error('PROTOCOL=2: Bond v2 is not deployed yet (only a local fork with V2_PROGRAM can run it)');
+  if (BOND_V2_DEPLOYED) return BOND_V2_DEPLOYED;
+  throw new Error('PROTOCOL=2: Bond v2 program unknown (set V2_PROGRAM on a local fork)');
 }
 
 function serviceV2(env: Env) {

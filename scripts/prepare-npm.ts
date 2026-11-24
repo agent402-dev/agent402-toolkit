@@ -89,9 +89,11 @@ make('bond-client', {
     '.': { types: './dist/index.d.ts', default: './dist/index.js' },
     './rules': { types: './dist/rules.d.ts', default: './dist/rules.js' },
     './job': { types: './dist/job.d.ts', default: './dist/job.js' },
+    './v2': { types: './dist/v2.d.ts', default: './dist/v2.js' },
+    './job-v2': { types: './dist/job-v2.d.ts', default: './dist/job-v2.js' },
   },
   peerDependencies: bondPeers,
-  // users of ./rules only (pay-mcp) do not need web3.js
+  // users of ./rules and ./job-v2 only (pay-mcp) do not need web3.js
   peerDependenciesMeta: { '@solana/web3.js': { optional: true } },
 });
 

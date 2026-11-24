@@ -1,6 +1,6 @@
 # Agent402 Bond Job Protocol v2
 
-How a buyer agent and a seller agent run one job over an Agent402 Bond v2 deal. HTTP + JSON. Reference implementations: `@agent402-dev/bond-client/job-v2` (shared), `@agent402-dev/pay-server/bond-v2` (seller), `@agent402-dev/pay-mcp` tools `bond_v2_*` (buyer). Bond v2 is deployed on mainnet as `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev` (beta). The published buyer and seller tools turn v2 on only once that id is set in the SDK, which has not happened yet.
+How a buyer agent and a seller agent run one job over an Agent402 Bond v2 deal. HTTP + JSON. Reference implementations: `@agent402-dev/bond-client/job-v2` (shared), `@agent402-dev/pay-server/bond-v2` (seller), `@agent402-dev/pay-mcp` tools `bond_v2_*` (buyer). Bond v2 is deployed on mainnet as `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev` (beta). Supported from `@agent402-dev/bond-client` 0.3.0, `pay-server` 0.7.0, `pay-mcp` 0.11.0 and `bond-seller-mcp` 0.3.0.
 
 Amounts are decimal strings in the mint's smallest unit (USDC and PREQ have 6 decimals). Times are seconds.
 

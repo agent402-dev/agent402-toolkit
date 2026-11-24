@@ -50,7 +50,7 @@ export function checkBondTermsV2(t: BondTermsV2Config): string[] {
 
 export interface BondSellerV2Config {
   rpcUrl: string;
-  /** The deployed Bond v2 program (no default until it is deployed) */
+  /** The Bond v2 program: BOND_V2_DEPLOYED from @agent402-dev/bond-client/v2 (or a test build on a local fork) */
   programId: PublicKey;
   signer: BondSignerV2;
   terms: BondTermsV2Config;

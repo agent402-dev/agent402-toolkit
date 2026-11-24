@@ -63,11 +63,14 @@ describe('pay-mcp bond v2 instructions match bond-client v2', () => {
 });
 
 describe('pay-mcp bond v2 rules', () => {
-  it('is off unless the code constant is set; a local fork may override', () => {
-    expect(BOND_V2_PROGRAM).toBeNull();
-    expect(resolveV2Program({ X402_BOND_V2_PROGRAM: PROGRAM }, 'https://api.mainnet-beta.solana.com')).toBeNull();
-    expect(resolveV2Program({ X402_BOND_V2_PROGRAM: PROGRAM }, 'http://127.0.0.1:8899')).toBe(PROGRAM);
-    expect(resolveV2Program({}, 'http://127.0.0.1:8899')).toBeNull();
+  it('uses the deployed program; only a local fork may override it', () => {
+    expect(BOND_V2_PROGRAM).toBe(client.BOND_V2_PROGRAM_ID.toBase58());
+    expect(client.BOND_V2_DEPLOYED?.toBase58()).toBe(BOND_V2_PROGRAM);
+    const TEST = client.BOND_V2_TEST_PROGRAM_ID.toBase58();
+    expect(resolveV2Program({ X402_BOND_V2_PROGRAM: TEST }, 'https://api.mainnet-beta.solana.com')).toBe(BOND_V2_PROGRAM);
+    expect(resolveV2Program({ X402_BOND_V2_PROGRAM: TEST }, 'http://127.0.0.1:8899')).toBe(TEST);
+    expect(resolveV2Program({}, 'http://127.0.0.1:8899')).toBe(BOND_V2_PROGRAM);
+    expect(resolveV2Program({}, 'https://api.mainnet-beta.solana.com')).toBe('Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev');
   });
 
   it('refuses dispute options unless allowed, and other programs', () => {

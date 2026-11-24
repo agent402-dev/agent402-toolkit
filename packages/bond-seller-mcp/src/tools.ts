@@ -34,7 +34,7 @@ export function serialRunner(b: BuiltSeller) {
 
 export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRunner(d.built) : null) {
   const usdc = units(d.config.asset ?? 'USDC'); // amounts in the deal asset (USDC or PREQ)
-  const server = new McpServer({ name: 'agent402-bond-seller', version: '0.2.0' });
+  const server = new McpServer({ name: 'agent402-bond-seller', version: '0.3.0' });
   const off = () => out({ result: 'not_configured', problems: d.config.problems }, true);
 
   server.tool('sell_status',

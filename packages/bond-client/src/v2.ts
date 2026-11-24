@@ -12,12 +12,12 @@
  */
 import { PublicKey, SystemProgram, TransactionInstruction, type AccountMeta } from '@solana/web3.js';
 
-/** The Bond v2 program address (mainnet build). Builders default to it. Not usable until BOND_V2_DEPLOYED is set. */
+/** The Bond v2 program address on mainnet. Builders default to it. */
 export const BOND_V2_PROGRAM_ID = new PublicKey('Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev');
 /** Address of the test-mints build (local tests only: any mint, a test admin). Never deployed. */
 export const BOND_V2_TEST_PROGRAM_ID = new PublicKey('5TotaQm4RbhRfhZzwFwnfoRLMWJ4jn3dpA9gRVsgd5bx');
-/** The deployed mainnet program, set only after deploy, verification and upgrade-authority removal. null = not deployed. */
-export const BOND_V2_DEPLOYED: PublicKey | null = null;
+/** The deployed mainnet program: deployed 2026-11-24, code verified, upgrade authority removed. Tools turn v2 on only when this is set. */
+export const BOND_V2_DEPLOYED: PublicKey | null = BOND_V2_PROGRAM_ID;
 
 /** sha256("global:<name>")[..8], checked in test/v2.test.ts. */
 export const DISC_V2 = {

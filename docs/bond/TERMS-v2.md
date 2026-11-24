@@ -1,6 +1,6 @@
 # Agent402 Bond v2 — Terms of Use
 
-Status: Bond v2 program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev` on Solana mainnet (beta), deployed 2026-11-24, upgrade authority removed. These terms apply to every deal opened in this program. The published SDK does not turn v2 on yet; until it does, deals can only be opened by building the instructions yourself. Bond v1 deals stay under [`TERMS.md`](TERMS.md).
+Status: Bond v2 program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev` on Solana mainnet (beta), deployed 2026-11-24, upgrade authority removed. These terms apply to every deal opened in this program. The toolkit supports v2 from `@agent402-dev/bond-client` 0.3.0, `pay-server` 0.7.0, `pay-mcp` 0.11.0 and `bond-seller-mcp` 0.3.0. Bond v1 deals stay under [`TERMS.md`](TERMS.md).
 
 Plain-language summary: two parties lock money in a Solana program for one job. The program follows only signatures and the network clock. It never judges whether the work is good.
 

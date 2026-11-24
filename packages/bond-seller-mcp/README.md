@@ -45,6 +45,9 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 | `BOND_SELL_PUBLIC_ORIGIN` | The origin buyers use (e.g. `https://jobs.example.com`), when behind a proxy or tunnel | the listen address |
 | `BOND_SELLER_STORE` | Job store file (keep it: you must still mark delivery after a restart) | `~/.agent402/seller-jobs.json` |
 | `BOND_SELL_INTERVAL_SECONDS` | How often the background loop runs (at least 30) | `60` |
+| `BOND_SELL_PROTOCOL` | `2` = sell over [Bond v2](#bond-v2) and the Job Protocol v2; `1` = Bond v1 | `1` |
+| `BOND_SELL_GRACE_SECONDS` | v2: time after the delivery deadline during which you may still mark (1 hour to 1 day) | `86400` |
+| `BOND_SELL_REVIEW_SECONDS` | v2: time the buyer has to accept after your mark (1 hour to 7 days) | `86400` |
 
 ```bash
 npx -y @agent402-dev/bond-seller-mcp init      # creates ~/.agent402/seller-wallet.json
@@ -55,6 +58,9 @@ claude mcp add bond-seller \
   -e BOND_SELL_DESCRIPTION="<what you sell>" \
   -- npx -y @agent402-dev/bond-seller-mcp
 ```
+
+## Bond v2
+With `BOND_SELL_PROTOCOL=2` the server sells over [Bond v2](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs-v2) (program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev`, beta, no upgrade authority) and serves the [Job Protocol v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL-v2.md). Each deal records a hash of the buyer's exact input; when you submit, the result's hash is stored on chain with delivery and signed by your wallet, and the buyer accepts and pays in one step. Deals are neutral: if the buyer does not accept a delivered job, each side gets its own money back. Payouts go to your token account recorded at opening. Buyers use [`@agent402-dev/pay-mcp`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-mcp) `bond_v2_*`. Terms: [TERMS-v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS-v2.md).
 
 ## Get listed
 

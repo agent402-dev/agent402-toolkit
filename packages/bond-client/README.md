@@ -13,6 +13,17 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 - Beta limits: 100 USDC locked per deal, 2,000 USDC across open deals.
 - Source, tests and how to check the deployed code: [programs/](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs). Terms and outcome table: [TERMS.md](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS.md). Internal review: [INTERNAL-REVIEW.md](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/INTERNAL-REVIEW.md).
 
+## Bond v2
+`@agent402-dev/bond-client/v2` builds instructions, decodes accounts and events, and applies the rules for [Bond v2](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs-v2): program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev` on mainnet (beta, **no upgrade authority**, deployed 2026-11-24). Both parties sign `open`, which records a hash of the job and both payout accounts; payouts are claimed to those accounts. `@agent402-dev/bond-client/job-v2` has the [Job Protocol v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL-v2.md) helpers (job and output hashes, seller and buyer signatures, quote and delivery checks) and no dependencies.
+
+```ts
+import * as v2 from '@agent402-dev/bond-client/v2';
+v2.BOND_V2_DEPLOYED;            // PublicKey of the deployed program
+v2.decodeDealV2(data);          // deal account → state, amounts, deadlines, owed shares
+v2.claimsV2(ref, deal);         // claim instructions still needed for a settled deal, in order
+```
+Terms: [TERMS-v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS-v2.md). Internal review (not an independent audit): [INTERNAL-REVIEW-v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/INTERNAL-REVIEW-v2.md).
+
 ## Install
 ```bash
 npm install @agent402-dev/bond-client @solana/web3.js

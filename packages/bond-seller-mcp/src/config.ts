@@ -73,8 +73,8 @@ export function sellerConfigFromEnv(env: Record<string, string | undefined>): Se
   let v2Program: string | null = null;
   if (protocol === 2) {
     const local = !!rpcUrl && /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(rpcUrl);
-    v2Program = BOND_V2_DEPLOYED?.toBase58() ?? (local ? env.BOND_SELL_V2_PROGRAM?.trim() || null : null);
-    if (!v2Program) problems.push('Bond v2 is not deployed yet (protocol 2 runs only against a local test fork with BOND_SELL_V2_PROGRAM)');
+    v2Program = (local ? env.BOND_SELL_V2_PROGRAM?.trim() || null : null) ?? BOND_V2_DEPLOYED?.toBase58() ?? null;
+    if (!v2Program) problems.push('Bond v2 program unknown (set BOND_SELL_V2_PROGRAM on a local test fork)');
     if (terms) {
       termsV2 = {
         price: terms.price, sellerBond: terms.sellerBond, buyerDeposit: terms.buyerDeposit, deliverSeconds: terms.deliverSeconds,

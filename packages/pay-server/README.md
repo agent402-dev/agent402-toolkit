@@ -173,6 +173,27 @@ await seller.unmarked();                          // open deals you have not mar
 - Ready-to-deploy Cloudflare Workers seller (Durable Object job store, cron that delivers and marks): [`examples/bond-seller-worker`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/bond-seller-worker).
 - Full example with a seller service and a buyer agent: [`packages/bond-client/examples/job`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/bond-client/examples/job).
 
+## Agent402 Bond v2, seller side (optional)
+`@agent402-dev/pay-server/bond-v2` is the same seller flow for [Bond v2](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs-v2) (program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev`, beta, no upgrade authority) and the [Job Protocol v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL-v2.md):
+
+```ts
+import { BOND_V2_DEPLOYED } from '@agent402-dev/bond-client/v2';
+import { createBondSellerV2, bondJobServiceV2 } from '@agent402-dev/pay-server/bond-v2';
+
+const seller = createBondSellerV2({
+  rpcUrl, programId: BOND_V2_DEPLOYED!, mint, tokenProgram,
+  signer,                       // { publicKey, signTransaction(tx), signMessage(bytes) }: your wallet or KMS
+  terms: { price: 20_000_000n, sellerBond: 2_000_000n, buyerDeposit: 5_000_000n, deliverSeconds: 3_600n, grace: 86_400n, reviewWindow: 86_400n },
+  store,
+});
+const service = bondJobServiceV2({ seller, doJob: async (input) => '...' }); // handle(req), processOpenJobs() on a timer
+```
+
+- Each deal records a hash of the buyer's exact input. When you deliver, the hash of the exact result is stored on chain with the mark and signed with `signMessage` (the signed bytes start with `0xff`, so they can never be a transaction). The buyer accepts and pays the balance in one step.
+- Deals are neutral by default: if the buyer does not accept a delivered job, each side gets its own money back. `sellerShareBps` and `arbiter` are optional dispute options; buyers' tools refuse them unless the buyer allows them.
+- Payouts are claimed to the accounts recorded at opening. The same protections as `bondJobService` apply (timeouts, failure notices, caps per buyer, `processOpenJobs()` on a timer).
+- The Workers example runs v2 with `PROTOCOL=2`.
+
 ## Data
 - No telemetry and no analytics.
 - It contacts only the facilitators you configure (`/supported`, `/verify`, `/settle`) and the RPC you pass to `rpcChain` (settlement checks, receiving token accounts, pool prices for the PREQ rate).
