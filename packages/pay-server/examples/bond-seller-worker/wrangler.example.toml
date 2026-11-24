@@ -29,5 +29,6 @@ DESCRIPTION = "Counts the words in a text"
 # Optional: also sell the same work per request over x402 at POST /x402/job (USDC, no bond, paid to the seller wallet,
 # which must already have a USDC token account). Not settled if your work throws.
 # X402_PRICE_USD = "0.05"
+# Signed receipts for x402 responses: set the RECEIPT_KEY secret (a separate key, not the seller key). See README.md.
 # Optional: the address buyers use, if it differs from what the Worker sees (e.g. behind another proxy)
 # PUBLIC_ORIGIN = "https://jobs.example.com"

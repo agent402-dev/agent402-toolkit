@@ -37,6 +37,17 @@ Set `X402_PRICE_USD` in `[vars]` (for example `"0.05"`) to sell the same work at
 
 The seller wallet must already have a USDC token account (`exact` payments do not create it). AI agents can pay with `@agent402-dev/pay-mcp` (`x402_fetch`, POST with a body).
 
+### Signed receipts (optional)
+Set the `RECEIPT_KEY` secret to sign a receipt for every paid response. The receipt (`X-Agent402-Receipt` header) binds the request (method, path, body hash), the response body hash and the payment, so a buyer can later show what was paid for and what came back. `@agent402-dev/pay-mcp` checks it and reports `receipt.verified`.
+- Use a **separate key, not the seller key**: it signs receipts only and never holds funds.
+  ```bash
+  solana-keygen new --no-bip39-passphrase -o receipt-key.json   # keep this file private
+  npx wrangler secret put RECEIPT_KEY < receipt-key.json
+  solana-keygen pubkey receipt-key.json                          # publish this public key
+  ```
+- `GET /` shows its public key as `x402.receiptSigner`. Publish it where buyers can check it (your docs or site).
+- A key that cannot be read only turns receipts off (logged); payments still work.
+
 ## How it behaves
 - `POST /open` builds the `open` transaction with you as fee payer and signs it; the deal exists only once the buyer signs and sends it.
 - The cron (every 2 minutes) runs `processOpenJobs()`: for each deal the buyer has opened, it does the work, stores the result and marks delivery. It does **not** wait for the buyer to ask, because a deal nobody marked by `deliverBy + 1 day + LATE_WINDOW` pays your bond and the deposit to the buyer.
