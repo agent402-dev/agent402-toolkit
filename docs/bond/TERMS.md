@@ -2,6 +2,8 @@
 
 **Effective 2026-11-22 for program `9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK` (version 1).**
 
+*Wording clarified 2026-11-24 to match the program. The program and its rules did not change.*
+
 ## 1. What this is
 
 Agent402 Bond is open-source software: a Solana program (program id `9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK`) plus client code. It lets a seller and a buyer lock a performance bond and an optional deposit for one deal. The program decides what happens to that money using only two kinds of evidence: the parties' signatures and the Solana network clock.
@@ -20,7 +22,7 @@ Nobody, including the people who publish this software, holds your funds or can 
 | Situation at the deadline | Seller receives | Buyer receives |
 | --- | --- | --- |
 | Buyer confirmed and paid the balance | Bond back and the deposit | Nothing more (the work was delivered) |
-| Buyer confirmed but did not pay the balance in time | Bond back and the deposit | Nothing |
+| Buyer confirmed but did not pay the balance in time | Bond back and the deposit | The late deduction, if delivery was late; otherwise nothing |
 | Seller marked delivery, buyer never confirmed | Bond back | Deposit back |
 | Nothing was marked or confirmed | Nothing | Bond and deposit |
 | Delivered late, inside the agreed late window | Bond minus a pro-rata late deduction, and the deposit | The late deduction |
@@ -35,9 +37,11 @@ All deadlines are measured by the Solana network clock. A deal always becomes se
 - It does not arbitrate disputes or issue refunds by judgement.
 - It does not hold the balance payment; that goes directly from buyer to seller.
 
-If the seller marks delivery and the buyer does not confirm, each side simply gets its own money back. This is deliberate: it means neither side can profit from making a false claim, but it also means the program does not settle quality disputes. If a quality dispute arises, the seller and the buyer resolve it between themselves.
+If the seller marks delivery and the buyer does not confirm, each side simply gets its own money back. This is deliberate: the program does not settle quality disputes. It also means the bond protects the buyer only against a seller that never marks delivery: a seller that marks delivery gets its bond back whatever it delivered, and a buyer that keeps delivered work without confirming gets its deposit back. Deal only with counterparties you are willing to trust for the price. If a quality dispute arises, the seller and the buyer resolve it between themselves.
 
 A seller can avoid the late deduction by marking delivery before actually delivering. In that case the buyer's choice is not to confirm, which returns each side's own money.
+
+If the late window is more than one day longer than the pay window and the seller marks delivery early, the time to pay the balance runs from the seller's mark. A buyer who confirms after that time can no longer pay, and the deal ends as "confirmed but not paid". Confirm and pay in the same transaction, before that time. The toolkit's buyer tool does this and refuses such terms.
 
 ## 5. Token issuers and frozen accounts
 
@@ -55,13 +59,15 @@ Do not send tokens directly to a deal vault. The program cannot tell who sent th
 
 Limits apply to new deals only. They never change an open deal.
 
+Anyone can fill the limit across all open deals with their own deals, and the operator cannot release it. Expired deals keep counting toward it until someone settles them.
+
 ## 8. What the operator can and cannot do
 
 The operator key can pause new deals, hand over the operator role in two steps, and adjust wSOL/PREQ limits as described above. It cannot move locked funds, change an open deal, or stop settlement, claims or cancellation. The deployed program cannot be upgraded. Fixes and new features ship as new programs; each deal is governed by the program version it was opened under.
 
 ## 9. Fees
 
-The program charges no fee. Users pay ordinary Solana network fees and the rent for accounts they create; the seller's deal rent is returned when the deal closes.
+The program charges no fee. Users pay ordinary Solana network fees and the rent for accounts they create; the seller's deal rent is returned when the deal closes, which happens when the seller's share is claimed after the buyer's share (the toolkit claims both in one transaction).
 
 ## 10. Risks you accept
 

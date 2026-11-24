@@ -58,7 +58,7 @@ The buyer then checks the result itself. To accept, it sends `confirm_receipt` a
 
 ## Deadlines (from the program)
 - If nothing is marked or confirmed by `deliverBy + 1 day + lateWindow`, the seller bond and the buyer deposit go to the buyer. Sellers must mark in time.
-- A buyer who confirmed has until the buyer deadline (at least `payWindow + 1 day` after delivery or after `deliverBy + 1 day`, whichever is later) to pay the balance; otherwise the deposit goes to the seller.
+- A buyer who confirmed has until the buyer deadline to pay the balance; otherwise the deposit goes to the seller. That deadline is `payWindow + 1 day` after the earlier of the seller's mark and the buyer's confirmation, or after `deliverBy + 1 day` if that is later. If the seller marked early and `lateWindow` is more than 1 day longer than `payWindow`, a confirmation may come after this deadline and the balance can then no longer be paid: confirm and pay in one transaction, in time (`@agent402-dev/pay-mcp` refuses such terms).
 - Full outcome table: [TERMS.md](TERMS.md).
 
 ## Known limit: unpaid use of delivered work
@@ -80,4 +80,4 @@ The seller's bond is not at risk from this, and the buyer's protection (a seller
 
 Finding sellers: [`directory/bond-sellers.json`](../../directory) is a plain list of job URLs; `bond_find_sellers` in pay-mcp reads it and each listed `/quote`. Listing is not an endorsement.
 
-Beta limits: 100 USDC per deal and 2,000 USDC across open deals. PREQ deals have their own on-chain caps, readable from the PREQ counter account. The program was reviewed internally, not independently audited. Not investment advice.
+Beta limits: 100 USDC locked per deal (seller bond plus buyer deposit; the price itself is not capped) and 2,000 USDC locked across open deals. PREQ deals have their own on-chain caps, readable from the PREQ counter account. The program was reviewed internally, not independently audited. Not investment advice.
