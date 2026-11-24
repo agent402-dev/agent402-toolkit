@@ -38,7 +38,7 @@ jobs:
           so=programs-v2/target/deploy/agent402_bond_v2.so
           built=$(sha256sum "$so" | cut -d' ' -f1)
           solana program dump "$V2_PROGRAM_ID" onchain-v2.so --url "$RPC"
-          onchain=$(head -c "$(stat -c %s "$so")" onchain-v2.so | sha256sum | cut -d' ' -f1)
+          onchain=$(sha256sum onchain-v2.so | cut -d' ' -f1)
           authority=$(solana program show "$V2_PROGRAM_ID" --url "$RPC" | sed -n 's/^Authority: //p')
           {
             echo "### v2 recipe"
