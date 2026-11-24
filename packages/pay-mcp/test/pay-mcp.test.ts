@@ -256,7 +256,7 @@ describe('5 attack scenarios: rejected before signing (0 signatures, 0 payment h
   });
 });
 
-describe('MCP server (12 tools, elicitation)', () => {
+describe('MCP server (tools, elicitation)', () => {
   async function connect(elicit: 'accept' | 'decline' | null) {
     const dir = mkdtempSync(join(tmpdir(), 'paymcp-s-'));
     const policy = policyFromEnv({ ...BASE, X402_CONFIRM_ABOVE_USD: '0.01' });
@@ -278,6 +278,19 @@ describe('MCP server (12 tools, elicitation)', () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(['bond_confirm_and_pay', 'bond_deal_status', 'bond_find_sellers', 'bond_job_quote', 'bond_job_result', 'bond_job_start', 'bond_open', 'bond_settle', 'payment_history', 'spending_report', 'verify_receipt', 'wallet_status', 'x402_fetch', 'x402_quote']);
     expect(tools.find((t) => t.name === 'x402_fetch')!.description).toMatch(/before signing/);
+  });
+  it('every tool input is described (v1 and v2 tools)', async () => {
+    const policy = policyFromEnv(BASE);
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const dir = mkdtempSync(join(tmpdir(), 'paymcp-d-'));
+    await createPayServer({ policy, wallet: null, history: jsonlHistory(join(dir, 'h.jsonl'), () => policy.mints), fetch, bondV2Program: pk() }).connect(a);
+    const client = new Client({ name: 't', version: '0' });
+    await client.connect(b);
+    const { tools } = await client.listTools();
+    expect(tools.length).toBe(19);
+    const missing = tools.flatMap((t) => Object.entries((t.inputSchema.properties ?? {}) as Record<string, { description?: string }>)
+      .filter(([, v]) => !v.description).map(([k]) => `${t.name}.${k}`));
+    expect(missing).toEqual([]);
   });
   it('client without elicitation support → no payment', async () => {
     const s = await connect(null);
