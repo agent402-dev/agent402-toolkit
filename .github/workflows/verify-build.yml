@@ -1,0 +1,77 @@
+# Rebuilds the Agent402 Bond program from this repository and compares it with the code deployed on mainnet.
+# Read only: deploys nothing and uses no secrets. Runs on demand (Actions → Verify build → Run workflow) or on a verify-* tag.
+#   1. The documented v1 recipe (Agave 4.4.1, platform-tools v1.58) → sha256 against the on-chain code.
+#   2. solana-verify (deterministic Docker build) → hash against the on-chain hash. v1 was not built this way, so a
+#      mismatch here is expected for v1; the job shows how a future version will be verified.
+name: Verify build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['verify-*']
+
+permissions:
+  contents: read
+
+env:
+  PROGRAM_ID: 9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK
+  EXPECTED_SHA256: abf47892163cda590b22ed662826973df2d0deb90f17f1f1eec6cc8da5836076
+  RPC: https://api.mainnet-beta.solana.com
+
+jobs:
+  recipe:
+    name: v1 recipe (Agave 4.4.1, platform-tools v1.58)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Agave 4.4.1
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v4.4.1/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Build (mainnet features = defaults)
+        run: cargo-build-sbf --tools-version v1.58 --manifest-path programs/agent402-bond/Cargo.toml
+      - name: Compare with mainnet
+        run: |
+          built=$(sha256sum programs/target/deploy/agent402_bond.so | cut -d' ' -f1)
+          solana program dump "$PROGRAM_ID" onchain.so --url "$RPC"
+          onchain=$(sha256sum onchain.so | cut -d' ' -f1)
+          {
+            echo "### v1 recipe"
+            echo "| | sha256 | bytes |"
+            echo "|---|---|---|"
+            echo "| built here | \`$built\` | $(stat -c %s programs/target/deploy/agent402_bond.so) |"
+            echo "| on mainnet | \`$onchain\` | $(stat -c %s onchain.so) |"
+            echo "| published (README) | \`$EXPECTED_SHA256\` | |"
+            if [ "$built" = "$onchain" ]; then echo; echo "**Match:** this commit rebuilds the deployed program."; else echo; echo "**No match** on this runner (Solana builds are not guaranteed reproducible across machines)."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$onchain" = "$EXPECTED_SHA256" ] || { echo "on-chain code differs from the published hash"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent402_bond-recipe
+          path: programs/target/deploy/agent402_bond.so
+
+  solana-verify:
+    name: solana-verify (deterministic Docker build)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/solana-verify
+          key: solana-verify-${{ runner.os }}-v1
+      - name: Install solana-verify
+        run: command -v solana-verify || cargo install solana-verify --locked
+      - name: Build in Docker
+        working-directory: programs
+        run: solana-verify build --library-name agent402_bond
+      - name: Compare with mainnet
+        run: |
+          built=$(solana-verify get-executable-hash programs/target/deploy/agent402_bond.so)
+          onchain=$(solana-verify get-program-hash -u "$RPC" "$PROGRAM_ID")
+          {
+            echo "### solana-verify ($(solana-verify --version))"
+            echo "- built here: \`$built\`"
+            echo "- on mainnet: \`$onchain\`"
+            if [ "$built" = "$onchain" ]; then echo "- **Match**"; else echo "- **No match** (expected for v1, which was not built with solana-verify)"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
