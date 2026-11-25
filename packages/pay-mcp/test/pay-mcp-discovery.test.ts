@@ -114,6 +114,13 @@ describe('READMEs: inputMethod is documented where the discovery summary is desc
     expect(row).toContain('`inputMethod`');
     expect(Object.keys(discoverySummary({}))).toContain('inputMethod');
   });
+  it('pay-mcp llms-install seller line names inputMethod', async () => {
+    const { readFileSync } = await import('node:fs');
+    const file = await firstExisting(['../packages/pay-mcp/llms-install.md', '../llms-install.md']);
+    expect(file).toBeTruthy();
+    const line = readFileSync(file!, 'utf8').split('\n').find((l) => l.startsWith('- Sellers: to see your own price'))!;
+    expect(line).toContain('`inputMethod`');
+  });
   it('pay-server README discovery row names inputMethod and a pay-mcp version not newer than this package', async () => {
     const { readFileSync } = await import('node:fs');
     const readme = await firstExisting(['../packages/pay-server/README.md', '../../pay-server/README.md']);

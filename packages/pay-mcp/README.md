@@ -84,7 +84,7 @@ Claude Desktop (`claude_desktop_config.json`):
 ```json
 { "mcpServers": { "a402-pay": { "command": "npx", "args": ["-y", "@agent402-dev/pay-mcp"], "env": { "X402_KEYPAIR_PATH": "<key file>", "X402_ALLOWED_DOMAINS": "<api.example.com>", "X402_TRUSTED_PAY_TO": "<recipient address>" } } } }
 ```
-Claude Code plugin (the server plus the `buy-bonded-job` skill, no settings, so every payment is refused until you add them): `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402`.
+Claude Code plugin (the server plus the `buy-bonded-job` skill, no settings, so every payment is refused until you add them): `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402`. Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (needs git on PATH).
 
 Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment is refused; without `X402_KEYPAIR_PATH` only `x402_quote` and `wallet_status` are useful.
 

@@ -139,6 +139,7 @@ describe('Claude Code plugin install lines', () => {
     const md = read(path);
     expect(md).toContain('`claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install ' + plugin + '@agent402`');
     expect(read(files.root)).toContain(plugin + '@agent402');
+    if (_n !== 'getting-started') expect(md).toContain('Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add ' + plugin + '@agent402` (needs git on PATH)');
   });
 });
 
