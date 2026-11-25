@@ -67,6 +67,8 @@ npx -y @agent402-dev/pay-mcp init
 Creates a new key file at `~/.agent402/pay-wallet.json` and prints its address, a Solana Pay link to fund it with USDC, how to back it up and the command to connect it. It never overwrites an existing file (`--path <file>` chooses another location, `--network devnet` uses devnet). The key is generated on your machine and is not sent anywhere. Payments need no SOL: the facilitator pays the network fee.
 
 ## Connect
+Step-by-step guide for agents that install servers themselves (for example Cline): [llms-install.md](https://github.com/agent402-dev/agent402-toolkit/blob/main/packages/pay-mcp/llms-install.md).
+
 Claude Code (example — set your own allowlists and limits):
 ```bash
 claude mcp add a402-pay \
