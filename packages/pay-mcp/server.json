@@ -7,12 +7,12 @@
     "source": "github",
     "subfolder": "packages/pay-mcp"
   },
-  "version": "0.14.2",
+  "version": "0.14.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agent402-dev/pay-mcp",
-      "version": "0.14.2",
+      "version": "0.14.3",
       "transport": {
         "type": "stdio"
       },

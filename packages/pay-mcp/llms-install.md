@@ -57,7 +57,7 @@ Add an `env` block. Every value below must come from the user; do not invent rec
 - `wallet_status` shows the address, balances and the limits.
 - `x402_quote` on a paid URL shows the price and whether the rules pass, without paying.
 - `bond_find_sellers` lists sellers from the open directory and says which settings would refuse each one.
-- Sellers: to see your own price the way a buyer's agent reads it, call `x402_quote` with `POST https://<your-worker>/x402/job` and no body. It needs no wallet and never pays. See [Check your own 402 without a wallet](https://github.com/agent402-dev/agent402-toolkit/blob/main/packages/pay-server/README.md#check-your-own-402-without-a-wallet).
+- Sellers: to see your own price the way a buyer's agent reads it, call `x402_quote` with `POST https://<your-worker>/x402/job` and no body. It needs no wallet and never pays. The `discovery` field shows whether your 402 carries discovery metadata and what catalogs would reject (`notes`). See [Check your own 402 without a wallet](https://github.com/agent402-dev/agent402-toolkit/blob/main/packages/pay-server/README.md#check-your-own-402-without-a-wallet).
 
 ## Troubleshooting
 
