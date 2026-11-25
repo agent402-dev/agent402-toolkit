@@ -95,20 +95,23 @@ describe('bond_v2_wait_result tool', () => {
 });
 
 describe('registerBondV2WaitTask', () => {
-  async function setup(results: string[]) {
+  async function setup(results: string[], opts: { defaultIntervalMs?: null } = {}) {
+    let clock = 0;
+    const limits: { intervalMs: number; maxWaitMs: number; plain: boolean }[] = [];
     const server = new McpServer({ name: 's', version: '0' }, taskServerOptions());
     const s = seq(...results);
     const seen: [string, string][] = [];
     registerBondV2WaitTask(server, z.string(), z.string(), {
       result: (url, deal) => { seen.push([url, deal]); return s.check(); },
       noBond: () => ({ content: [{ type: 'text', text: '{"result":"refused"}' }], isError: true }),
-      sleep: async () => {}, pollIntervalMs: 1, defaultIntervalMs: 1,
+      sleep: async (ms) => { clock += ms; }, now: () => clock, pollIntervalMs: 1, defaultIntervalMs: opts.defaultIntervalMs === null ? undefined : 1,
+      onLimits: (lim, plain) => limits.push({ ...lim, plain }),
     });
     const [a, b] = InMemoryTransport.createLinkedPair();
     await server.connect(a);
     const client = new Client({ name: 't', version: '0' }, { capabilities: { tasks: { requests: {} } } });
     await client.connect(b);
-    return { client, seen };
+    return { client, seen, limits };
   }
   it('plain call: waits, then returns the verified result', async () => {
     const { client, seen } = await setup(['working', 'not_marked', 'verified']);
@@ -126,5 +129,24 @@ describe('registerBondV2WaitTask', () => {
     expect(last.type).toBe('result');
     expect(last.result!.isError).toBe(true);
     expect(JSON.parse(last.result!.content[0].text)).toMatchObject({ result: 'not_verified', attempts: 2 });
+  });
+  it('plain call: default wait is 50 s with 10 s checks, so it answers before a ~60 s client cut-off', async () => {
+    const { client, seen, limits } = await setup(Array(20).fill('working'), { defaultIntervalMs: null });
+    const r = await client.callTool({ name: 'bond_v2_wait_result', arguments: { url: 'u', deal: 'd' } });
+    expect(limits[0]).toEqual({ intervalMs: 10_000, maxWaitMs: 50_000, plain: true });
+    const body = JSON.parse((r.content as { text: string }[])[0].text);
+    expect(body).toMatchObject({ result: 'working', waited: 'timed_out', attempts: 6 });
+    expect(seen.length).toBe(6); // checks at 0, 10, 20, 30, 40 and 50 s of simulated time
+    expect(r.isError).toBe(true);
+  });
+  it('plain call: an explicit maxWaitMinutes is kept', async () => {
+    const { client, limits } = await setup(['verified'], { defaultIntervalMs: null });
+    await client.callTool({ name: 'bond_v2_wait_result', arguments: { url: 'u', deal: 'd', maxWaitMinutes: 5, intervalSeconds: 20 } });
+    expect(limits[0]).toEqual({ intervalMs: 20_000, maxWaitMs: 300_000, plain: true });
+  });
+  it('task call: default wait stays 30 minutes with 30 s checks', async () => {
+    const { client, limits } = await setup(['verified'], { defaultIntervalMs: null });
+    for await (const _m of client.experimental.tasks.callToolStream({ name: 'bond_v2_wait_result', arguments: { url: 'u', deal: 'd' } }, undefined, { task: { ttl: 60_000 } })) { /* drain */ }
+    expect(limits[0]).toEqual({ intervalMs: 30_000, maxWaitMs: 1_800_000, plain: false });
   });
 });

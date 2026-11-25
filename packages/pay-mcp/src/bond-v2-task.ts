@@ -12,7 +12,27 @@ const WAITABLE = new Set(['working', 'not_marked']);
 export const WAIT_LIMITS = {
   minIntervalMs: 5_000, maxIntervalMs: 300_000, defaultIntervalMs: 30_000,
   maxWaitMs: 3_600_000, defaultWaitMs: 1_800_000,
+  /** Plain (non-task) calls: many clients cut a plain tools/call at about 60 s, so answer before that unless the caller sets maxWaitMinutes */
+  plainDefaultWaitMs: 50_000, plainDefaultIntervalMs: 10_000,
 } as const;
+
+/** Marks the extra of a plain tools/call that the SDK turned into a task internally (automatic polling). */
+const PLAIN_CALL = Symbol('agent402.plainCall');
+
+/**
+ * The SDK runs a plain call to a taskSupport "optional" tool through handleAutomaticTaskPolling, and a task-augmented call
+ * straight through createTask; createTask cannot tell them apart. Wrap that method once per server so the plain path is marked.
+ * Returns false when the SDK has no such method; callers then treat every call as plain (the shorter wait).
+ */
+function markPlainCalls(server: McpServer): boolean {
+  const s = server as unknown as { handleAutomaticTaskPolling?: (tool: unknown, req: unknown, extra: object) => Promise<unknown>; [PLAIN_CALL]?: true };
+  if (typeof s.handleAutomaticTaskPolling !== 'function') return false;
+  if (s[PLAIN_CALL]) return true;
+  const orig = s.handleAutomaticTaskPolling.bind(server);
+  s.handleAutomaticTaskPolling = (tool, req, extra) => orig(tool, req, { ...extra, [PLAIN_CALL]: true });
+  s[PLAIN_CALL] = true;
+  return true;
+}
 
 export interface WaitOptions {
   intervalMs?: number;
@@ -80,15 +100,18 @@ export interface WaitToolDeps {
   pollIntervalMs?: number;
   /** Interval used when the call gives none. Tests only; default WAIT_LIMITS.defaultIntervalMs */
   defaultIntervalMs?: number;
+  /** Tests only: sees the limits chosen for each call */
+  onLimits?: (lim: { intervalMs: number; maxWaitMs: number }, plain: boolean) => void;
 }
 
 export function registerBondV2WaitTask(server: McpServer, url: z.ZodTypeAny, deal: z.ZodTypeAny, d: WaitToolDeps) {
+  const canMark = markPlainCalls(server);
   return server.experimental.tasks.registerToolTask('bond_v2_wait_result', {
-    description: 'Agent402 Bond v2, buyer side, read-only. Same checks as bond_v2_result, repeated in the background until the delivery is final ("verified", "failed", "not_verified", "not_delivered" or "refused") or the wait ends (default 30 minutes, at most 60). Runs as an MCP task when the client asks for one; otherwise it waits and then answers. Never pays and changes nothing on chain: accepting is still a separate bond_v2_accept call with its own checks and human confirmation.',
+    description: 'Agent402 Bond v2, buyer side, read-only. Same checks as bond_v2_result, repeated in the background until the delivery is final ("verified", "failed", "not_verified", "not_delivered" or "refused") or the wait ends (at most 60 minutes). Runs as an MCP task when the client asks for one (default wait 30 minutes); otherwise it is a plain call that answers within 50 seconds by default, because many clients stop plain calls after about 60 seconds, and you call it again if the result is still not final. Never pays and changes nothing on chain: accepting is still a separate bond_v2_accept call with its own checks and human confirmation.',
     inputSchema: {
       url, deal,
-      intervalSeconds: z.number().int().min(5).max(300).optional().describe('Seconds between checks (5..300, default 30).'),
-      maxWaitMinutes: z.number().int().min(1).max(60).optional().describe('Stop waiting after this many minutes (1..60, default 30).'),
+      intervalSeconds: z.number().int().min(5).max(300).optional().describe('Seconds between checks (5..300, default 30 as a task, 10 as a plain call).'),
+      maxWaitMinutes: z.number().int().min(1).max(60).optional().describe('Stop waiting after this many minutes (1..60). Default: 30 as a task, 50 seconds as a plain call. A long plain wait may be cut off by your client.'),
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
     execution: { taskSupport: 'optional' },
@@ -96,7 +119,11 @@ export function registerBondV2WaitTask(server: McpServer, url: z.ZodTypeAny, dea
     createTask: async (args, extra) => {
       const a = args as { url: string; deal: string; intervalSeconds?: number; maxWaitMinutes?: number };
       const lim = waitLimits({ intervalMs: a.intervalSeconds === undefined ? undefined : a.intervalSeconds * 1000, maxWaitMs: a.maxWaitMinutes === undefined ? undefined : a.maxWaitMinutes * 60_000 });
+      const plain = !canMark || (extra as object as Record<symbol, unknown>)[PLAIN_CALL] === true;
+      if (plain && a.maxWaitMinutes === undefined) lim.maxWaitMs = WAIT_LIMITS.plainDefaultWaitMs;
+      if (plain && a.intervalSeconds === undefined) lim.intervalMs = WAIT_LIMITS.plainDefaultIntervalMs;
       if (d.defaultIntervalMs !== undefined && a.intervalSeconds === undefined) lim.intervalMs = d.defaultIntervalMs;
+      d.onLimits?.({ ...lim }, plain);
       const task = await extra.taskStore.createTask({ ttl: lim.maxWaitMs + 600_000, pollInterval: d.pollIntervalMs ?? 5_000 });
       const store = extra.taskStore;
       const cancelled = async () => { try { return (await store.getTask(task.taskId)).status === 'cancelled'; } catch { return true; } };
