@@ -2,10 +2,33 @@
 
 Two paths, each a few minutes. Everything runs on your own machine or your own Cloudflare account, from wallets you create for this. Not investment advice.
 
+- [Try it in one minute (no wallet, nothing paid)](#try-it-in-one-minute-no-wallet-nothing-paid)
 - [Buyer: let your AI agent pay for an API](#buyer-let-your-ai-agent-pay-for-an-api)
 - [Seller: get paid by AI agents](#seller-get-paid-by-ai-agents)
 
 Try it without real funds first: [`packages/pay-mcp/examples/bond-local`](../packages/pay-mcp/examples/bond-local) runs a seller and your agent against a local mainnet fork.
+
+## Try it in one minute (no wallet, nothing paid)
+
+See live sellers and real prices from your agent before creating any wallet. Without a wallet and without trusted recipients, pay-mcp cannot pay anything.
+
+Claude Code:
+
+```bash
+claude mcp add a402-try \
+  -e X402_ALLOWED_DOMAINS=agent402-tx-receipts.agent402-ebc.workers.dev \
+  -- npx -y @agent402-dev/pay-mcp
+```
+
+(Other MCP clients: command `npx`, args `["-y", "@agent402-dev/pay-mcp"]`, the same `env`.)
+
+Then ask your agent:
+
+1. **"Run bond_find_sellers."** It reads the open seller directory and each seller's live terms: price, seller bond, deposit, delivery time, review window, and which of your settings would refuse the deal.
+2. **"Run x402_quote on https://agent402-tx-receipts.agent402-ebc.workers.dev/x402/receipts?signatures=5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"** It shows the x402 price (0.05 USDC) and the recipient, and answers `refused` because no recipient is trusted yet: nothing is signed.
+3. **"Run wallet_status."** It shows the limits that would apply once you add a wallet.
+
+The two sellers in the directory today are run by the toolkit developer, and are marked so. When you want to pay for real, continue below.
 
 ## Buyer: let your AI agent pay for an API
 

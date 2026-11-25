@@ -60,6 +60,9 @@ For larger payments you can pay only sellers that have locked funds on-chain for
 - A lock counts only if nobody can cancel it or change its recipient, it was not cancelled, and its recipient key signed the seller's registration.
 - Results show the facts: each lock, how much is locked now and at the deadline, and why a lock did not count.
 
+## Try it first (no wallet)
+With only `X402_ALLOWED_DOMAINS` set and no wallet, `bond_find_sellers`, `x402_quote` and `wallet_status` show live sellers, prices and your limits, and nothing can be paid. Steps: [Try it in one minute](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/getting-started.md#try-it-in-one-minute-no-wallet-nothing-paid).
+
 ## Create a payment wallet
 ```bash
 npx -y @agent402-dev/pay-mcp init
