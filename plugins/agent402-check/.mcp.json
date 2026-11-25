@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "a402-check": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@agent402-dev/check-mcp"
+      ]
+    }
+  }
+}

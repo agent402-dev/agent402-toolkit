@@ -12,6 +12,8 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 
 **New here?** [Try it in one minute](docs/getting-started.md#try-it-in-one-minute-no-wallet-nothing-paid) with no wallet (live sellers and prices, nothing paid), then [Getting started](docs/getting-started.md): let your AI agent pay for an API, or get paid by AI agents, in a few minutes.
 
+**Claude Code plugins.** Install the MCP server and its skill in one step: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402` (buyer), `agent402-sell@agent402` (seller) or `agent402-check@agent402` (token facts). See [`plugins/`](plugins).
+
 ![pay-mcp with no wallet: bond_find_sellers lists live sellers and their terms; x402_quote shows a 0.05 USDC price and is refused, nothing signed](docs/assets/try-1min-demo.svg)
 
 

@@ -1,0 +1,27 @@
+{
+  "name": "agent402",
+  "owner": {
+    "name": "Agent402",
+    "url": "https://github.com/agent402-dev"
+  },
+  "metadata": {
+    "description": "Agent402 toolkit plugins: x402 payments and Agent402 Bond on Solana, plus free token facts. Not affiliated with agent402.tools."
+  },
+  "plugins": [
+    {
+      "name": "agent402-pay",
+      "source": "./plugins/agent402-pay",
+      "description": "Let your agent pay x402 APIs in USDC on Solana and buy Agent402 Bond jobs from your own wallet, within allowlists and limits you set. With no configuration every payment is refused. Includes the buy-bonded-job skill."
+    },
+    {
+      "name": "agent402-sell",
+      "source": "./plugins/agent402-sell",
+      "description": "Let your agent sell one kind of job as an Agent402 Bond seller on Solana (seller bond, buyer deposit, result hash on chain) from your own seller wallet. Includes the sell-bonded-job skill."
+    },
+    {
+      "name": "agent402-check",
+      "source": "./plugins/agent402-check",
+      "description": "Free facts with evidence addresses about a Solana token mint: authorities, Token-2022 extensions, holders, liquidity locks. No ratings, not investment advice. Includes the token-facts skill."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "agent402-sell",
+  "displayName": "Agent402 Sell",
+  "description": "Let your agent sell one kind of job as an Agent402 Bond seller on Solana (seller bond, buyer deposit, result hash on chain) from your own seller wallet. Includes the sell-bonded-job skill.",
+  "author": {
+    "name": "Agent402",
+    "url": "https://github.com/agent402-dev"
+  },
+  "homepage": "https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/bond-seller-mcp",
+  "repository": "https://github.com/agent402-dev/agent402-toolkit",
+  "license": "Apache-2.0",
+  "keywords": [
+    "solana",
+    "escrow",
+    "bond",
+    "mcp",
+    "agents"
+  ]
+}
