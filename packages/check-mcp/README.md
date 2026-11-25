@@ -16,6 +16,12 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 
 Input for both: `{ "mint": "<base58 mint address>" }`. No payments, no wallet.
 
+## Try it in one minute (no RPC, no key)
+```bash
+claude mcp add a402-check -- npx -y @agent402-dev/check-mcp
+```
+Then ask your agent: **"Run token_check_summary on EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"** (the USDC mint). It answers from the hosted API with the mint, freeze and metadata authorities and their addresses, and the evidence accounts. `token_check` (the full report) asks for your own RPC first, as below.
+
 ## Connect
 Claude Code:
 ```bash
