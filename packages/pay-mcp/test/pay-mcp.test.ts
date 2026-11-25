@@ -670,3 +670,44 @@ describe('Streamflow locks (same registration, asset-neutral)', () => {
     expect(r.lock!.locks[1]).toMatchObject({ counted: false, reason: 'duplicate' });
   });
 });
+
+describe('Skills over MCP (io.modelcontextprotocol/skills)', async () => {
+  const { z } = await import('zod');
+  const { createHash } = await import('node:crypto');
+  async function connected() {
+    const policy = policyFromEnv(BASE);
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const dir = mkdtempSync(join(tmpdir(), 'paymcp-sk-'));
+    await createPayServer({ policy, wallet: null, history: jsonlHistory(join(dir, 'h.jsonl'), () => policy.mints), fetch }).connect(a);
+    const client = new Client({ name: 't', version: '0' });
+    await client.connect(b);
+    return client;
+  }
+  it('declares the extension, lists the skill with a manifest that matches the bytes served', async () => {
+    const client = await connected();
+    expect((client.getServerCapabilities() as { extensions?: Record<string, unknown> }).extensions).toHaveProperty(['io.modelcontextprotocol/skills']);
+    const list = await client.request({ method: 'skills/list', params: {} } as never, z.object({ skills: z.array(z.any()), resultType: z.string(), ttlMs: z.number(), cacheScope: z.string() }).passthrough());
+    expect(list.resultType).toBe('complete');
+    const s = list.skills.find((x: { frontmatter: { name: string } }) => x.frontmatter.name === 'buy-bonded-job');
+    expect(s.uri).toBe('skill://buy-bonded-job/SKILL.md');
+    const read = await client.readResource({ uri: s.uri });
+    const text = (read.contents[0] as { text: string }).text;
+    const bytes = Buffer.from(text, 'utf8');
+    expect(s.resources).toEqual([{ uri: s.uri, digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`, size: bytes.length }]);
+    expect(text.startsWith('---\nname: buy-bonded-job\n')).toBe(true);
+    expect(text).not.toMatch(/\b(safe|risky|rug|scam)\b/i);
+    const got = await client.request({ method: 'skills/get', params: { uri: s.uri } } as never, z.object({ skill: z.any() }).passthrough());
+    expect(got.skill).toEqual(s);
+    await expect(client.request({ method: 'skills/get', params: { uri: 'skill://nope/SKILL.md' } } as never, z.any())).rejects.toThrow();
+  });
+  it('names only tools the server really has', async () => {
+    const client = await connected();
+    const { tools } = await client.listTools();
+    const names = new Set(tools.map((t) => t.name));
+    const read = await client.readResource({ uri: 'skill://buy-bonded-job/SKILL.md' });
+    const mentioned = [...new Set(((read.contents[0] as { text: string }).text.match(/`([a-z0-9_]+)`/g) ?? []).map((m) => m.slice(1, -1)))]
+      .filter((n) => /^(x402|bond|wallet|payment|spending|verify)_/.test(n));
+    const v2 = ['bond_v2_quote', 'bond_v2_start', 'bond_v2_result', 'bond_v2_accept', 'bond_v2_settle']; // only registered with a v2 program
+    expect(mentioned.filter((n) => !names.has(n) && !v2.includes(n))).toEqual([]);
+  });
+});

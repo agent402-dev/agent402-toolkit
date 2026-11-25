@@ -15,6 +15,7 @@ import { reportRange, spendingReport } from './report.js';
 import { verifyReceipt, type ChainTx } from './verify-receipt.js';
 import { nearLimits, tokenEnv, type PayPolicy, type TokenSymbol } from './policy.js';
 import { formatUnits } from './units.js';
+import { registerSkills } from './skills.js';
 import type { Wallet } from './wallet.js';
 
 export interface PayServerDeps {
@@ -321,5 +322,6 @@ export function createPayServer(d: PayServerDeps): McpServer {
       async ({ deal }) => { const b = v2Deps(); if (!b) return noBond(); const r = await bondV2Settle(b, deal); return out(r, r.result !== 'done' && r.result !== 'nothing_to_do'); },
     );
   }
+  registerSkills(server); // Skills over MCP: the buying workflow as a skill (hosts without the extension ignore it)
   return server;
 }
