@@ -18,6 +18,7 @@ import { initWallet } from './init.js';
 import { policyFromEnv } from './policy.js';
 import { createPayServer } from './tools.js';
 import { bondV2PolicyFromEnv, resolveV2Program } from './bond-v2.js';
+import { mcpTasksFromEnv } from './bond-v2-task.js';
 import { rpcReadTx, verifyReceipt, type ChainTx } from './verify-receipt.js';
 
 /** X402_BOND_DIRECTORY_URL: unset = the default directory, "off" = bond_find_sellers refuses, otherwise an https URL */
@@ -111,5 +112,6 @@ if (cmd === 'init') {
   const rpc = process.env.X402_RPC_URL ?? (policy.network.includes('EtWTRAB') ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com');
   await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc), clock: rpcClock(rpc), bondPolicy: bondPolicyFromEnv(process.env), bondRpc: bondRpc(rpc),
     bondDirectoryUrl: directoryUrlFromEnv(process.env.X402_BOND_DIRECTORY_URL), readTx: rpcReadTx(rpc),
-    bondV2Program: resolveV2Program(process.env, rpc), bondV2Policy: bondV2PolicyFromEnv(process.env) }).connect(new StdioServerTransport());
+    bondV2Program: resolveV2Program(process.env, rpc), bondV2Policy: bondV2PolicyFromEnv(process.env),
+    mcpTasks: mcpTasksFromEnv(process.env.X402_MCP_TASKS) }).connect(new StdioServerTransport());
 }

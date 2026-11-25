@@ -153,6 +153,7 @@ The server also publishes one skill through the [Skills extension](https://model
 | `X402_BOND_V2_ARBITERS` | Comma-separated arbiter addresses you accept. An arbiter can split the locked funds between the two recorded payout accounts within a fixed window. Default: refuse deals with an arbiter |
 
 - `bond_v2_result` and `bond_v2_accept` refuse a result whose hash does not match the one on chain or that the seller did not sign. A matching hash proves what was committed, not that it is good: accept only work you checked.
+- Waiting for delivery as an MCP task (experimental, off by default): set `X402_MCP_TASKS=on` to add `bond_v2_wait_result`. It repeats the `bond_v2_result` checks in the background (every 30 s by default, for at most 60 minutes) until the result is final, and answers through MCP Tasks when the client supports them, or as a normal call otherwise. It is read-only: it never pays or signs, and accepting is still a separate `bond_v2_accept` call with all its checks. Without the variable the server and its tools are unchanged.
 - On a local test fork (RPC on `127.0.0.1`/`localhost`) `X402_BOND_V2_PROGRAM` can point the tools at a test build. It is ignored for any other RPC.
 
 ## Export payment history

@@ -8,6 +8,7 @@ import { bondFindSellers } from './bond-directory.js';
 import { type BondJobDeps, bondJobQuote, bondJobResult, bondJobStart } from './bond-job.js';
 import { type BondV2Deps, type BondV2Policy, bondV2Accept, bondV2Quote, bondV2Result, bondV2Settle, bondV2Start } from './bond-v2.js';
 import { withSpendLock } from './spend-lock.js';
+import { registerBondV2WaitTask, taskServerOptions, type WaitToolDeps } from './bond-v2-task.js';
 import type { History } from './history.js';
 import type { AccountsFetcher } from './locks.js';
 import { historyToCsv } from './csv.js';
@@ -40,6 +41,10 @@ export interface PayServerDeps {
   bondV2Program?: string | null;
   /** Agent402 Bond v2 dispute-option rules (bondV2PolicyFromEnv) */
   bondV2Policy?: BondV2Policy;
+  /** X402_MCP_TASKS: offer bond_v2_wait_result as an MCP task (experimental). Off by default */
+  mcpTasks?: boolean;
+  /** Test hooks for bond_v2_wait_result */
+  taskWait?: Pick<WaitToolDeps, 'sleep' | 'now' | 'pollIntervalMs' | 'defaultIntervalMs'>;
 }
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
@@ -83,7 +88,7 @@ export function formElicitationSupported(cap: unknown): boolean {
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.13.0' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.13.0' }, d.mcpTasks ? taskServerOptions() : undefined);
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!formElicitationSupported(server.server.getClientCapabilities()?.elicitation)) return 'unsupported';
     try {
@@ -320,6 +325,9 @@ export function createPayServer(d: PayServerDeps): McpServer {
       { url: JOB_URL, deal: DEAL_V2 },
       async ({ url, deal }) => { const b = v2Deps(); if (!b) return noBond(); const r = await bondV2Result(b, url, deal); return out(r, r.result !== 'verified'); },
     );
+    if (d.mcpTasks) {
+      registerBondV2WaitTask(server, JOB_URL, DEAL_V2, { ...d.taskWait, noBond, result: (url, deal) => { const b = v2Deps(); return b ? bondV2Result(b, url, deal) : null; } });
+    }
     server.tool(
       'bond_v2_accept',
       'Agent402 Bond v2, buyer side. Fetch and verify the delivery again, then accept and pay the balance to the seller in one instruction (before the accept deadline, within the daily cap, with human confirmation). Refuses if the result does not match what the seller committed to on chain. The program does not judge quality: accept only work you checked. Returns result "accepted" with the transaction; "refused" means nothing was signed and "failed" means the transaction did not land (see payment_history). Then call bond_v2_settle to claim and close.',
