@@ -50,7 +50,7 @@ Add an `env` block. Every value below must come from the user; do not invent rec
 
 - Empty `X402_ALLOWED_DOMAINS` or `X402_TRUSTED_PAY_TO` means every payment is refused.
 - For Agent402 Bond jobs also set `X402_BOND_SELLERS` (seller addresses) and `X402_BOND_MAX_USD`. Deals ask a human before signing by default.
-- Optional, experimental: `X402_MCP_TASKS=on` adds the read-only `bond_v2_wait_result`, which waits for a Bond v2 delivery as an MCP task. Off by default.
+- Optional, experimental: `X402_MCP_TASKS=on` adds the read-only `bond_v2_wait_result`, which waits for a Bond v2 delivery as an MCP task (default 30 minutes). Off by default. Clients without MCP Tasks get a normal call that answers within 50 seconds by default; call it again if the result is not final.
 
 ## 4. Verify
 
