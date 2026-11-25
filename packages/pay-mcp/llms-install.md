@@ -1,6 +1,6 @@
 # Installing @agent402-dev/pay-mcp (for AI agents such as Cline)
 
-pay-mcp is a local MCP server (stdio) that lets an agent pay x402 APIs in USDC on Solana and buy Agent402 Bond jobs, from a wallet on the user's own machine, within limits the user sets. With no configuration it refuses every payment, so it is safe to install first and configure after.
+pay-mcp is a local MCP server (stdio) that lets an agent pay x402 APIs in USDC on Solana and buy Agent402 Bond jobs, from a wallet on the user's own machine, within limits the user sets. With no configuration it refuses every payment, so it can be installed first and configured after.
 
 ## Requirements
 
@@ -49,7 +49,7 @@ Add an `env` block. Every value below must come from the user; do not invent rec
 ```
 
 - Empty `X402_ALLOWED_DOMAINS` or `X402_TRUSTED_PAY_TO` means every payment is refused.
-- For Agent402 Bond jobs also set `X402_BOND_SELLERS` (seller addresses) and `X402_BOND_MAX_USD`. Deals ask a human before signing by default.
+- For Agent402 Bond jobs also set `X402_BOND_SELLERS` (seller addresses) and `X402_BOND_MAX_USD`. Deals ask a human before signing by default. The Bond programs had internal review only, not independently audited.
 - Optional, experimental: `X402_MCP_TASKS=on` adds the read-only `bond_v2_wait_result`, which waits for a Bond v2 delivery as an MCP task (default 30 minutes). Off by default. Clients without MCP Tasks get a normal call that answers within 50 seconds by default; call it again if the result is not final.
 
 ## 4. Verify

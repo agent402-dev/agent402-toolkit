@@ -188,7 +188,7 @@ const discovery = {
 - Discovery catalogs such as the x402 Bazaar list a route only after real paid calls settled through a facilitator that supports the extension; nothing here registers you anywhere.
 
 ## Agent402 Bond, seller side (optional)
-`@agent402-dev/pay-server/bond` helps a seller run [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deals (beta): the seller locks a bond, the buyer locks a deposit, and the outcome follows only signatures and the Solana clock. Use it for work that takes time; use the x402 gate for instant pay-per-request.
+`@agent402-dev/pay-server/bond` helps a seller run [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deals (beta; internal review only, not independently audited): the seller locks a bond, the buyer locks a deposit, and the outcome follows only signatures and the Solana clock. Use it for work that takes time; use the x402 gate for instant pay-per-request.
 
 ```ts
 import { createBondSeller } from '@agent402-dev/pay-server/bond';

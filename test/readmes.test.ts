@@ -311,3 +311,16 @@ describe('package READMEs that use Agent402 Bond carry the review note', () => {
     expect(readFileSync('packages/bond-seller-mcp/README.md', 'utf8')).toContain('Internal review only, not independently audited.');
   });
 });
+
+describe('package docs that mention Agent402 Bond', () => {
+  const docs = readdirSync('packages').flatMap((p) => ['README.md', 'llms-install.md'].map((f) => `packages/${p}/${f}`)).filter((f) => existsSync(f));
+  it('carry the review note when they mention Bond', () => {
+    for (const f of docs) {
+      const t = readFileSync(f, 'utf8');
+      if (/\bBond\b/.test(t)) expect(t, f).toMatch(/not independently audited/i);
+    }
+  });
+  it('do not use evaluative words', () => {
+    for (const f of docs) expect(readFileSync(f, 'utf8'), f).not.toMatch(/\b(safe|safely|risky|rug|scam)\b/i);
+  });
+});
