@@ -711,3 +711,14 @@ describe('Skills over MCP (io.modelcontextprotocol/skills)', async () => {
     expect(mentioned.filter((n) => !names.has(n) && !v2.includes(n))).toEqual([]);
   });
 });
+
+describe('formElicitationSupported', async () => {
+  const { formElicitationSupported } = await import('@agent402-dev/pay-mcp/tools');
+  it('treats an empty capability as form mode and url-only as no form', () => {
+    expect(formElicitationSupported(undefined)).toBe(false);
+    expect(formElicitationSupported({})).toBe(true);
+    expect(formElicitationSupported({ form: {} })).toBe(true);
+    expect(formElicitationSupported({ form: {}, url: {} })).toBe(true);
+    expect(formElicitationSupported({ url: {} })).toBe(false);
+  });
+});

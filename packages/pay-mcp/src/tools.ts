@@ -75,15 +75,26 @@ function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown>
   };
 }
 
+/** Form-mode elicitation: an empty `elicitation` capability means form (spec 2025-11-25); a client that lists only `url` cannot show a form. */
+export function formElicitationSupported(cap: unknown): boolean {
+  if (!cap || typeof cap !== 'object') return false;
+  const c = cap as Record<string, unknown>;
+  return !('form' in c) && !('url' in c) ? true : 'form' in c;
+}
+
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.12.2' });
+  const server = new McpServer({ name: 'a402-pay', version: '0.13.0' });
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
-    if (!server.server.getClientCapabilities()?.elicitation) return 'unsupported';
-    const r = await server.server.elicitInput({
-      message,
-      requestedSchema: { type: 'object', properties: { confirm: { type: 'boolean', title: 'Pay', description: 'Approve this payment' } }, required: ['confirm'] },
-    });
-    return r.action === 'accept' && (r.content as { confirm?: boolean } | undefined)?.confirm === true ? 'accept' : 'decline';
+    if (!formElicitationSupported(server.server.getClientCapabilities()?.elicitation)) return 'unsupported';
+    try {
+      const r = await server.server.elicitInput({
+        message,
+        requestedSchema: { type: 'object', properties: { confirm: { type: 'boolean', title: 'Approve', description: 'Approve this payment or deposit as described above' } }, required: ['confirm'] },
+      });
+      return r.action === 'accept' && (r.content as { confirm?: boolean } | undefined)?.confirm === true ? 'accept' : 'decline';
+    } catch {
+      return 'unsupported'; // the client failed or timed out while asking: fail closed, nothing is signed
+    }
   };
   const agent = createAgent({ ...d, confirm });
   const req = {
