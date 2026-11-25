@@ -149,4 +149,17 @@ describe('registerBondV2WaitTask', () => {
     for await (const _m of client.experimental.tasks.callToolStream({ name: 'bond_v2_wait_result', arguments: { url: 'u', deal: 'd' } }, undefined, { task: { ttl: 60_000 } })) { /* drain */ }
     expect(limits[0]).toEqual({ intervalMs: 30_000, maxWaitMs: 1_800_000, plain: false });
   });
+  it('plain call with a progress token: one progress notification per check', async () => {
+    const { client } = await setup(['working', 'not_marked', 'verified']);
+    const got: { progress: number; message?: string }[] = [];
+    const r = await client.callTool({ name: 'bond_v2_wait_result', arguments: { url: 'u', deal: 'd' } }, undefined, { onprogress: (p) => { got.push({ progress: p.progress, message: p.message }); } });
+    expect(JSON.parse((r.content as { text: string }[])[0].text)).toMatchObject({ result: 'verified', attempts: 3 });
+    await new Promise((res) => setTimeout(res, 10));
+    expect(got).toEqual([{ progress: 1, message: 'check 1: working' }, { progress: 2, message: 'check 2: not_marked' }, { progress: 3, message: 'check 3: verified' }]);
+  });
+  it('a failing progress hook does not stop the wait', async () => {
+    const s = seq('working', 'verified');
+    const r = await waitForBondV2Result(s.check, { intervalMs: 10, maxWaitMs: 1000, ...clock(), onCheck: () => { throw new Error('x'); } });
+    expect(r).toMatchObject({ final: { result: 'verified' }, attempts: 2, timedOut: false });
+  });
 });

@@ -41,6 +41,8 @@ export interface WaitOptions {
   now?: () => number;
   /** Stops waiting early (for example the task was cancelled) */
   stopped?: () => boolean | Promise<boolean>;
+  /** Called after each check (for progress notifications). Errors are ignored */
+  onCheck?: (last: { result: string }, attempts: number) => void | Promise<void>;
 }
 
 const clamp = (v: number | undefined, lo: number, hi: number, dflt: number) =>
@@ -66,6 +68,7 @@ export async function waitForBondV2Result<T extends { result: string }>(check: (
   for (;;) {
     const last = await check();
     attempts++;
+    try { await o.onCheck?.(last, attempts); } catch { /* progress is best effort */ }
     if (!WAITABLE.has(last.result)) return { final: last, attempts, timedOut: false, stopped: false };
     if (await o.stopped?.()) return { final: last, attempts, timedOut: false, stopped: true };
     if (now() - start + o.intervalMs > o.maxWaitMs) return { final: last, attempts, timedOut: true, stopped: false };
@@ -126,7 +129,13 @@ export function registerBondV2WaitTask(server: McpServer, url: z.ZodTypeAny, dea
       d.onLimits?.({ ...lim }, plain);
       const task = await extra.taskStore.createTask({ ttl: lim.maxWaitMs + 600_000, pollInterval: d.pollIntervalMs ?? 5_000 });
       const store = extra.taskStore;
-      const cancelled = async () => { try { return (await store.getTask(task.taskId)).status === 'cancelled'; } catch { return true; } };
+      // A plain call ends when its request is cancelled; a task call ends when the task is cancelled
+      const cancelled = async () => { if (plain && extra.signal?.aborted) return true; try { return (await store.getTask(task.taskId)).status === 'cancelled'; } catch { return true; } };
+      // Plain call with a progress token: one progress notification per check, so clients that reset their time-out on progress keep waiting
+      const progressToken = plain ? (extra as { _meta?: { progressToken?: string | number } })._meta?.progressToken : undefined;
+      const onCheck = progressToken === undefined ? undefined : async (last: { result: string }, n: number) => {
+        await extra.sendNotification({ method: 'notifications/progress', params: { progressToken, progress: n, message: `check ${n}: ${last.result}` } });
+      };
       void (async () => {
         let res: ToolResult;
         try {
@@ -135,7 +144,7 @@ export function registerBondV2WaitTask(server: McpServer, url: z.ZodTypeAny, dea
           else {
             let pending: Promise<{ result: string }> | null = first;
             const check = () => { const p = pending ?? d.result(a.url, a.deal)!; pending = null; return p; };
-            const w = await waitForBondV2Result(check, { ...lim, sleep: d.sleep, now: d.now, stopped: cancelled });
+            const w = await waitForBondV2Result(check, { ...lim, sleep: d.sleep, now: d.now, stopped: cancelled, onCheck });
             if (w.stopped) return;
             res = out({ ...w.final, attempts: w.attempts, ...(w.timedOut ? { waited: 'timed_out', next: 'Still not final. Call bond_v2_wait_result or bond_v2_result again later.' } : {}) }, w.final.result !== 'verified');
           }
