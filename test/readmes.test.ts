@@ -166,7 +166,7 @@ describe('Codex plugin install lines', () => {
     const m = JSON.parse(readFileSync(codexMarket!, 'utf8')) as { name: string; plugins: { name: string }[] };
     const text = read(files.root) + read('../docs/getting-started.md');
     const named = [...text.matchAll(/codex plugin add ([a-z0-9-]+)@([a-z0-9-]+)`(?:, `([a-z0-9-]+)@[a-z0-9-]+` or `([a-z0-9-]+)@[a-z0-9-]+`)?/g)];
-    expect(named.length).toBe(2);
+    expect(named.length).toBe(3); // root README, getting-started buyer and seller sections
     for (const n of named) {
       expect(n[2]).toBe(m.name);
       for (const p of n.slice(1).filter((x, i) => i !== 1 && x)) expect(m.plugins.map((x) => x.name)).toContain(p);

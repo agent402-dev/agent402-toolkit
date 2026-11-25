@@ -116,6 +116,9 @@ Pick the shape that fits your work.
 
 Selling through an agent on your machine: the [bond-seller-mcp install guide for agents](../packages/bond-seller-mcp/llms-install.md) adds the server with no settings first, shows what is missing, and takes every price and bond value from you.
 
+To read the `sell-bonded-job` skill and the seller tools before setting up a wallet, install them as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-sell@agent402`.
+In Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-sell@agent402` (needs git on PATH). The plugin starts the server with no settings, so it cannot sell until you add yours.
+
 **Fastest path: the Cloudflare Workers template** (one Worker sells both per request and bonded jobs)
 
 1. Copy [`packages/pay-server/examples/bond-seller-worker`](../packages/pay-server/examples/bond-seller-worker) and replace `checkInput()` and `doWork()` with your work. A ready-made example job, CSV in and JSON rows out, is in [`jobs/csv-to-json.ts`](../packages/pay-server/examples/bond-seller-worker/jobs/csv-to-json.ts).
