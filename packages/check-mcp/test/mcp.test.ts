@@ -163,3 +163,25 @@ describe('check-mcp README matches the server', () => {
     expect(section('Skill:').startsWith(`Skill: ${served.map((u) => u.split('/')[2]).join(', ')} `)).toBe(true);
   });
 });
+
+describe('check-mcp llms-install.md (install guide for agents)', () => {
+  const guide = readFileSync(new URL('../llms-install.md', import.meta.url), 'utf8');
+  const src = ['tools.ts', 'server.ts'].map((f) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8')).join('\n');
+  it('names only tools the server registers, both of them', async () => {
+    const c = await connect({ apiBase: 'https://api.test', fetch: async () => jsonRes(200, {}), reader: null });
+    const names = new Set((await c.listTools()).tools.map((t) => t.name));
+    const mentioned = [...new Set((guide.match(/`(token_[a-z_]+)`/g) ?? []).map((m) => m.slice(1, -1)))].sort();
+    expect(mentioned).toEqual([...names].sort());
+  });
+  it('server entry has no key or RPC; env names and error codes exist in the code', () => {
+    const blocks = [...guide.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]);
+    expect(JSON.parse(blocks[0]).mcpServers['a402-check']).toEqual({ command: 'npx', args: ['-y', '@agent402-dev/check-mcp'] });
+    for (const v of guide.match(/\bA402_[A-Z_]+/g) ?? []) expect(src).toContain(v);
+    for (const code of ['rpc_not_configured', 'upstream_unavailable']) expect(src).toContain(code);
+  });
+  it('disclaimer, no rating wording, English only', () => {
+    expect(guide).toContain('Not investment advice.');
+    expect(guide).not.toMatch(/\b(safe|risky|rug|scam)\b/i);
+    expect(guide).not.toMatch(/[가-힣]/);
+  });
+});

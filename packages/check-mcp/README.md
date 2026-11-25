@@ -26,6 +26,8 @@ Then ask your agent: **"Run token_check_summary on EPjFWdd5AufqSSqeM2qN1xzybapC8
 The server also publishes one skill through the [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) (`io.modelcontextprotocol/skills`): `skill://token-facts/SKILL.md`, how to use the two tools in order and report facts with their evidence addresses, without judging the token. Hosts that support the extension can load it when needed; other clients see it as a plain resource.
 
 ## Connect
+Step-by-step guide for agents that install servers themselves (for example Cline): [llms-install.md](https://github.com/agent402-dev/agent402-toolkit/blob/main/packages/check-mcp/llms-install.md).
+
 Claude Code:
 ```bash
 claude mcp add a402-check -e A402_CHECK_RPC_URL=<your mainnet RPC> -- npx -y @agent402-dev/check-mcp
