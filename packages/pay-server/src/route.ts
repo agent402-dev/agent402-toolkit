@@ -4,6 +4,7 @@
 import { createPaymentGate, KNOWN_FACILITATORS, SOLANA_MAINNET, USDC_MAINNET, type FacilitatorSpec, type GateConfig, type PaymentGate } from './gate.js';
 import { ledgerClaim, type LedgerEntry, type X402Ledger } from './x402.js';
 import { rpcChain, type ChainReader } from './chain.js';
+import type { DiscoveryConfig } from './discovery.js';
 
 /** Throw from `run` when a request cannot be done (answered 422; the payment is not settled). */
 export class RequestRefused extends Error {
@@ -24,6 +25,8 @@ export interface PaidRoute {
   check(input: string): string | null;
   /** The work. Throw RequestRefused when it cannot be done; any other error is answered 502. Neither is settled. */
   run(input: string): Promise<unknown>;
+  /** Optional x402 Bazaar discovery metadata (see @agent402-dev/pay-server/discovery). Unset = 402 unchanged */
+  discovery?: DiscoveryConfig;
   /** Optional OpenAPI document, for serving at GET /openapi.json (origin = your public origin) */
   openapi?(origin: string): unknown;
 }
@@ -82,6 +85,7 @@ export function paidRouteHandler(route: PaidRoute, options: () => PaidRouteOptio
       facilitators: o.facilitators ?? [KNOWN_FACILITATORS.payai, KNOWN_FACILITATORS.dexter],
       chain: o.chain ?? rpcChain(o.rpcUrl!), ledger: o.ledger,
       resource: { description: route.description, mimeType: 'application/json', ...(o.serviceName ? { serviceName: o.serviceName } : {}) },
+      ...(route.discovery ? { discovery: route.discovery } : {}),
       ...o.gate,
     });
     return gate;

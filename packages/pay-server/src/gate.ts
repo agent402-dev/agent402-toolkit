@@ -16,6 +16,7 @@ import {
   buildRequirements, chooseFacilitator, memoryX402Ledger, paymentResponseHeader, settleVerified, verifyPaymentHeader,
   type Asset, type NamedFacilitator, type Offer, type ProcessDeps, type X402Config, type X402Ledger,
 } from './x402.js';
+import { discoveryProblems, type DiscoveryConfig } from './discovery.js';
 
 /** A402 is deprecated (v1) */
 export type AssetSymbol = 'USDC' | 'PREQ' | 'A402';
@@ -94,6 +95,12 @@ export interface GateConfig {
     * Use a key made only for receipts (receiptSignerFromBytes), never the receiving wallet's key
    */
   receipts?: { signer: ReceiptSigner };
+  /**
+    * Optional x402 Bazaar discovery metadata (extensions.bazaar and resource.iconUrl in the 402).
+    * Off when unset: the 402 stays byte-for-byte the same. Needs resource.description (500 characters or fewer).
+    * Describes the route only; prices, limits and payment checks are unchanged
+   */
+  discovery?: DiscoveryConfig;
 }
 
 export interface ReceivingAccount { asset: AssetSymbol; mint: string; tokenAccount: string; exists: boolean }
@@ -138,6 +145,10 @@ export function createPaymentGate(c: GateConfig): PaymentGate {
     (c.warn ?? console.warn)(A402_DEPRECATION_WARNING);
   }
   if (c.preq && c.a402 && c.preq.asset.mint === c.a402.asset.mint) throw new Error('config.preq and config.a402 use the same mint');
+  if (c.discovery) {
+    const problems = discoveryProblems(c.resource?.description, c.discovery);
+    if (problems.length) throw new Error(`config.discovery: ${problems.join('; ')}`);
+  }
   const tokens: TokenPayment[] = [c.preq, c.a402].filter((t): t is TokenPayment => !!t);
   const now = c.now ?? (() => Date.now());
   const ledger = c.ledger ?? memoryX402Ledger();
@@ -207,8 +218,9 @@ export function createPaymentGate(c: GateConfig): PaymentGate {
     const pr = {
       x402Version: 2,
       ...(error ? { error } : {}),
-      resource: { url: resourceUrl, description: c.resource?.description ?? '', mimeType: c.resource?.mimeType ?? 'application/json', ...(c.resource?.serviceName ? { serviceName: c.resource.serviceName } : {}) },
+      resource: { url: resourceUrl, description: c.resource?.description ?? '', mimeType: c.resource?.mimeType ?? 'application/json', ...(c.resource?.serviceName ? { serviceName: c.resource.serviceName } : {}), ...(c.discovery?.iconUrl ? { iconUrl: c.discovery.iconUrl } : {}) },
       accepts: q.accepts,
+      ...(c.discovery ? { extensions: { bazaar: c.discovery.bazaar } } : {}),
     };
     return json(402, { ...pr, ...(q.notOffered.length ? { notOffered: q.notOffered } : {}), ...extra }, {
       'payment-required': encodePaymentRequiredHeader(pr as Parameters<typeof encodePaymentRequiredHeader>[0]),

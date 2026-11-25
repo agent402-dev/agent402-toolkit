@@ -18,6 +18,7 @@ import { BOND_V2_DEPLOYED } from '@agent402-dev/bond-client/v2';
 import nacl from 'tweetnacl';
 import { receiptSignerFromBytes, type LedgerEntry, type ReceiptSigner } from '@agent402-dev/pay-server';
 import { paidRouteHandler, storageLedger } from '@agent402-dev/pay-server/route';
+import type { DiscoveryConfig } from '@agent402-dev/pay-server/discovery';
 
 interface Env {
   /** Secret: the seller key, as the Solana CLI JSON array ([12,34,...]). `wrangler secret put SELLER_KEY` */
@@ -61,6 +62,12 @@ function checkInput(input: string): string | null {
 async function doWork(input: string, _signal: AbortSignal, _env: Env): Promise<unknown> {
   return { words: input.trim().split(/\s+/).filter(Boolean).length, characters: input.length };
 }
+// Optional: x402 discovery metadata for POST /x402/job (example input + JSON Schema, example result, PNG/JPG icon).
+// undefined = the 402 stays as it is. DESCRIPTION must then be 500 characters or fewer. For the word count above:
+//   { bazaar: bazaarDeclaration({ method: 'POST', bodyType: 'text', example: 'hello world', inputSchema: { type: 'string', minLength: 1 },
+//       outputExample: { words: 2, characters: 11 },
+//       outputSchema: { type: 'object', properties: { words: { type: 'integer' }, characters: { type: 'integer' } }, required: ['words', 'characters'] } }) }
+const X402_DISCOVERY: DiscoveryConfig | undefined = undefined;
 // ---------------------------------------------------------------------------------------------
 
 /** Job store in a Durable Object: consistent reads, survives restarts (you must still be able to mark delivery). */
@@ -175,6 +182,7 @@ function paidRoute(env: Env) {
       path: '/x402/job',
       priceUsd: Number(env.X402_PRICE_USD),
       description: env.DESCRIPTION,
+      ...(X402_DISCOVERY ? { discovery: X402_DISCOVERY } : {}),
       check: checkInput,
       run: (input) => doWork(input, AbortSignal.timeout(35_000), env),
     }, () => ({

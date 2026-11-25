@@ -77,6 +77,8 @@ The seller wallet must already have a USDC token account (`exact` payments do no
 
 To see your price, asset and receiving address the way a buyer's agent reads them, call pay-mcp's `x402_quote` with `POST https://<your-worker>/x402/job` and no body. It needs no wallet and never pays; see [Check your own 402 without a wallet](../../README.md#check-your-own-402-without-a-wallet).
 
+Optional discovery metadata: set `X402_DISCOVERY` in `index.ts` (a commented example is there) to add `extensions.bazaar` (example input with its JSON Schema, example result) and a PNG or JPG `iconUrl` to the 402. Keep `DESCRIPTION` at 500 characters or fewer and describe what the job does; text that addresses the reading agent is refused at start. Discovery catalogs list a route only after real paid calls through a facilitator that supports the extension. Unset, the 402 is unchanged.
+
 ### Signed receipts (optional)
 Set the `RECEIPT_KEY` secret to sign a receipt for every paid response. The receipt (`X-Agent402-Receipt` header) binds the request (method, path, body hash), the response body hash and the payment, so a buyer can later show what was paid for and what came back. `@agent402-dev/pay-mcp` checks it and reports `receipt.verified`.
 - Use a **separate key, not the seller key**: it signs receipts only and never holds funds.
