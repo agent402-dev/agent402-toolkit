@@ -59,14 +59,14 @@ export function createServer(d: ToolDeps): McpServer {
   const server = new McpServer({ name: 'a402-check', version: '0.2.0' });
   server.tool(
     'token_check_summary',
-    'Free factual check of a Solana token mint (items 1-4) via the hosted A402 Check API: mint authority, freeze authority, metadata update authority (Token-2022 and Metaplex), and Token-2022 extensions with their authority addresses. No API key needed; limited to 20 calls per IP per day. Returns facts and evidence addresses only — no judgments, ratings, or investment advice.',
-    { mint: MINT },
+    'Free factual check of a Solana token mint (items 1-4) via the hosted A402 Check API: mint authority, freeze authority, metadata update authority (Token-2022 and Metaplex), and Token-2022 extensions with their authority addresses. No API key needed; limited to 20 calls per IP per day. Returns facts and evidence addresses only — no judgments, ratings, or investment advice. Errors: HTTP 404 when no mint exists at the address, 429 when the daily limit is reached (remainingToday). For holders, liquidity locks and early buys use token_check.',
+    { mint: MINT.describe('Solana token mint address (base58).') },
     async ({ mint }) => summaryTool(d, mint),
   );
   server.tool(
     'token_check',
-    'Free full factual report on a Solana token mint (items 1-8), computed on this machine with your own Solana RPC (set A402_CHECK_RPC_URL): authorities, Token-2022 extensions, holder concentration (pools, locks, wallets separated), liquidity lock (Meteora DAMM v2, Raydium CPMM), operator locks (Streamflow), and buys right after trading opened. No payment. Returns facts and evidence addresses only — no judgments, ratings, or investment advice.',
-    { mint: MINT },
+    'Free full factual report on a Solana token mint (items 1-8), computed on this machine with your own Solana RPC (set A402_CHECK_RPC_URL): authorities, Token-2022 extensions, holder concentration (pools, locks, wallets separated), liquidity lock (Meteora DAMM v2, Raydium CPMM), operator locks (Streamflow), and buys right after trading opened. No payment. Returns facts and evidence addresses only — no judgments, ratings, or investment advice. Errors: rpc_not_configured (no A402_CHECK_RPC_URL; use token_check_summary), mint_not_found, not_a_mint, upstream_unavailable (RPC failed or blocked the calls).',
+    { mint: MINT.describe('Solana token mint address (base58).') },
     async ({ mint }) => fullTool(d, mint),
   );
   return server;

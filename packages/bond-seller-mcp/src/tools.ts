@@ -38,7 +38,7 @@ export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRu
   const off = () => out({ result: 'not_configured', problems: d.config.problems }, true);
 
   server.tool('sell_status',
-    'Show this seller: wallet address, the job terms it sells (Agent402 Bond, USDC or PREQ), how buyers reach it, balances and job counts. Read-only.',
+    'Show this seller: wallet address, the job terms it sells (Agent402 Bond, USDC or PREQ), how buyers reach it, balances and job counts. Read-only; takes no input. Returns configured: false with the list of problems when the seller is not set up yet. Call it first; then use sell_jobs to see work waiting for you.',
     {},
     async () => {
       if (!d.built) return out({ configured: false, problems: d.config.problems });
@@ -78,8 +78,8 @@ export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRu
     });
 
   server.tool('sell_prepare',
-    'Prepare a deal for a buyer who asked for the job by another channel (chat, email, another agent). Returns the open transaction, already signed by this seller, for the buyer to verify and sign (pay-mcp bond_open). The seller bond leaves this wallet only if the buyer sends it.',
-    { buyer: z.string().describe('Buyer wallet address'), input: z.string().min(1).max(16_384).describe('What the buyer asks for (stored with the deal)') },
+    'Prepare a deal for a buyer who asked for the job by another channel (chat, email, another agent). Returns the open transaction, already signed by this seller, for the buyer to verify and sign (pay-mcp bond_open). The seller bond leaves this wallet only if the buyer sends it. Returns result "prepared" with the transaction, or "refused" (an error) with the reason (for example limits reached or buyer not allowed). Buyers using the HTTP endpoint do not need this tool.',
+    { buyer: z.string().describe('Buyer wallet address (base58)'), input: z.string().min(1).max(16_384).describe('What the buyer asks for, as text (at most 16,384 characters; stored with the deal and its hash recorded)') },
     async ({ buyer, input }) => {
       if (!d.built) return off();
       const res = (await d.built.service.handle(new Request('http://seller.local/open', { method: 'POST', body: JSON.stringify({ buyer, input }) })))!;
@@ -92,7 +92,7 @@ export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRu
     });
 
   server.tool('sell_jobs',
-    'Check the chain and run the seller loop (mark finished work, give up on jobs close to their deadline, settle and claim finished deals), then list the jobs waiting for you to do the work. Call it regularly; a background timer also runs the loop while this server is running.',
+    'Check the chain and run the seller loop (mark finished work, give up on jobs close to their deadline, settle and claim finished deals), then list the jobs waiting for you to do the work. Call it regularly; a background timer also runs the loop while this server is running. Takes no input. Returns the loop steps and the jobs to do (deal, buyer, price, input, deadlines; a job is declined automatically 30 minutes before its mark deadline). Hand in each result with sell_submit, or give up with sell_decline.',
     {},
     async () => {
       if (!d.built || !run) return off();
@@ -129,8 +129,8 @@ export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRu
     });
 
   server.tool('sell_submit',
-    'Hand in the result of a job from sell_jobs. Stores it and marks delivery on chain (this wallet pays the network fee). A buyer using the HTTP endpoint fetches it there; otherwise pass the result to the buyer yourself.',
-    { deal: z.string(), result: z.string().min(1).max(200_000).describe('The work, as text (JSON text is fine)') },
+    'Hand in the result of a job from sell_jobs. Stores it and marks delivery on chain (this wallet pays the network fee). A buyer using the HTTP endpoint fetches it there; otherwise pass the result to the buyer yourself. Returns result "delivered" with the mark transaction; "refused" means nothing was marked (for example the deal is not yours or the deadline passed).',
+    { deal: z.string().describe('Deal address (base58) from sell_jobs.'), result: z.string().min(1).max(200_000).describe('The work, as text (JSON text is fine; at most 200,000 characters). Its hash is what the buyer checks.') },
     async ({ deal, result }) => {
       if (!d.built) return off();
       const r = await d.built.service.submit(deal, result);
@@ -139,8 +139,8 @@ export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRu
     });
 
   server.tool('sell_decline',
-    'Give up on a job from sell_jobs (cannot be done, or should not be). Delivers a failure notice and marks delivery, so the deal ends neutral: your bond comes back and the buyer gets its deposit back.',
-    { deal: z.string(), reason: z.string().max(300).optional() },
+    'Give up on a job from sell_jobs (cannot be done, or should not be). Delivers a failure notice and marks delivery, so the deal ends neutral: your bond comes back and the buyer gets its deposit back. Returns result "declined" with the mark transaction, or "refused" (an error). Use sell_submit instead when you have the work.',
+    { deal: z.string().describe('Deal address (base58) from sell_jobs.'), reason: z.string().max(300).optional().describe('Short reason shown to the buyer (at most 300 characters).') },
     async ({ deal, reason }) => {
       if (!d.built) return off();
       const r = await d.built.service.decline(deal, reason);
