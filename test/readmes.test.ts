@@ -149,6 +149,17 @@ describe('Codex plugin install lines', () => {
     expect(read(files.root)).toContain('`codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402`, `agent402-sell@agent402` or `agent402-check@agent402`. Needs git on PATH.');
     expect(read('../docs/getting-started.md')).toContain('`codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (needs git on PATH)');
   });
+  it('both marketplace files exist and give each plugin the same name, order and description', () => {
+    const claudeMarket = ['../claude-plugins/.claude-plugin/marketplace.json', '../.claude-plugin/marketplace.json']
+      .map((p) => new URL(p, import.meta.url)).find((u) => existsSync(u));
+    expect(codexMarket).toBeTruthy();
+    expect(claudeMarket).toBeTruthy();
+    type M = { name: string; plugins: { name: string; description: string }[] };
+    const [a, b] = [codexMarket!, claudeMarket!].map((u) => JSON.parse(readFileSync(u, 'utf8')) as M);
+    expect(a.name).toBe(b.name);
+    expect(a.plugins.map((p) => [p.name, p.description])).toEqual(b.plugins.map((p) => [p.name, p.description]));
+    for (const p of a.plugins) expect(p.description.length, p.name).toBeGreaterThan(20);
+  });
   it('every name@marketplace in those lines exists in the Codex marketplace file', () => {
     expect(codexMarket).toBeTruthy();
     const m = JSON.parse(readFileSync(codexMarket!, 'utf8')) as { name: string; plugins: { name: string }[] };
