@@ -38,7 +38,7 @@ describe('x402_quote discovery summary', () => {
     const q = await t.agent.quote({ url: `https://${HOST}/paid` });
     expect(q.quoteId).toBeTruthy();
     expect(q.payment).toMatchObject({ amount: '20000', payTo: TRUSTED });
-    expect(q.discovery).toEqual({ bazaar: false, descriptionLength: 12, descriptionWithinLimit: true, inputExample: false, outputExample: false, schema: false, iconFormat: null, iconHttps: null, notes: [] });
+    expect(q.discovery).toEqual({ bazaar: false, descriptionLength: 12, descriptionWithinLimit: true, inputExample: false, inputMethod: null, outputExample: false, schema: false, iconFormat: null, iconHttps: null, notes: [] });
     expect(t.signed()).toBe(0);
   });
 
@@ -47,7 +47,7 @@ describe('x402_quote discovery summary', () => {
     const withMeta = { ...plain, resource: { ...plain.resource, iconUrl: 'https://cdn.good.test/icon.png' }, extensions: { bazaar: BAZAAR } };
     const a = await agentFor(withMeta).agent.quote({ url: `https://${HOST}/paid` });
     const b = await agentFor(plain).agent.quote({ url: `https://${HOST}/paid` });
-    expect(a.discovery).toMatchObject({ bazaar: true, inputExample: true, outputExample: true, schema: true, iconFormat: 'png', iconHttps: true, notes: [] });
+    expect(a.discovery).toMatchObject({ bazaar: true, inputExample: true, inputMethod: 'POST', outputExample: true, schema: true, iconFormat: 'png', iconHttps: true, notes: [] });
     expect(JSON.stringify(a)).not.toContain(SELLER_TEXT);
     expect(JSON.stringify(a)).not.toContain('icon.png');
     expect(a.options).toEqual(b.options);
@@ -61,6 +61,16 @@ describe('x402_quote discovery summary', () => {
     expect(q.result).toBe('refused');
     expect(q.quoteId).toBeUndefined();
     expect(q.discovery?.bazaar).toBe(true);
+  });
+
+  it('inputMethod is GET or POST from the declared input, null otherwise (seller text is never echoed)', () => {
+    const at = (input: unknown) => discoverySummary({ resource: { description: 'd' }, extensions: { bazaar: { info: { input }, schema: {} } } }).inputMethod;
+    expect(at({ type: 'http', method: 'GET', queryParams: { q: '1' } })).toBe('GET');
+    expect(at({ type: 'http', method: 'POST', body: {} })).toBe('POST');
+    expect(at({ type: 'http', method: SELLER_TEXT })).toBeNull();
+    expect(at({ type: 'http', method: 'get' })).toBeNull();
+    expect(at({ type: 'http' })).toBeNull();
+    expect(discoverySummary({}).inputMethod).toBeNull();
   });
 
   it('notes what catalogs reject: long or missing description, SVG or http icon, bazaar without input or schema', () => {

@@ -13,6 +13,8 @@ export interface DiscoverySummary {
   /** Within the length discovery catalogs accept */
   descriptionWithinLimit: boolean;
   inputExample: boolean;
+  /** Request method the input example declares (GET = query parameters, POST = body); null when missing or another value */
+  inputMethod: 'GET' | 'POST' | null;
   outputExample: boolean;
   schema: boolean;
   /** Icon format from the URL path (png, jpg, jpeg, webp, gif, svg, other), or null when there is no iconUrl */
@@ -46,6 +48,7 @@ export function discoverySummary(pr: { resource?: unknown; extensions?: unknown 
     descriptionLength: desc.length,
     descriptionWithinLimit: desc.length > 0 && desc.length <= DISCOVERY_DESCRIPTION_MAX,
     inputExample: !!info && isObj(info.input),
+    inputMethod: info && isObj(info.input) && (info.input.method === 'GET' || info.input.method === 'POST') ? info.input.method : null,
     outputExample: !!info && info.output !== undefined,
     schema: !!bz && isObj(bz.schema),
     iconFormat,
