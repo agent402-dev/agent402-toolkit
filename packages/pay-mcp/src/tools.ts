@@ -161,6 +161,7 @@ export function createPayServer(d: PayServerDeps): McpServer {
         minSellerBondBps: d.bondPolicy.minBondBps.toString(), maxDays: d.bondPolicy.maxDays, confirmAboveUsd: d.bondPolicy.confirmAboveUsd,
         note: 'Bond deposits and balances count toward the daily USDC cap and payment count.',
       } : 'off',
+      mcpTasks: d.mcpTasks && d.bondV2Program ? 'on (bond_v2_wait_result, read-only)' : 'off (X402_MCP_TASKS)',
       ...(d.policy.warnings.length || near.length ? { warnings: [...d.policy.warnings, ...near] } : {}),
       ...(d.wallet ? {} : { note: 'No wallet configured (X402_KEYPAIR_PATH): x402_fetch will not pay.' }),
       }));

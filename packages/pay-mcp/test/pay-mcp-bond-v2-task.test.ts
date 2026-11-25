@@ -70,6 +70,8 @@ describe('bond_v2_wait_result tool', () => {
     expect(tools.map((t) => t.name)).not.toContain('bond_v2_wait_result');
     expect(tools.length).toBe(19);
     expect(c.getServerCapabilities()?.tasks).toBeUndefined();
+    const w = JSON.parse(((await c.callTool({ name: 'wallet_status', arguments: {} })).content as { text: string }[])[0].text);
+    expect(w.mcpTasks).toBe('off (X402_MCP_TASKS)');
   });
   it('X402_MCP_TASKS on: offered as read-only with optional task support; other tools unchanged', async () => {
     const c = await connectPay(true);
@@ -81,6 +83,8 @@ describe('bond_v2_wait_result tool', () => {
     expect(t.description).toMatch(/Never pays/);
     expect(tools.filter((x) => x.name !== 'bond_v2_wait_result').every((x) => (x.execution?.taskSupport ?? 'forbidden') === 'forbidden')).toBe(true);
     expect(c.getServerCapabilities()?.tasks?.requests).toBeDefined();
+    const w = JSON.parse(((await c.callTool({ name: 'wallet_status', arguments: {} })).content as { text: string }[])[0].text);
+    expect(w.mcpTasks).toMatch(/^on /);
   });
   it('without bond configuration it refuses like bond_v2_result', async () => {
     const c = await connectPay(true);
