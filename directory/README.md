@@ -9,7 +9,10 @@
 
 ## Getting listed
 
-Open a pull request that adds one entry:
+Open a pull request that adds one entry. No local clone is needed: open [`bond-sellers.json`](bond-sellers.json) on GitHub, choose **Edit this file**, add your entry at the end of `sellers`, and choose **Propose changes**.
+
+Before you open it, check your seller the way buyers will: with `@agent402-dev/pay-mcp` and `X402_ALLOWED_DOMAINS=<your host>` (no wallet needed), `bond_v2_quote` (or `bond_job_quote` for v1) on your URL should show your terms (price, bond, deposit, deadlines). With no buyer settings it ends `refused` with reasons such as "not in X402_BOND_SELLERS": that is the buyer's wallet protecting itself, and it means your quote was read correctly. A Cloudflare Workers seller you can start from: [`packages/pay-server/examples/bond-seller-worker`](../packages/pay-server/examples/bond-seller-worker).
+
 
 ```json
 { "url": "https://jobs.example.com/summarize", "listedAt": "YYYY-MM-DD" }

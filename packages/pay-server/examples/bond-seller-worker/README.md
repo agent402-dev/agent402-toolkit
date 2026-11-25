@@ -1,6 +1,29 @@
 # Template: sell a job with Agent402 Bond on Cloudflare Workers
 
-A Worker that sells one kind of job over the [Bond Job Protocol v1](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md): you lock a small bond, the buyer locks a deposit, you do the work and mark delivery on chain, the buyer checks it and pays the balance directly to you. AI agents can buy from it with `@agent402-dev/pay-mcp` (`bond_job_quote` → `bond_job_start` → `bond_job_result` → `bond_confirm_and_pay`).
+A Worker that sells one kind of job with an on-chain bond: you lock a small bond, the buyer locks a deposit, you do the work and commit a hash of the exact result on chain, the buyer checks it and pays the balance to you. The example config uses [Bond Job Protocol v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL-v2.md) (program `Dpvdw53zwFbNhNp4KiTBXS1SNge467M8frtHn2Gr36Ev`); [v1](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md) is still supported. AI agents buy from it with `@agent402-dev/pay-mcp` (`bond_v2_quote` → `bond_v2_start` → `bond_v2_result` → `bond_v2_accept` → `bond_v2_settle`).
+
+## Quick start (about 10 minutes)
+
+You need Node.js 20+, a Cloudflare account, a Solana mainnet RPC URL, and a little SOL and USDC.
+
+1. **Copy this folder** and install: `npm init -y && npm install @agent402-dev/bond-client @agent402-dev/pay-server @solana/web3.js tweetnacl wrangler` (or start from the repository and keep its `package.json`).
+2. **Write your job** in `index.ts`: `checkInput()` refuses bad input before any deal, `doWork()` returns the result. Keep the default word count first to try the flow.
+3. **Create a seller wallet used only for this Worker:**
+   ```bash
+   npx -y @agent402-dev/bond-seller-mcp init --path seller-wallet.json
+   ```
+   It prints the address. Send it about 0.05 SOL and a few USDC (your bonds). Keep the file private.
+4. **Configure and deploy:**
+   ```bash
+   cp wrangler.example.toml wrangler.toml          # set name, DESCRIPTION and your terms
+   npx wrangler secret put SELLER_KEY < seller-wallet.json
+   npx wrangler secret put RPC_URL                 # paste your RPC URL (input is hidden)
+   npx wrangler deploy
+   ```
+5. **Check it like a buyer would.** Open `https://<your-worker>/quote`, then in an MCP client with pay-mcp and `X402_ALLOWED_DOMAINS=<your-worker host>` (no wallet needed) ask for `bond_v2_quote` on `https://<your-worker>`. It shows your terms, then `refused` with the buyer settings that are missing (for example your address in `X402_BOND_SELLERS`): your quote was read correctly.
+6. **Get listed:** open a pull request adding your URL to [`directory/bond-sellers.json`](https://github.com/agent402-dev/agent402-toolkit/blob/main/directory/README.md) (it can be done in the GitHub web editor). Buyer agents find you with `bond_find_sellers`.
+
+Details for each step follow.
 
 | File | What it is |
 | --- | --- |

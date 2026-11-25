@@ -18,17 +18,19 @@ crons = ["*/2 * * * *"]
 
 [vars]
 # USDC smallest units: 1 USDC = 1000000. Beta limit: seller bond + buyer deposit at most 100 USDC per deal.
+# Start small; raise the amounts once deals run as you expect.
 # ASSET = "PREQ"            # optional: USDC (default) or PREQ; amounts below are in that asset
-PRICE = "20000000"          # 20 USDC
-SELLER_BOND = "2000000"     # 2 USDC (at most 20% of the price); you lock it and get it back on delivery
-BUYER_DEPOSIT = "5000000"   # 5 USDC, part of the price, locked by the buyer
+PRICE = "1000000"           # 1 USDC
+SELLER_BOND = "100000"      # 0.1 USDC; you lock it and get it back when the deal ends normally
+BUYER_DEPOSIT = "300000"    # 0.3 USDC, part of the price, locked by the buyer
 DELIVER_SECONDS = "3600"    # you promise to deliver within 1 hour of opening
-LATE_WINDOW = "0"           # 0..604800 seconds of late delivery with a pro-rata bond deduction
-PAY_WINDOW = "86400"        # 1..30 days for the buyer to pay the balance after confirming
-# Bond v2: PROTOCOL = "2" ignores LATE_WINDOW and PAY_WINDOW and uses these
-# PROTOCOL = "2"
-# GRACE = "86400"           # 1 hour .. 1 day after the delivery deadline to still mark
-# REVIEW_WINDOW = "86400"   # 1 hour .. 7 days for the buyer to accept after delivery
+# Bond v2 (recommended: the buyer checks a hash of the exact result before paying)
+PROTOCOL = "2"
+GRACE = "3600"              # 1 hour .. 1 day after the delivery deadline to still mark delivery
+REVIEW_WINDOW = "86400"     # 1 hour .. 7 days for the buyer to accept after delivery
+# Bond v1 instead: remove PROTOCOL, GRACE and REVIEW_WINDOW and set
+# LATE_WINDOW = "0"         # 0..604800 seconds of late delivery with a pro-rata bond deduction
+# PAY_WINDOW = "86400"      # 1..30 days for the buyer to pay the balance after confirming
 DESCRIPTION = "Counts the words in a text"
 # Optional: also sell the same work per request over x402 at POST /x402/job (USDC, no bond, paid to the seller wallet,
 # which must already have a USDC token account). Not settled if your work throws.
