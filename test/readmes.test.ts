@@ -116,6 +116,7 @@ describe('links to the seller 402 self-check', () => {
   it.each([
     ['getting-started', '../docs/getting-started.md', '../packages/pay-server/README.md#'],
     ['seller template', '../examples/bond-seller-worker/README.md', '../../README.md#'],
+    ['pay-mcp llms-install', '../packages/pay-mcp/llms-install.md', 'https://github.com/agent402-dev/agent402-toolkit/blob/main/packages/pay-server/README.md#'],
   ])('%s links to an existing pay-server anchor and uses x402_quote with POST /x402/job', (_n, path, prefix) => {
     let md: string;
     try { md = read(path); } catch { md = read(path.replace('../examples/', '../packages/pay-server/examples/')); }

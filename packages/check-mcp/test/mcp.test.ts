@@ -135,3 +135,31 @@ describe('Skills over MCP: token-facts', async () => {
     expect(mentioned.filter((n) => !names.has(n))).toEqual([]);
   });
 });
+
+describe('check-mcp README matches the server', () => {
+  const md = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const section = (h: string) => md.split(/^## /m).find((s) => s.startsWith(h)) ?? '';
+  const server = () => connect({ apiBase: 'https://api.test', fetch: async () => jsonRes(200, {}), reader: null });
+  it('Tools table lists exactly the tools the server registers', async () => {
+    const rows = [...section('Tools').matchAll(/^\| `([a-z_]+)` \|/gm)].map((m) => m[1]);
+    const names = (await (await server()).listTools()).tools.map((t) => t.name);
+    expect(rows.sort()).toEqual(names.sort());
+  });
+  it('Try it in one minute: no key or RPC in the command, and the named tool exists', async () => {
+    const tryIt = section('Try it in one minute');
+    const cmd = tryIt.match(/^claude mcp add .+$/m)?.[0] ?? '';
+    expect(cmd).toBe('claude mcp add a402-check -- npx -y @agent402-dev/check-mcp');
+    expect(cmd).not.toMatch(/-e |RPC|KEY/);
+    const asked = tryIt.match(/\*\*"Run (\w+) on (\w+)"\*\*/);
+    const names = new Set((await (await server()).listTools()).tools.map((t) => t.name));
+    expect(asked && names.has(asked[1])).toBe(true);
+    expect(asked![2]).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+  });
+  it('Skill section names every served skill URI and no other', async () => {
+    const uris = [...new Set(section('Skill:').match(/skill:\/\/[a-z0-9-]+\/SKILL\.md/g) ?? [])].sort();
+    const served = (await (await server()).listResources()).resources.map((r) => r.uri).filter((u) => u.startsWith('skill://')).sort();
+    expect(uris.length).toBeGreaterThan(0);
+    expect(uris).toEqual(served);
+    expect(section('Skill:').startsWith(`Skill: ${served.map((u) => u.split('/')[2]).join(', ')} `)).toBe(true);
+  });
+});
