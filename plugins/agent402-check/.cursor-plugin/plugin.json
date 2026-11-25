@@ -14,5 +14,6 @@
     "token",
     "onchain-data",
     "mcp"
-  ]
+  ],
+  "logo": ".claude-plugin/icon.png"
 }

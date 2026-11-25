@@ -16,5 +16,6 @@
     "payments",
     "mcp",
     "agents"
-  ]
+  ],
+  "logo": ".claude-plugin/icon.png"
 }
