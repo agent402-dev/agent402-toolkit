@@ -188,3 +188,12 @@ describe.skipIf(!isPublic)('public docs: relative links resolve', () => {
     expect(broken).toEqual([]);
   });
 });
+
+describe('getting-started links the bond-seller-mcp install guide', () => {
+  it('seller section links ../packages/bond-seller-mcp/llms-install.md, which exists', () => {
+    const md = read('../docs/getting-started.md');
+    const seller = md.slice(md.indexOf('## Seller: get paid by AI agents'));
+    expect(seller).toContain('](../packages/bond-seller-mcp/llms-install.md)');
+    expect(() => read('../packages/bond-seller-mcp/llms-install.md')).not.toThrow();
+  });
+});

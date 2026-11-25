@@ -40,10 +40,13 @@ function make(dir: string, pkg: Record<string, unknown>, localDeps: string[] = [
   mkdirSync(out, { recursive: true });
   cpSync(`packages/${dir}/src`, join(out, 'src'), { recursive: true });
   cpSync(`packages/${dir}/README.md`, join(out, 'README.md'));
+  // MCP packages ship their agent install guide too (README links to it)
+  const llmsInstall = existsSync(`packages/${dir}/llms-install.md`);
+  if (llmsInstall) cpSync(`packages/${dir}/llms-install.md`, join(out, 'llms-install.md'));
   cpSync(existsSync('docs/legal/LICENSE-Apache-2.0.txt') ? 'docs/legal/LICENSE-Apache-2.0.txt' : 'LICENSE', join(out, 'LICENSE'));
   cpSync(existsSync('docs/legal/NOTICE') ? 'docs/legal/NOTICE' : 'NOTICE', join(out, 'NOTICE'));
   writeFileSync(join(out, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2) + '\n');
-  writeFileSync(join(out, 'package.json'), JSON.stringify({ ...pkg, ...common(dir), files: ['dist', 'README.md', 'LICENSE', 'NOTICE'] }, null, 2) + '\n');
+  writeFileSync(join(out, 'package.json'), JSON.stringify({ ...pkg, ...common(dir), files: ['dist', 'README.md', ...(llmsInstall ? ['llms-install.md'] : []), 'LICENSE', 'NOTICE'] }, null, 2) + '\n');
   // Toolkit packages this one depends on: copy their fresh dist into node_modules to compile (not packed)
   for (const d of localDeps) {
     const nm = join(out, 'node_modules', '@agent402-dev', d);

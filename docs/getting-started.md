@@ -114,6 +114,8 @@ Pick the shape that fits your work.
 | Takes minutes to hours, and the buyer wants a commitment from you | Bonded job: you lock a small bond, the buyer locks a deposit, the buyer accepts and pays after delivery | [Workers template](../packages/pay-server/examples/bond-seller-worker) |
 | Done by an AI agent on your machine | Bonded job sold by your agent | [`bond-seller-mcp`](../packages/bond-seller-mcp) |
 
+Selling through an agent on your machine: the [bond-seller-mcp install guide for agents](../packages/bond-seller-mcp/llms-install.md) adds the server with no settings first, shows what is missing, and takes every price and bond value from you.
+
 **Fastest path: the Cloudflare Workers template** (one Worker sells both per request and bonded jobs)
 
 1. Copy [`packages/pay-server/examples/bond-seller-worker`](../packages/pay-server/examples/bond-seller-worker) and replace `checkInput()` and `doWork()` with your work. A ready-made example job, CSV in and JSON rows out, is in [`jobs/csv-to-json.ts`](../packages/pay-server/examples/bond-seller-worker/jobs/csv-to-json.ts).

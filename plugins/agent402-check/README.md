@@ -7,6 +7,8 @@ claude plugin marketplace add agent402-dev/agent402-toolkit
 claude plugin install agent402-check@agent402
 ```
 
+Step-by-step setup for an agent: [`llms-install.md`](https://github.com/agent402-dev/agent402-toolkit/blob/main/packages/check-mcp/llms-install.md).
+
 `token_check_summary` works right away (hosted API, no key, 20 calls per IP per day). For the full report set `A402_CHECK_RPC_URL` to your own Solana mainnet RPC in the environment Claude Code starts from.
 
 > Factual information from public on-chain data. Not investment advice.
