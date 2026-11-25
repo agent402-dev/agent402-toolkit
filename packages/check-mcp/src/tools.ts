@@ -57,7 +57,7 @@ export async function fullTool(d: ToolDeps, mint: string): Promise<ToolResult> {
 }
 
 export function createServer(d: ToolDeps): McpServer {
-  const server = new McpServer({ name: 'a402-check', version: '0.3.0' });
+  const server = new McpServer({ name: 'a402-check', version: '0.3.1' });
   server.tool(
     'token_check_summary',
     'Free factual check of a Solana token mint (items 1-4) via the hosted A402 Check API: mint authority, freeze authority, metadata update authority (Token-2022 and Metaplex), and Token-2022 extensions with their authority addresses. No API key needed; limited to 20 calls per IP per day. Returns facts and evidence addresses only — no judgments, ratings, or investment advice. Errors: HTTP 404 when no mint exists at the address, 429 when the daily limit is reached (remainingToday). For holders, liquidity locks and early buys use token_check.',

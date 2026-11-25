@@ -1,6 +1,6 @@
 {
   "name": "@agent402-dev/bond-seller-mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "mcpName": "io.github.agent402-dev/bond-seller-mcp",
   "private": true,
   "description": "MCP server that lets an AI agent sell jobs backed by Agent402 Bond on Solana: quote, prepare deals, do the work, mark delivery, settle.",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@agent402-dev/bond-client": "0.3.0",
-    "@agent402-dev/pay-server": "0.7.1",
+    "@agent402-dev/pay-server": "0.8.0",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@solana/web3.js": "^1.98.0",
     "zod": "^4.6.7",
