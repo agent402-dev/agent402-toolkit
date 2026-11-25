@@ -139,3 +139,23 @@ describe('Claude Code plugin install lines', () => {
     expect(read(files.root)).toContain(plugin + '@agent402');
   });
 });
+
+describe('bond-seller-mcp llms-install.md (install guide for agents)', () => {
+  const guide = read('../packages/bond-seller-mcp/llms-install.md');
+  const src = ['config.ts', 'tools.ts'].map((f) => read(`../packages/bond-seller-mcp/src/${f}`)).join('\n');
+  it('server entry has no settings; every tool and variable it names exists in the code', () => {
+    const blocks = [...guide.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]);
+    expect(JSON.parse(blocks[0]).mcpServers['bond-seller']).toEqual({ command: 'npx', args: ['-y', '@agent402-dev/bond-seller-mcp'] });
+    const tools = [...new Set(guide.match(/`sell_[a-z]+`/g) ?? [])].map((t) => t.slice(1, -1));
+    expect(tools.length).toBeGreaterThan(2);
+    for (const t of tools) expect(src).toContain(`'${t}'`);
+    for (const v of new Set(guide.match(/\bBOND_SELL[A-Z_]+/g) ?? [])) expect(src).toMatch(new RegExp(`\\b${v}\\b`));
+  });
+  it('asks the user first, values come from the user, disclaimer, English only', () => {
+    expect(guide).toContain('Ask the user before doing this.');
+    expect(guide).toContain('Every value below must come from the user');
+    expect(guide).toContain('Internal review only, not independently audited.');
+    expect(guide).not.toMatch(/\b(safe|risky|rug|scam)\b/i);
+    expect(guide).not.toMatch(/[가-힣]/);
+  });
+});
