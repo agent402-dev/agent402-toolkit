@@ -54,3 +54,29 @@ describe.each(Object.entries(files))('README %s', (_name, path) => {
     expect(md).not.toMatch(/[A-Za-z]:\\Users\\/);
   });
 });
+
+describe('docs/getting-started.md How to pay FAQ', () => {
+  const md = read('../docs/getting-started.md');
+  const faq = md.slice(md.indexOf('### How to pay (FAQ)'), md.indexOf('## Seller: get paid by AI agents'));
+  const policy = read('../packages/pay-mcp/src/policy.ts');
+  it('section exists, linked from the top, English only, disclaimer kept', () => {
+    expect(faq.length).toBeGreaterThan(200);
+    expect(md).toContain('(#how-to-pay-faq)');
+    expect(md).not.toMatch(/[가-힣]/);
+    expect(md).toContain('Not investment advice.');
+  });
+  it('402 example parses and its amount matches the stated display value', () => {
+    const json = JSON.parse(faq.split('```json')[1].split('```')[0]);
+    expect(json.x402Version).toBe(2);
+    const a = json.accepts[0];
+    expect(a.network).toBe('solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp');
+    expect(a.asset).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+    expect(Number(a.amount) / 1_000_000).toBe(0.05);
+    expect(faq).toContain('"amountDisplay": "0.05 USDC"');
+  });
+  it('quote before fetch, and every env variable named exists in pay-mcp', () => {
+    expect(faq.indexOf('`x402_quote`')).toBeLessThan(faq.indexOf('`x402_fetch`'));
+    for (const v of new Set(faq.match(/X402_[A-Z_]+/g) ?? [])) expect(policy).toContain(v);
+    expect(policy).toContain('pay_to_not_trusted');
+  });
+});

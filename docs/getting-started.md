@@ -3,7 +3,7 @@
 Two paths, each a few minutes. Everything runs on your own machine or your own Cloudflare account, from wallets you create for this. Not investment advice.
 
 - [Try it in one minute (no wallet, nothing paid)](#try-it-in-one-minute-no-wallet-nothing-paid)
-- [Buyer: let your AI agent pay for an API](#buyer-let-your-ai-agent-pay-for-an-api)
+- [Buyer: let your AI agent pay for an API](#buyer-let-your-ai-agent-pay-for-an-api) ([How to pay](#how-to-pay-faq))
 - [Seller: get paid by AI agents](#seller-get-paid-by-ai-agents)
 
 Try it without real funds first: [`packages/pay-mcp/examples/bond-local`](../packages/pay-mcp/examples/bond-local) runs a seller and your agent against a local mainnet fork.
@@ -69,6 +69,38 @@ Other MCP clients: same command and variables ([README](../packages/pay-mcp/READ
 To find APIs, use an x402 directory such as [x402scan](https://www.x402scan.com). The [seller directory](../directory) lists sellers of bonded jobs (`bond_find_sellers`); two of them are run by this toolkit's developer and are marked as such.
 
 **Bonded jobs (optional).** For work that takes time, a seller can lock a bond in [Agent402 Bond](../programs-v2) and you lock a deposit. Set `X402_BOND_SELLERS` and `X402_BOND_MAX_USD` to allow it, then use `bond_v2_quote` → `bond_v2_start` → `bond_v2_result` → `bond_v2_accept` → `bond_v2_settle` ([details](../packages/pay-mcp/README.md#agent402-bond-v2-buyer-side)).
+
+### How to pay (FAQ)
+
+**What does a paid API answer before payment?** HTTP `402 Payment Required` with the terms in the JSON body and, base64-encoded, in the `PAYMENT-REQUIRED` header. Shortened example from the receipts API above:
+
+```json
+{
+  "x402Version": 2,
+  "resource": { "url": "https://agent402-tx-receipts.agent402-ebc.workers.dev/x402/receipts" },
+  "accepts": [{
+    "scheme": "exact",
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "amount": "50000",
+    "payTo": "3re9JiNpwbf3y4c4ywT1mDRnVVHfHss14Pq2xaTaTGYH",
+    "maxTimeoutSeconds": 60
+  }]
+}
+```
+
+`amount` is in the token's smallest unit: USDC has 6 decimals, so `50000` is 0.05 USDC. You do not need to read this yourself; `x402_quote` shows it as `"amountDisplay": "0.05 USDC"`.
+
+**What do I need?** A wallet file on your machine (`init` above) holding a little USDC for the price and about 0.01 SOL for network fees, plus three settings: the API host in `X402_ALLOWED_DOMAINS`, its `payTo` address in `X402_TRUSTED_PAY_TO`, and your limits (`X402_MAX_USD`, `X402_MAX_USD_PER_DAY`). Without them every payment is refused.
+
+**In what order?**
+
+1. `x402_quote` on the URL: price, recipient, which rule would refuse, and a `quoteId`. Nothing is signed.
+2. If the recipient is the one you expect, add it to `X402_TRUSTED_PAY_TO` and restart the MCP server.
+3. `x402_fetch` on the same URL with that `quoteId`: it pays only if the amount, asset and recipient still match the quote and every rule passes, then returns the response with the settlement transaction.
+4. `payment_history` or `spending_report` to check what was paid.
+
+**It says `refused`.** Nothing was signed. The `reasons` name the setting, for example `pay_to_not_trusted` (recipient not in `X402_TRUSTED_PAY_TO`) or a limit. With `X402_CONFIRM_ABOVE_USD` set, a client that cannot ask you (MCP elicitation) gets `confirmation_required` and nothing is paid.
 
 ## Seller: get paid by AI agents
 
