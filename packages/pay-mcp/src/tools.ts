@@ -230,7 +230,7 @@ export function createPayServer(d: PayServerDeps): McpServer {
   );
   server.tool(
     'bond_deal_status',
-    'Read-only. Show an Agent402 Bond v1 deal (program 9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK): parties, amounts with units, deadlines on the Solana clock, what each side can still do, and the settlement that applies now or the earliest time it opens. Never signs. Predicted from the program rules; the program on chain decides.',
+    'Legacy Bond v1 (new deals use the bond_v2_* tools). Read-only. Show an Agent402 Bond v1 deal (program 9hiCZZ6ddFG9oJBR1Su43Pj4JRFHeHC5cGiCgXtTuAaK): parties, amounts with units, deadlines on the Solana clock, what each side can still do, and the settlement that applies now or the earliest time it opens. Never signs. Predicted from the program rules; the program on chain decides.',
     { deal: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Solana base58 deal account address').describe('Bond v1 deal account address (base58).') },
     async ({ deal }) => {
       if (!d.accounts || !d.clock) return out({ result: 'unavailable', message: 'No RPC configured for reading accounts (X402_RPC_URL).' }, true);
@@ -253,19 +253,19 @@ export function createPayServer(d: PayServerDeps): McpServer {
   const DEAL_V2 = ADDR.describe('Bond v2 deal account address (base58), as returned by bond_v2_start.');
   server.tool(
     'bond_open',
-    'Agent402 Bond, buyer side. Sign an `open` transaction that the seller built and signed as fee payer (base64, legacy). Before signing, the instruction is rebuilt for this wallet from its own terms and must match byte for byte (one instruction, seller and this wallet as the only signers, USDC or an enabled PREQ deal). Rules: seller in X402_BOND_SELLERS, price at most X402_BOND_MAX_USD (PREQ: X402_BOND_MAX_PREQ_ATOMIC), seller bond at least X402_BOND_MIN_SELLER_BOND_BPS (default 5%), delivery within X402_BOND_MAX_DAYS (default 30), the deposit within the daily cap of its asset, and human confirmation (by default always). Empty settings refuse everything. Locks this wallet\'s deposit in the deal vault. Usually called for you by bond_job_start; call it directly only with a transaction a seller sent you outside the Job Protocol.',
+    'Legacy Bond v1 (new deals use the bond_v2_* tools). Agent402 Bond, buyer side. Sign an `open` transaction that the seller built and signed as fee payer (base64, legacy). Before signing, the instruction is rebuilt for this wallet from its own terms and must match byte for byte (one instruction, seller and this wallet as the only signers, USDC or an enabled PREQ deal). Rules: seller in X402_BOND_SELLERS, price at most X402_BOND_MAX_USD (PREQ: X402_BOND_MAX_PREQ_ATOMIC), seller bond at least X402_BOND_MIN_SELLER_BOND_BPS (default 5%), delivery within X402_BOND_MAX_DAYS (default 30), the deposit within the daily cap of its asset, and human confirmation (by default always). Empty settings refuse everything. Locks this wallet\'s deposit in the deal vault. Usually called for you by bond_job_start; call it directly only with a transaction a seller sent you outside the Job Protocol.',
     { transaction: z.string().min(100).max(4000).describe('The seller-signed open transaction, base64 (legacy format).') },
     async ({ transaction }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondOpen(b, transaction)); return out(r, r.result !== 'opened'); },
   );
   server.tool(
     'bond_confirm_and_pay',
-    'Agent402 Bond, buyer side. Confirm receipt and pay the balance (price minus deposit) directly to the seller. Only for deals where this wallet is the buyer, before the buyer deadline, within the daily cap of the deal asset, with human confirmation (by default always). Confirming releases the seller bond and the deposit to the seller; the program does not judge quality. Bond v1 only (for v2 deals use bond_v2_accept). Call it after bond_job_result and only for work you checked. Returns result "confirmed_and_paid" with the transaction; any other result is an error (check bond_deal_status).',
+    'Legacy Bond v1 (new deals use the bond_v2_* tools). Agent402 Bond, buyer side. Confirm receipt and pay the balance (price minus deposit) directly to the seller. Only for deals where this wallet is the buyer, before the buyer deadline, within the daily cap of the deal asset, with human confirmation (by default always). Confirming releases the seller bond and the deposit to the seller; the program does not judge quality. Bond v1 only (for v2 deals use bond_v2_accept). Call it after bond_job_result and only for work you checked. Returns result "confirmed_and_paid" with the transaction; any other result is an error (check bond_deal_status).',
     { deal: DEAL },
     async ({ deal }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondConfirmAndPay(b, deal)); return out(r, r.result !== 'confirmed_and_paid'); },
   );
   server.tool(
     'bond_settle',
-    'Agent402 Bond v1. Settle a deal whose outcome is fixed by signatures and time, then send both claims in the same transaction (buyer share, then seller share). Use it after a deadline has passed (see bond_deal_status for when settlement opens); after bond_confirm_and_pay no settle is needed. Only for deals where this wallet is the buyer or the seller; this wallet pays only the network fee. Returns result "settled" with the transaction; anything else (for example not yet settleable) is an error. For v2 deals use bond_v2_settle.',
+    'Legacy Bond v1 (new deals use the bond_v2_* tools). Agent402 Bond v1. Settle a deal whose outcome is fixed by signatures and time, then send both claims in the same transaction (buyer share, then seller share). Use it after a deadline has passed (see bond_deal_status for when settlement opens); after bond_confirm_and_pay no settle is needed. Only for deals where this wallet is the buyer or the seller; this wallet pays only the network fee. Returns result "settled" with the transaction; anything else (for example not yet settleable) is an error. For v2 deals use bond_v2_settle.',
     { deal: DEAL },
     async ({ deal }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondSettle(b, deal)); return out(r, r.result !== 'settled'); },
   );
@@ -289,19 +289,19 @@ export function createPayServer(d: PayServerDeps): McpServer {
   );
   server.tool(
     'bond_job_quote',
-    'Agent402 Bond Job Protocol v1. Read a seller\'s job quote (GET {url}/quote) and check it against this wallet\'s bond rules: seller in X402_BOND_SELLERS, price at most X402_BOND_MAX_USD, seller bond at least the minimum share, delivery time, the deal asset (USDC, or PREQ if enabled) and its daily cap. The URL host must be in X402_ALLOWED_DOMAINS. Never signs. Returns result "ok" with the terms, or "refused" (an error) with the reasons. For v2 sellers use bond_v2_quote (bond_find_sellers says which protocol a seller uses).',
+    'Legacy Bond v1 (new deals use the bond_v2_* tools). Agent402 Bond Job Protocol v1. Read a seller\'s job quote (GET {url}/quote) and check it against this wallet\'s bond rules: seller in X402_BOND_SELLERS, price at most X402_BOND_MAX_USD, seller bond at least the minimum share, delivery time, the deal asset (USDC, or PREQ if enabled) and its daily cap. The URL host must be in X402_ALLOWED_DOMAINS. Never signs. Returns result "ok" with the terms, or "refused" (an error) with the reasons. For v2 sellers use bond_v2_quote (bond_find_sellers says which protocol a seller uses).',
     { url: JOB_URL },
     async ({ url }) => { const b = bondDeps(); if (!b) return noBond(); const r = await bondJobQuote(b, url); return out(r, r.result !== 'ok'); },
   );
   server.tool(
     'bond_job_start',
-    'Agent402 Bond Job Protocol v1, buyer side. Send the job input (POST {url}/open), receive the seller-signed open transaction, check that the quote, the reported terms and the transaction terms all agree, then run bond_open (rebuild and compare, bond rules, human confirmation). Locks your deposit. Returns the deal address. Call bond_job_quote first; for v2 sellers use bond_v2_start.',
+    'Legacy Bond v1 (new deals use the bond_v2_* tools). Agent402 Bond Job Protocol v1, buyer side. Send the job input (POST {url}/open), receive the seller-signed open transaction, check that the quote, the reported terms and the transaction terms all agree, then run bond_open (rebuild and compare, bond rules, human confirmation). Locks your deposit. Returns the deal address. Call bond_job_quote first; for v2 sellers use bond_v2_start.',
     { url: JOB_URL, input: JOB_INPUT },
     async ({ url, input }) => { const b = bondDeps(); if (!b) return noBond(); const r = await withSpendLock(() => bondJobStart(b, url, input)); return out(r, r.result !== 'opened'); },
   );
   server.tool(
     'bond_job_result',
-    'Agent402 Bond Job Protocol v1, buyer side. Fetch the delivered work for a deal where this wallet is the buyer (POST {url}/deliver with a signed request; the signed bytes start with 0xff so they can never be a transaction). Does not confirm or pay: check the work, then call bond_confirm_and_pay only if it is acceptable.',
+    'Legacy Bond v1 (new deals use the bond_v2_* tools). Agent402 Bond Job Protocol v1, buyer side. Fetch the delivered work for a deal where this wallet is the buyer (POST {url}/deliver with a signed request; the signed bytes start with 0xff so they can never be a transaction). Does not confirm or pay: check the work, then call bond_confirm_and_pay only if it is acceptable.',
     { url: JOB_URL, deal: DEAL },
     async ({ url, deal }) => { const b = bondDeps(); if (!b) return noBond(); const r = await bondJobResult(b, url, deal); return out(r, r.result !== 'delivered'); },
   );

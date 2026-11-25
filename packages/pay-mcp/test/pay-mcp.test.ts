@@ -292,6 +292,21 @@ describe('MCP server (tools, elicitation)', () => {
       .filter(([, v]) => !v.description).map(([k]) => `${t.name}.${k}`));
     expect(missing).toEqual([]);
   });
+  it('v1 Bond tools start with "Legacy Bond v1" and v2 tools name their v1 counterpart', async () => {
+    const policy = policyFromEnv(BASE);
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const dir = mkdtempSync(join(tmpdir(), 'paymcp-l-'));
+    await createPayServer({ policy, wallet: null, history: jsonlHistory(join(dir, 'h.jsonl'), () => policy.mints), fetch, bondV2Program: pk() }).connect(a);
+    const client = new Client({ name: 't', version: '0' });
+    await client.connect(b);
+    const { tools } = await client.listTools();
+    const desc = (n: string) => tools.find((t) => t.name === n)!.description!;
+    for (const n of ['bond_deal_status', 'bond_open', 'bond_confirm_and_pay', 'bond_settle', 'bond_job_quote', 'bond_job_start', 'bond_job_result'])
+      expect(desc(n), n).toMatch(/^Legacy Bond v1 \(new deals use the bond_v2_\* tools\)\. /);
+    for (const n of tools.map((t) => t.name).filter((n) => n.startsWith('bond_v2_'))) expect(desc(n), n).not.toMatch(/^Legacy/);
+    for (const [v2, v1] of [['bond_v2_quote', 'bond_job_quote'], ['bond_v2_start', 'bond_job_start'], ['bond_v2_result', 'bond_job_result'], ['bond_v2_settle', 'bond_settle']])
+      expect(desc(v2), v2).toContain(v1);
+  });
   it('client without elicitation support → no payment', async () => {
     const s = await connect(null);
     const r = await s.call('x402_fetch', { url: `https://${HOST}/paid` });
