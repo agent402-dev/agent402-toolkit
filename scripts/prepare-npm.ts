@@ -70,7 +70,7 @@ make('check-engine', {
 make('check-mcp', {
   name: '@agent402-dev/check-mcp',
   description: 'MCP server (stdio) returning factual on-chain information about Solana token mints, with evidence addresses. Free. No judgments or investment advice.',
-  keywords: ['mcp', 'solana', 'token', 'token-2022', 'onchain'],
+  keywords: ['mcp', 'mcp-server', 'solana', 'token', 'token-2022', 'onchain', 'agent-skills', 'claude-code-plugin'],
   mcpName: 'io.github.agent402-dev/a402-check-mcp', // checked by the MCP Registry (must equal the name in server.json)
   bin: { 'agent402-check-mcp': './dist/server.js' },
   exports: { './*': { types: './dist/*.d.ts', default: './dist/*.js' } },
@@ -100,7 +100,7 @@ make('bond-client', {
 make('pay-server', {
   name: '@agent402-dev/pay-server',
   description: 'Server helpers for x402 on Solana: accept USDC and optionally PREQ (Token-2022) through external facilitators. Verify, run your handler, then settle. Holds no funds and takes no private keys.',
-  keywords: ['x402', 'solana', 'usdc', 'token-2022', 'payments'],
+  keywords: ['x402', 'x402-server', 'solana', 'usdc', 'token-2022', 'payments', 'http-402'],
   bin: { 'agent402-pay-server': './dist/cli.js' },
   main: './dist/index.js',
   types: './dist/index.d.ts',
@@ -112,7 +112,7 @@ make('pay-server', {
 make('pay-mcp', {
   name: '@agent402-dev/pay-mcp',
   description: "MCP server that lets an AI agent pay x402 APIs (USDC, PREQ) from the user's own wallet on the user's machine, within limits and allowlists. With no configuration, every payment is refused.",
-  keywords: ['mcp', 'x402', 'solana', 'usdc', 'agent', 'payments'],
+  keywords: ['mcp', 'mcp-server', 'x402', 'solana', 'usdc', 'agent', 'payments', 'agent-skills', 'claude-code-plugin'],
   mcpName: 'io.github.agent402-dev/a402-pay-mcp',
   bin: { 'agent402-pay-mcp': './dist/server.js' },
   exports: { './*': { types: './dist/*.d.ts', default: './dist/*.js' } },
@@ -123,7 +123,7 @@ make('pay-mcp', {
 make('bond-seller-mcp', {
   name: '@agent402-dev/bond-seller-mcp',
   description: 'MCP server that lets an AI agent sell jobs backed by Agent402 Bond deals on Solana (USDC or PREQ), from your own seller wallet on your machine.',
-  keywords: ['mcp', 'solana', 'escrow', 'bond', 'usdc', 'agent'],
+  keywords: ['mcp', 'mcp-server', 'solana', 'escrow', 'bond', 'usdc', 'agent', 'agent-skills', 'claude-code-plugin'],
   mcpName: 'io.github.agent402-dev/bond-seller-mcp',
   bin: { 'agent402-bond-seller-mcp': './dist/server.js' },
   exports: { './*': { types: './dist/*.d.ts', default: './dist/*.js' } },
