@@ -254,3 +254,14 @@ describe.skipIf(!isPublic)('public docs: Bond wording matches TERMS-v2', () => {
     expect(md).not.toMatch(/\bguarantee[ds]?\b|\bmoney-back\b|\bescrow service\b/i);
   });
 });
+
+describe('getting-started links each plugin skill name to its SKILL.md', () => {
+  it('buy-bonded-job and sell-bonded-job link the plugin SKILL.md files (resolved by the public link check)', () => {
+    const md = read('../docs/getting-started.md');
+    expect(md).toContain('[`buy-bonded-job`](../plugins/agent402-pay/skills/buy-bonded-job/SKILL.md)');
+    const seller = md.slice(md.indexOf('## Seller: get paid by AI agents'));
+    expect(seller).toContain('[`sell-bonded-job`](../plugins/agent402-sell/skills/sell-bonded-job/SKILL.md)');
+    for (const f of ['agent402-pay/skills/buy-bonded-job', 'agent402-sell/skills/sell-bonded-job'])
+      expect(['../claude-plugins/plugins/', '../plugins/'].some((d) => existsSync(new URL(`${d}${f}/SKILL.md`, import.meta.url)))).toBe(true);
+  });
+});

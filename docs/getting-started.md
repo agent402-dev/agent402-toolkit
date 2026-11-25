@@ -22,7 +22,7 @@ claude mcp add a402-try \
 
 (Other MCP clients: command `npx`, args `["-y", "@agent402-dev/pay-mcp"]`, the same `env`.)
 
-Or install pay-mcp with its `buy-bonded-job` skill as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402`. In Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (needs git on PATH). The plugin starts the server with no settings, so every payment is refused. The seller and token-facts plugins are listed in [`plugins/README.md`](../plugins/README.md).
+Or install pay-mcp with its [`buy-bonded-job`](../plugins/agent402-pay/skills/buy-bonded-job/SKILL.md) skill as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402`. In Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (needs git on PATH). The plugin starts the server with no settings, so every payment is refused. The seller and token-facts plugins are listed in [`plugins/README.md`](../plugins/README.md).
 
 Then ask your agent:
 
@@ -116,7 +116,7 @@ Pick the shape that fits your work.
 
 Selling through an agent on your machine: the [bond-seller-mcp install guide for agents](../packages/bond-seller-mcp/llms-install.md) adds the server with no settings first, shows what is missing, and takes every price and bond value from you.
 
-To read the `sell-bonded-job` skill and the seller tools before setting up a wallet, install them as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-sell@agent402`.
+To read the [`sell-bonded-job`](../plugins/agent402-sell/skills/sell-bonded-job/SKILL.md) skill and the seller tools before setting up a wallet, install them as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-sell@agent402`.
 In Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-sell@agent402` (needs git on PATH). The plugin starts the server with no settings, so it cannot sell until you add yours.
 
 **Fastest path: the Cloudflare Workers template** (one Worker sells both per request and bonded jobs)
