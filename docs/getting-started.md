@@ -125,6 +125,7 @@ Pick the shape that fits your work.
    ```
 
 4. Open `https://<your-worker>/quote` to see what buyers see.
+5. If you set `X402_PRICE_USD`, check the per-request price the way a buyer's agent reads it, with no wallet and nothing paid: `x402_quote` with `POST https://<your-worker>/x402/job` and no body. See [Check your own 402 without a wallet](../packages/pay-server/README.md#check-your-own-402-without-a-wallet).
 
 **Get found**
 

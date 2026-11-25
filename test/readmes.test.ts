@@ -108,3 +108,20 @@ describe('pay-server README: check your own 402 without a wallet', () => {
     expect(sec).toContain(`default ${m![1]} USD`);
   });
 });
+
+describe('links to the seller 402 self-check', () => {
+  const slug = (h: string) => h.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+  const psrv = read('../packages/pay-server/README.md');
+  const anchors = new Set((psrv.match(/^#{2,3} .+$/gm) ?? []).map((h) => slug(h.replace(/^#+ /, ''))));
+  it.each([
+    ['getting-started', '../docs/getting-started.md', '../packages/pay-server/README.md#'],
+    ['seller template', '../examples/bond-seller-worker/README.md', '../../README.md#'],
+  ])('%s links to an existing pay-server anchor and uses x402_quote with POST /x402/job', (_n, path, prefix) => {
+    let md: string;
+    try { md = read(path); } catch { md = read(path.replace('../examples/', '../packages/pay-server/examples/')); }
+    const target = 'check-your-own-402-without-a-wallet';
+    expect(md).toContain(`](${prefix}${target})`);
+    expect(anchors.has(target)).toBe(true);
+    expect(md).toMatch(/`x402_quote` with `POST https:\/\/<your-worker>\/x402\/job` and no body/);
+  });
+});
