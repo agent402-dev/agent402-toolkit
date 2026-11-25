@@ -8,6 +8,7 @@ import { checkCommitment, type CommitmentResult } from './commitment.js';
 import type { AccountsFetcher } from './locks.js';
 import { A402_DEPRECATION_WARNING, choose, domainCheck, evaluate, nearLimits, needsLock, type Evaluated, type PayPolicy } from './policy.js';
 import { checkReceipt, RECEIPT_HEADER } from './receipt.js';
+import { discoverySummary, type DiscoverySummary } from './discovery.js';
 import { withSmallest } from './units.js';
 import type { Wallet } from './wallet.js';
 
@@ -46,6 +47,8 @@ export interface FetchOutcome {
   lock?: CommitmentResult['facts'] & { ok: boolean };
   /** Seller's signed receipt, if the server sent one (X-Agent402-Receipt) */
   receipt?: { signer: string | null; verified: boolean; reasons: string[]; token: string };
+  /** x402_quote only: shape of the seller's discovery metadata (lengths, presence, formats; never its text). Does not affect the rules */
+  discovery?: DiscoverySummary;
 }
 
 /** Adds the deprecation warning if the chosen asset is A402 (v1) (there is no path that silently pays with A402) */
@@ -128,11 +131,12 @@ export function createAgent(d: AgentDeps) {
     if (a.kind === 'refused') return { result: 'refused', reasons: [a.refused] };
     if (a.kind === 'not_required') return { result: 'not_required', httpStatus: a.res.status };
     const options = a.evs.map(describe);
-    if (!a.chosen) return { result: 'refused', reasons: ['no_option_passes_policy'], options, ...(a.lock ? { lock: a.lock } : {}) };
+    const discovery = discoverySummary(a.pr as { resource?: unknown; extensions?: unknown });
+    if (!a.chosen) return { result: 'refused', reasons: ['no_option_passes_policy'], options, ...(a.lock ? { lock: a.lock } : {}), discovery };
     const quoteId = crypto.randomUUID();
     const r = a.chosen.requirement;
     quotes.set(quoteId, { url: spec.url, asset: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, at: now().getTime() });
-    return { result: 'not_required', quoteId, options, ...(a.lock ? { lock: a.lock } : {}), payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [] };
+    return { result: 'not_required', quoteId, options, ...(a.lock ? { lock: a.lock } : {}), payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [], discovery };
   }
 
   async function payAndFetch(spec: RequestSpec & { quoteId?: string }): Promise<FetchOutcome> {

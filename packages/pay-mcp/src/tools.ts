@@ -117,7 +117,7 @@ export function createPayServer(d: PayServerDeps): McpServer {
   );
   server.tool(
     'x402_quote',
-    'Show the x402 payment requirements of a URL and whether each option passes the payment rules. Never signs or pays. Returns JSON with each payment option, the rule checks and a quoteId that x402_fetch can use to pin the amount, asset and recipient; result "refused" (an error) means no option passes. Call this before x402_fetch.',
+    'Show the x402 payment requirements of a URL and whether each option passes the payment rules. Never signs or pays. Returns JSON with each payment option, the rule checks and a quoteId that x402_fetch can use to pin the amount, asset and recipient, and a discovery summary (shape of the seller discovery metadata: lengths, presence and formats, useful to sellers checking their own 402); result "refused" (an error) means no option passes. Call this before x402_fetch.',
     req,
     async (a) => { const r = await agent.quote(a); return out(withUnits(r), r.result === 'refused'); },
   );
