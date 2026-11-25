@@ -6,6 +6,7 @@ import { t2 } from '@agent402-dev/bond-client/rules';
 import { markDeadlineV2 } from '@agent402-dev/bond-client/v2';
 import type { SellerConfig } from './config.js';
 import type { BuiltSeller } from './seller.js';
+import { registerSkills } from './skills.js';
 
 export interface SellerServerDeps {
   config: SellerConfig;
@@ -34,7 +35,7 @@ export function serialRunner(b: BuiltSeller) {
 
 export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRunner(d.built) : null) {
   const usdc = units(d.config.asset ?? 'USDC'); // amounts in the deal asset (USDC or PREQ)
-  const server = new McpServer({ name: 'agent402-bond-seller', version: '0.3.1' });
+  const server = new McpServer({ name: 'agent402-bond-seller', version: '0.4.0' });
   const off = () => out({ result: 'not_configured', problems: d.config.problems }, true);
 
   server.tool('sell_status',
@@ -148,5 +149,6 @@ export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRu
       return out({ result: 'declined', deal, markTx: r.markTx });
     });
 
+  registerSkills(server); // Skills over MCP: the selling workflow as a skill (hosts without the extension ignore it)
   return server;
 }

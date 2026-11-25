@@ -174,3 +174,32 @@ describe('selling for PREQ', () => {
     expect(sellerConfigFromEnv({ ...ENV, BOND_SELL_ASSET: 'SOL' }).problems.join(' ')).toContain('USDC or PREQ');
   });
 });
+
+describe('Skills over MCP: sell-bonded-job', async () => {
+  const { z } = await import('zod');
+  const { createHash } = await import('node:crypto');
+  async function client() {
+    const server = createSellerServer({ config: sellerConfigFromEnv({}), built: null });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await server.connect(a);
+    const c = new Client({ name: 't', version: '0' });
+    await c.connect(b);
+    return c;
+  }
+  it('lists the skill (even before the seller is configured) with a manifest matching the served bytes', async () => {
+    const c = await client();
+    expect((c.getServerCapabilities() as { extensions?: Record<string, unknown> }).extensions).toHaveProperty(['io.modelcontextprotocol/skills']);
+    const list = await c.request({ method: 'skills/list', params: {} } as never, z.object({ skills: z.array(z.any()), resultType: z.string() }).passthrough());
+    const s = list.skills[0];
+    expect(s.uri).toBe('skill://sell-bonded-job/SKILL.md');
+    const text = ((await c.readResource({ uri: s.uri })).contents[0] as { text: string }).text;
+    const bytes = Buffer.from(text, 'utf8');
+    expect(s.resources).toEqual([{ uri: s.uri, digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`, size: bytes.length }]);
+    expect(text).not.toMatch(/\b(safe|risky|rug|scam)\b/i);
+    const names = new Set((await c.listTools()).tools.map((t) => t.name));
+    const mentioned = [...new Set((text.match(/`(sell_[a-z_]+)`/g) ?? []).map((m) => m.slice(1, -1)))];
+    expect(mentioned.length).toBeGreaterThan(3);
+    expect(mentioned.filter((n) => !names.has(n))).toEqual([]);
+    await expect(c.request({ method: 'skills/get', params: { uri: 'skill://nope/SKILL.md' } } as never, z.any())).rejects.toThrow();
+  });
+});
