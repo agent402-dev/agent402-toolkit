@@ -202,7 +202,7 @@ describe.skipIf(!isPublic)('public docs: relative links resolve', () => {
   const slug = (h: string) => h.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
   const anchorsOf = (f: string) => new Set((readFileSync(f, 'utf8').replace(/```[\s\S]*?```/g, '').match(/^#{1,6} .+$/gm) ?? []).map((h) => slug(h.replace(/^#+ /, ''))));
   const sub = (d: string, f: string) => (existsSync(join(PUB_ROOT, d)) ? readdirSync(join(PUB_ROOT, d)).map((n) => join(d, n, f)) : []);
-  const docs = ['README.md', 'docs/getting-started.md', ...sub('packages', 'README.md'), ...sub('packages', 'llms-install.md'), ...sub('plugins', 'README.md')]
+  const docs = ['README.md', 'docs/getting-started.md', ...sub('packages', 'README.md'), ...sub('packages', 'llms-install.md'), ...sub('plugins', 'README.md'), 'plugins/README.md']
     .filter((f) => existsSync(join(PUB_ROOT, f)));
   it('finds the docs to check', () => expect(docs.length).toBeGreaterThan(8));
   it.each(docs)('%s', (f) => {
