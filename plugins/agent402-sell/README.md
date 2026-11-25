@@ -9,7 +9,7 @@ claude plugin install agent402-sell@agent402
 
 Step-by-step setup for an agent: [`llms-install.md`](https://github.com/agent402-dev/agent402-toolkit/blob/main/packages/bond-seller-mcp/llms-install.md).
 
-MCP server the plugin starts (`.mcp.json`): `npx -y @agent402-dev/bond-seller-mcp` (needs Node.js and npm). License: Apache-2.0 ([LICENSE](https://github.com/agent402-dev/agent402-toolkit/blob/main/LICENSE)).
+MCP server the plugin starts (`.mcp.json`): `npx -y @agent402-dev/bond-seller-mcp` (needs Node.js 20 or newer and npm). License: Apache-2.0 ([LICENSE](https://github.com/agent402-dev/agent402-toolkit/blob/main/LICENSE)).
 
 Until it is configured, `sell_status` lists what is missing. Set the seller variables (`BOND_SELLER_KEYPAIR_PATH`, `BOND_SELLER_RPC_URL`, the price and bond) in the environment Claude Code starts from; see the [bond-seller-mcp README](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/bond-seller-mcp#settings). Use a small, dedicated seller wallet.
 

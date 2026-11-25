@@ -16,6 +16,6 @@ Three plugins in the `agent402` marketplace. Each one runs one MCP server from t
 
 Other MCP clients can run the same servers directly; see each package README or the [getting started guide](../docs/getting-started.md).
 
-Requirements: each plugin starts its server with `npx -y <package>` (the `.mcp.json` in its folder), so Node.js and npm must be on PATH. License: Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)).
+Requirements: each plugin starts its server with `npx -y <package>` (the `.mcp.json` in its folder), so Node.js 20 or newer and npm must be on PATH. License: Apache-2.0 ([LICENSE](../LICENSE), [NOTICE](../NOTICE)).
 
 The Agent402 Bond programs have had internal review only and are not independently audited. Not affiliated with agent402.tools.
