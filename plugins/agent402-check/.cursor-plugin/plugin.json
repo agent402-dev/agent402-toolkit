@@ -1,0 +1,18 @@
+{
+  "name": "agent402-check",
+  "displayName": "Agent402 Check",
+  "description": "Free facts with evidence addresses about a Solana token mint: authorities, Token-2022 extensions, holders, liquidity locks. No ratings, not investment advice. Includes the token-facts skill.",
+  "author": {
+    "name": "Agent402",
+    "url": "https://github.com/agent402-dev"
+  },
+  "homepage": "https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/check-mcp",
+  "repository": "https://github.com/agent402-dev/agent402-toolkit",
+  "license": "Apache-2.0",
+  "keywords": [
+    "solana",
+    "token",
+    "onchain-data",
+    "mcp"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "bond-seller": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@agent402-dev/bond-seller-mcp"
+      ]
+    }
+  }
+}

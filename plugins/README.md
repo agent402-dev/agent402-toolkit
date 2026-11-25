@@ -12,6 +12,7 @@ Three plugins in the `agent402` marketplace. Each one runs one MCP server from t
 
 - Claude Code: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402` (or `agent402-sell@agent402`, `agent402-check@agent402`).
 - Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (or `agent402-sell@agent402`, `agent402-check@agent402`). Needs git on PATH.
+- Cursor: the repository root has `.cursor-plugin/marketplace.json` and each plugin has `.cursor-plugin/plugin.json` and `mcp.json`. To try one locally, copy its folder to `~/.cursor/plugins/local/<name>` (for example `~/.cursor/plugins/local/agent402-pay`) and run Reload Window. Teams can add the repository from the Cursor dashboard with Import from Repo.
 
 Other MCP clients can run the same servers directly; see each package README or the [getting started guide](../docs/getting-started.md).
 
