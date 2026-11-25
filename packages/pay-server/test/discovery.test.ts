@@ -1,4 +1,5 @@
 // pay-server optional x402 discovery metadata (extensions.bazaar, resource.iconUrl): off = 402 unchanged, checks on start, examples follow the schema
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { decodePaymentRequiredHeader } from '@x402/core/http';
@@ -108,5 +109,26 @@ describe('x402 discovery metadata (optional)', () => {
     const wrong = wordCount().bazaar;
     expect(ajv.validate(wrong.schema, { ...wrong.info, input: { ...wrong.info.input, body: '' } })).toBe(false);
     expect(ajv.validate(wrong.schema, { ...wrong.info, output: { type: 'json', example: { words: 'two' } } })).toBe(false);
+  });
+});
+
+describe('pay-server README: Discovery metadata section', () => {
+  const md = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const sec = md.slice(md.indexOf('## Discovery metadata (optional)'), md.indexOf('## Agent402 Bond, seller side'));
+  it('the code example builds metadata the gate accepts, and the limits it states match the code', () => {
+    expect(sec.length).toBeGreaterThan(100);
+    const code = /```ts\n([\s\S]*?)```/.exec(sec)![1];
+    expect(code).toContain("from '@agent402-dev/pay-server/discovery'");
+    const d: DiscoveryConfig = {
+      bazaar: bazaarDeclaration({
+        method: 'POST', bodyType: 'text', example: 'hello world', inputSchema: { type: 'string', minLength: 1 },
+        outputExample: { words: 2 }, outputSchema: { type: 'object', properties: { words: { type: 'integer' } }, required: ['words'] },
+      }),
+      iconUrl: 'https://your.example/icon.png',
+    };
+    expect(code.replace(/\s+/g, ' ')).toContain("bodyType: 'text', example: 'hello world'");
+    expect(discoveryProblems('Counts the words in a text', d)).toEqual([]);
+    expect(sec).toContain(`${DISCOVERY_DESCRIPTION_MAX} characters`);
+    expect(sec).not.toMatch(/\b(safe|risky|rug|scam)\b/i);
   });
 });

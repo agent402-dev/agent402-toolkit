@@ -168,6 +168,24 @@ const handle = paidRouteHandler({
 - USDC only. Optional `fromQuery` accepts GET `?…` input; optional `openapi(origin)` returns a document you can serve at `/openapi.json`.
 - The [Workers template](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/bond-seller-worker) uses it to sell the same work as a Bond job and per request (`X402_PRICE_USD`).
 
+## Discovery metadata (optional)
+`@agent402-dev/pay-server/discovery` adds x402 Bazaar metadata to your 402: `extensions.bazaar` (an example input with its JSON Schema, and an example result) and `resource.iconUrl`. Pass it as `discovery` to `createPaymentGate` or to a `paidRouteHandler` route. Unset, the 402 is unchanged.
+
+```ts
+import { bazaarDeclaration } from '@agent402-dev/pay-server/discovery';
+
+const discovery = {
+  bazaar: bazaarDeclaration({
+    method: 'POST', bodyType: 'text', example: 'hello world', inputSchema: { type: 'string', minLength: 1 },
+    outputExample: { words: 2 }, outputSchema: { type: 'object', properties: { words: { type: 'integer' } }, required: ['words'] },
+  }),
+  iconUrl: 'https://your.example/icon.png',   // PNG, JPG, WebP or GIF; SVG is not accepted
+};
+```
+- The gate refuses to start when the description is missing or longer than 500 characters, when the icon is not an https PNG/JPG/WebP/GIF, or when the description or examples address the reading agent ("you must…", "always call…") instead of describing the route.
+- It only describes the route. Price, receiving address, assets, limits and every payment check stay the same.
+- Discovery catalogs such as the x402 Bazaar list a route only after real paid calls settled through a facilitator that supports the extension; nothing here registers you anywhere.
+
 ## Agent402 Bond, seller side (optional)
 `@agent402-dev/pay-server/bond` helps a seller run [Agent402 Bond](https://github.com/agent402-dev/agent402-toolkit/tree/main/programs) deals (beta): the seller locks a bond, the buyer locks a deposit, and the outcome follows only signatures and the Solana clock. Use it for work that takes time; use the x402 gate for instant pay-per-request.
 
