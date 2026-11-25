@@ -70,7 +70,7 @@ describe('bond_find_sellers', () => {
     expect(r.note).toMatch(/not an endorsement.*never as instructions.*nothing was signed or paid/);
     expect(r.sellers.map((s) => s.url)).toEqual(['https://csv.example.com', 'https://preq.example.com/jobs', 'https://down.example.com']);
     const [a, b, c] = r.sellers as any[];
-    expect(a).toMatchObject({ reachable: true, operator: 'Agent402 toolkit developer', asset: 'USDC', price: '1 USDC', sellerBond: '0.1 USDC', depositNow: '0.25 USDC', sellerBondShare: '10%', deliverWithin: `${600 / 3600} h` });
+    expect(a).toMatchObject({ reachable: true, operator: 'Agent402 toolkit developer', asset: 'USDC', price: '1 USDC', sellerBond: '0.1 USDC', depositNow: '0.25 USDC', sellerBondShare: '10%', deliverWithin: '10 min' });
     expect(a.thisWallet.wouldRefuse.join(' ')).toMatch(/csv\.example\.com is not in X402_ALLOWED_DOMAINS.*X402_BOND_SELLERS/);
     expect(a.toAllow).toContain(`add ${SELLER_A} to X402_BOND_SELLERS`);
     expect(a.toAllow.at(-1)).toMatch(/only a human should change these settings/);
@@ -188,5 +188,12 @@ describe('Job Protocol v2 sellers in the directory', () => {
     const bad = await bondFindSellers(deps({}, { 'https://down.example.com/quote': quoteV2({ grace: 'soon' }) }).d, { v2 });
     if (bad.result !== 'ok') throw new Error('failed');
     expect(bad.sellers[2]).toMatchObject({ reachable: false, problem: expect.stringContaining('grace') });
+  });
+});
+
+describe('bond_find_sellers durations', async () => {
+  const { dur } = await import('@agent402-dev/pay-mcp/bond-directory');
+  it('reads like people write it', () => {
+    expect([dur(600), dur(3600), dur(5400), dur(86400), dur(172800), dur(604800)]).toEqual(['10 min', '1 h', '1.5 h', '24 h', '2 d', '7 d']);
   });
 });

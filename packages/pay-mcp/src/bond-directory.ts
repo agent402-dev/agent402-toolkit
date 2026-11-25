@@ -11,6 +11,13 @@ import { evaluate, type BondJobDeps } from './bond-job.js';
 import { evaluateV2, type BondV2Deps, type BondV2Policy } from './bond-v2.js';
 import { domainCheck } from './policy.js';
 
+/** Seconds as a short readable duration: 600 → "10 min", 3600 → "1 h", 5400 → "1.5 h", 172800 → "2 d". */
+export function dur(s: number): string {
+  if (s < 3600) return `${Math.round(s / 60)} min`;
+  if (s < 172800) return `${Math.round((s / 3600) * 10) / 10} h`;
+  return `${Math.round((s / 86400) * 10) / 10} d`;
+}
+
 export const DEFAULT_DIRECTORY_URL = 'https://raw.githubusercontent.com/agent402-dev/agent402-toolkit/main/directory/bond-sellers.json';
 export const DIRECTORY_MAX = 50;
 
@@ -154,12 +161,12 @@ export async function bondFindSellers(d: BondJobDeps, o: FindOptions = {}) {
       description: q.description ?? null, seller: q.seller, asset,
       price: units(price, asset), sellerBond: units(bond, asset), depositNow: units(dep, asset),
       sellerBondShare: `${Number((bond * 10_000n) / (price || 1n)) / 100}%`,
-      deliverWithin: `${Number(q.deliverSeconds) / 3600} h`,
+      deliverWithin: dur(Number(q.deliverSeconds)),
       ...(isV2 ? (() => { const v = q as JobQuoteV2; return {
-        protocol: 'v2' as const, reviewWindow: `${Number(v.reviewWindow) / 3600} h after delivery to accept`,
+        protocol: 'v2' as const, reviewWindow: `${dur(Number(v.reviewWindow))} after delivery to accept`,
         ifNotAccepted: v.sellerShareBps > 0 ? `the seller keeps ${v.sellerShareBps / 100}% of your deposit; the rest comes back` : 'each side gets its own money back',
         arbiter: v.arbiter, tools: 'bond_v2_quote → bond_v2_start → bond_v2_result → bond_v2_accept → bond_v2_settle',
-      }; })() : { protocol: 'v1' as const, payWindow: `${Number((q as JobQuote).payWindow) / 3600} h after delivery`, tools: 'bond_job_quote → bond_job_start → bond_job_result → bond_confirm_and_pay → bond_settle' }),
+      }; })() : { protocol: 'v1' as const, payWindow: `${dur(Number((q as JobQuote).payWindow))} after delivery`, tools: 'bond_job_quote → bond_job_start → bond_job_result → bond_confirm_and_pay → bond_settle' }),
       thisWallet: reasons.length ? { wouldRefuse: reasons } : { ok: true },
       ...(reasons.length ? { toAllow: allowHints(host, q.seller, asset, domainOk, d.bond.sellers.includes(q.seller), isV2) } : {}),
       ...(perRequest ? { perRequest } : {}),

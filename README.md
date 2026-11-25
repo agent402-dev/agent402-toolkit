@@ -12,6 +12,9 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 
 **New here?** [Try it in one minute](docs/getting-started.md#try-it-in-one-minute-no-wallet-nothing-paid) with no wallet (live sellers and prices, nothing paid), then [Getting started](docs/getting-started.md): let your AI agent pay for an API, or get paid by AI agents, in a few minutes.
 
+![pay-mcp with no wallet: bond_find_sellers lists live sellers and their terms; x402_quote shows a 0.05 USDC price and is refused, nothing signed](docs/assets/try-1min-demo.svg)
+
+
 ## Packages
 | Package | What it is |
 |---|---|

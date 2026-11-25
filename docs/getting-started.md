@@ -28,6 +28,8 @@ Then ask your agent:
 2. **"Run x402_quote on https://agent402-tx-receipts.agent402-ebc.workers.dev/x402/receipts?signatures=5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"** It shows the x402 price (0.05 USDC) and the recipient, and answers `refused` because no recipient is trusted yet: nothing is signed.
 3. **"Run wallet_status."** It shows the limits that would apply once you add a wallet.
 
+![What the agent shows, with no wallet](assets/try-1min-demo.svg)
+
 The two sellers in the directory today are run by the toolkit developer, and are marked so. When you want to pay for real, continue below.
 
 ## Buyer: let your AI agent pay for an API

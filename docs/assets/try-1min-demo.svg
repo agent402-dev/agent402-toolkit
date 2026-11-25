@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="382" viewBox="0 0 980 382" role="img" aria-label="pay-mcp with no wallet: live sellers and a refused quote">
+<rect width="980" height="382" rx="10" fill="#111827"/>
+<circle cx="22" cy="20" r="6" fill="#ef4444"/><circle cx="42" cy="20" r="6" fill="#f59e0b"/><circle cx="62" cy="20" r="6" fill="#22c55e"/>
+<text x="960" y="24" text-anchor="end" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="12" fill="#6b7280">@agent402-dev/pay-mcp · output 2026-11-25</text>
+<text x="20" y="54" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve">$ claude mcp add a402-try \</text>
+<text x="20" y="76" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve">    -e X402_ALLOWED_DOMAINS=agent402-tx-receipts.agent402-ebc.workers.dev \</text>
+<text x="20" y="98" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve">    -- npx -y @agent402-dev/pay-mcp</text>
+<text x="20" y="120" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve"></text>
+<text x="20" y="142" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#93c5fd" xml:space="preserve">&gt; Run bond_find_sellers</text>
+<text x="20" y="164" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve">  agent402-wallet-csv…  v2  price 1 USDC  bond 0.1 USDC  deposit 0.3 USDC  deliver 1 h</text>
+<text x="20" y="186" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve">  agent402-tx-receipts…  v2  price 0.1 USDC  bond 0.01 USDC  deposit 0.03 USDC  deliver 10 min</text>
+<text x="20" y="208" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#9ca3af" xml:space="preserve">  (both run by the toolkit developer)</text>
+<text x="20" y="230" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#fca5a5" xml:space="preserve">  your wallet would refuse: X402_BOND_MAX_USD not set · seller not in X402_BOND_SELLERS</text>
+<text x="20" y="252" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve"></text>
+<text x="20" y="274" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#93c5fd" xml:space="preserve">&gt; Run x402_quote on agent402-tx-receipts…/x402/receipts?signatures=5VER…</text>
+<text x="20" y="296" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#e5e7eb" xml:space="preserve">  price 0.05 USDC to 3re9…TGYH</text>
+<text x="20" y="318" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#fca5a5" xml:space="preserve">  result: refused — pay_to_not_trusted (no trusted recipient)</text>
+<text x="20" y="340" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="14" fill="#86efac" xml:space="preserve">  Nothing was signed. No wallet is configured.</text>
+</svg>
