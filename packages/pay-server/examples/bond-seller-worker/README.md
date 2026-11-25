@@ -33,6 +33,21 @@ Details for each step follow.
 ## 1. Your work
 Replace `checkInput()` and `doWork()` in `index.ts`. `checkInput` refuses malformed requests before any deal or payment. `doWork` runs once per deal, after the buyer's deposit is locked on chain. Whatever it returns is what the buyer receives. Keep it well under `DELIVER_SECONDS`.
 
+### Example jobs
+`jobs/` holds ready-made work you can sell as is or copy from. Each one is a pair of pure functions (no network, no keys), so the same input always gives the same result bytes.
+
+| File | What the buyer sends | What the buyer gets |
+|---|---|---|
+| `jobs/csv-to-json.ts` | CSV text with a header row (up to 1 MB, 10,000 rows) | `{ columns, rowCount, rows, ragged }`: rows as objects keyed by column name, values as text, and the numbers of rows whose field count differs from the header |
+
+To sell it, in `index.ts`:
+```ts
+import { checkCsvInput, csvToJson } from './jobs/csv-to-json';
+function checkInput(input: string) { return checkCsvInput(input); }
+async function doWork(input: string) { return csvToJson(input); }
+```
+Then describe it in `DESCRIPTION` (for example "CSV to JSON rows, up to 10,000 rows") and set your price. Other jobs that fit this shape: format or validate JSON against a schema you publish, extract tables from Markdown, normalize addresses or dates in a list, summarize a document with your own model or API key (keep the key in a Worker secret).
+
 ## 2. A dedicated seller wallet
 The Worker signs as the seller (opening deals, marking delivery, settling), so it needs a key. Use **a new wallet used only for this Worker**, and keep in it only what deals need:
 - SOL for network fees and the rent of each open deal's two accounts (about 0.005 SOL per deal, returned to you when the deal closes);
