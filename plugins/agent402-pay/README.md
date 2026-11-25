@@ -13,6 +13,8 @@ Step-by-step setup for an agent: [`llms-install.md`](https://github.com/agent402
 
 To pay for real, set the variables in the environment Claude Code starts from (the server reads them at start): `X402_KEYPAIR_PATH` (a small, dedicated wallet), `X402_ALLOWED_DOMAINS`, `X402_TRUSTED_PAY_TO`, and limits such as `X402_MAX_USD` and `X402_MAX_USD_PER_DAY`. The full list is in the [pay-mcp README](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-mcp#rules-checked-before-signing). The wallet key never leaves your machine.
 
+Full buyer walkthrough: [getting started, buyer section](../../docs/getting-started.md#buyer-let-your-ai-agent-pay-for-an-api).
+
 The Agent402 Bond programs have had internal review only and are not independently audited. Not affiliated with agent402.tools.
 
 All three Agent402 plugins: [overview](../README.md).
