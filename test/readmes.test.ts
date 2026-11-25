@@ -80,3 +80,31 @@ describe('docs/getting-started.md How to pay FAQ', () => {
     expect(policy).toContain('pay_to_not_trusted');
   });
 });
+
+describe('pay-server README: check your own 402 without a wallet', () => {
+  const md = read('../packages/pay-server/README.md');
+  const sec = md.slice(md.indexOf('## Check your own 402 without a wallet'), md.indexOf('## Signed receipts'));
+  const policy = read('../packages/pay-mcp/src/policy.ts');
+  const agent = read('../packages/pay-mcp/src/agent.ts');
+  const server = read('../packages/pay-mcp/src/server.ts');
+  it('section exists, no key file in the example config, quote only', () => {
+    expect(sec.length).toBeGreaterThan(300);
+    const cfg = JSON.parse(sec.split('```json')[1].split('```')[0]);
+    expect(Object.keys(cfg.env).sort()).toEqual(['X402_ALLOWED_DOMAINS', 'X402_TRUSTED_PAY_TO']);
+    expect(server).toMatch(/X402_KEYPAIR_PATH.*Without it, no payments \(x402_quote only\)/);
+    expect(sec).toContain('`x402_quote`');
+    expect(sec).not.toContain('`x402_fetch`');
+  });
+  it('every reason and env variable named exists in pay-mcp', () => {
+    for (const r of ['domain_not_allowed', 'pay_to_not_trusted', 'invalid_payment_required_header', 'wrong_network', 'unsupported_scheme', 'asset_not_allowed', 'over_per_payment_limit']) {
+      expect(sec).toContain(`\`${r}\``);
+      expect(policy + agent).toContain(r);
+    }
+    for (const v of new Set(sec.match(/X402_[A-Z_]+/g) ?? [])) expect(policy + server).toContain(v);
+  });
+  it('stated default per-payment limit matches pay-mcp', () => {
+    const m = policy.match(/maxUsdPerPayment: num\(env\.X402_MAX_USD, ([\d.]+)\)/);
+    expect(m).not.toBeNull();
+    expect(sec).toContain(`default ${m![1]} USD`);
+  });
+});

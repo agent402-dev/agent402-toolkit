@@ -77,6 +77,40 @@ export default {
 ```
 Rate stores: `memoryRateStore()` (default, tests), `fileRateStore(path)` from `@agent402-dev/pay-server/rates-file` (Node), or your own `RateStore` (for example a Cloudflare Durable Object; see the [Workers example](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/cloudflare-worker)). A Node example is in [`examples/node-server`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/node-server).
 
+## Check your own 402 without a wallet
+Before you list your endpoint anywhere, look at it the way a buyer's agent will. [`@agent402-dev/pay-mcp`](https://www.npmjs.com/package/@agent402-dev/pay-mcp) runs without a wallet key: with no `X402_KEYPAIR_PATH` it can only quote, never sign or pay.
+
+1. Add pay-mcp to an MCP client with only these settings (no key file):
+   ```json
+   {
+     "command": "npx",
+     "args": ["-y", "@agent402-dev/pay-mcp"],
+     "env": {
+       "X402_ALLOWED_DOMAINS": "your-endpoint.example.com",
+       "X402_TRUSTED_PAY_TO": "YOUR_RECEIVING_ADDRESS"
+     }
+   }
+   ```
+2. Ask the agent to call `x402_quote` with your paid URL.
+3. Read the answer:
+
+| Field | What to check |
+|---|---|
+| `options[].amount` + `amountDisplay` | The price you set. `amount` is in the smallest unit (1 USDC = 1,000,000). |
+| `options[].mint` / `asset` | USDC mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` on mainnet (PREQ only if you offer it). |
+| `options[].payTo` | Your receiving address, exactly. |
+| `result: "not_required"` + `quoteId` | Your 402 parsed and an option passes the buyer rules above. |
+| `result: "refused"` + `reasons` | Why a buyer's agent would stop before signing (see below). |
+
+Common `reasons` and what they mean for a seller:
+- `domain_not_allowed`: the buyer did not list your host in `X402_ALLOWED_DOMAINS`. Every buyer must add it; say your exact host in your docs.
+- `pay_to_not_trusted`: the `payTo` in your 402 is not in the buyer's `X402_TRUSTED_PAY_TO`. Publish your receiving address so buyers can add it.
+- `invalid_payment_required_header`: the `PAYMENT-REQUIRED` header is missing or cannot be decoded.
+- `wrong_network`, `unsupported_scheme`, `asset_not_allowed`: the option is not Solana mainnet `exact` in an asset the buyer allows (USDC by default).
+- `over_per_payment_limit`: your price is above the buyer's per-payment limit (`X402_MAX_USD`, default 0.05 USD in pay-mcp).
+
+Nothing is signed or paid in this check. In a script you can decode the same `PAYMENT-REQUIRED` header with `decodePaymentRequiredHeader` from `@x402/core/http`.
+
 ## Signed receipts (optional)
 After a settled payment the gate can add an `X-Agent402-Receipt` header: a small JSON record, signed with Ed25519, that binds the request (method, path, body hash), the hash of the response body you delivered, and the payment (network, asset, amount, recipient, transaction). Buyers can keep it as evidence for disputes and settlement reports; `@agent402-dev/pay-mcp` checks it automatically.
 
