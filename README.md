@@ -16,6 +16,8 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 
 **Codex plugins.** The same three plugins: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402`, `agent402-sell@agent402` or `agent402-check@agent402`. Needs git on PATH.
 
+**Cursor plugins.** The same three plugins also have Cursor manifests (`.cursor-plugin/` at the repository root and in each plugin). They are not in the Cursor Marketplace yet; to try one locally, see [`plugins/README.md`](plugins/README.md).
+
 ![pay-mcp with no wallet: bond_find_sellers lists live sellers and their terms; x402_quote shows a 0.05 USDC price and is refused, nothing signed](docs/assets/try-1min-demo.svg)
 
 

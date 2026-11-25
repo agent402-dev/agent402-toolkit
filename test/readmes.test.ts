@@ -265,3 +265,22 @@ describe('getting-started links each plugin skill name to its SKILL.md', () => {
       expect(['../claude-plugins/plugins/', '../plugins/'].some((d) => existsSync(new URL(`${d}${f}/SKILL.md`, import.meta.url)))).toBe(true);
   });
 });
+
+describe('Cursor plugin line in the root README', () => {
+  const cursorMarket = ['../claude-plugins/.cursor-plugin/marketplace.json', '../.cursor-plugin/marketplace.json']
+    .map((p) => new URL(p, import.meta.url)).find((u) => existsSync(u));
+  it('root README names the Cursor manifests, says not in the marketplace yet, links plugins/README.md', () => {
+    const md = read(files.root);
+    expect(md).toContain('**Cursor plugins.** The same three plugins also have Cursor manifests (`.cursor-plugin/` at the repository root and in each plugin).');
+    expect(md).toContain('They are not in the Cursor Marketplace yet; to try one locally, see [`plugins/README.md`](plugins/README.md).');
+  });
+  it('the Cursor marketplace file exists and lists the same plugins as the Codex one', () => {
+    expect(cursorMarket).toBeTruthy();
+    const codexMarket = ['../claude-plugins/.agents/plugins/marketplace.json', '../.agents/plugins/marketplace.json']
+      .map((p) => new URL(p, import.meta.url)).find((u) => existsSync(u))!;
+    type M = { name: string; plugins: { name: string; description: string }[] };
+    const [a, b] = [cursorMarket!, codexMarket].map((u) => JSON.parse(readFileSync(u, 'utf8')) as M);
+    expect(a.name).toBe(b.name);
+    expect(a.plugins.map((p) => [p.name, p.description])).toEqual(b.plugins.map((p) => [p.name, p.description]));
+  });
+});
