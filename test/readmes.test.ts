@@ -304,3 +304,10 @@ describe('pay-mcp README tools table marks the v1 Bond tools as legacy', () => {
       expect(md, n).not.toContain('| `' + n + '` | Legacy');
   });
 });
+
+describe('package READMEs that use Agent402 Bond carry the review note', () => {
+  it('pay-mcp and bond-seller-mcp READMEs say internal review only, not independently audited', () => {
+    expect(readFileSync('packages/pay-mcp/README.md', 'utf8')).toContain('internal review only, not independently audited');
+    expect(readFileSync('packages/bond-seller-mcp/README.md', 'utf8')).toContain('Internal review only, not independently audited.');
+  });
+});

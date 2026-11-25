@@ -5,7 +5,7 @@ MCP server (stdio) that lets an AI agent **sell a job** backed by an [Agent402 B
 Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit) (Solana).
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
 
-> Beta. The program has caps of 100 USDC per deal and 2,000 USDC across open deals. Not investment advice.
+> Beta. Internal review only, not independently audited. The program has caps of 100 USDC per deal and 2,000 USDC across open deals. Not investment advice.
 
 ## How a sale works
 1. A buyer asks for the job: over HTTP with the [Bond Job Protocol](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/JOB-PROTOCOL.md) (`BOND_SELL_PORT`), or by another channel, in which case your agent calls `sell_prepare` and passes the transaction on.
