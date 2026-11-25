@@ -32,6 +32,8 @@ Then ask your agent:
 
 The two sellers in the directory today are run by the toolkit developer, and are marked so. When you want to pay for real, continue below.
 
+**Skills for agents.** Each MCP server also publishes its workflow as a skill through the MCP [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview), so a host that supports it can load the steps and the rules when needed: `skill://buy-bonded-job/SKILL.md` ([pay-mcp](../packages/pay-mcp/README.md#skill-buy-bonded-job-skills-over-mcp)), `skill://sell-bonded-job/SKILL.md` ([bond-seller-mcp](../packages/bond-seller-mcp/README.md#skill-sell-bonded-job-skills-over-mcp)) and `skill://token-facts/SKILL.md` ([check-mcp](../packages/check-mcp/README.md#skill-token-facts-skills-over-mcp)). Other clients see them as plain resources.
+
 ## Buyer: let your AI agent pay for an API
 
 `@agent402-dev/pay-mcp` is an MCP server that pays [x402](https://github.com/coinbase/x402) APIs in USDC on Solana from a wallet on your machine. It refuses every payment until you name the domains and recipients it may pay and set limits.
@@ -80,7 +82,7 @@ Pick the shape that fits your work.
 
 **Fastest path: the Cloudflare Workers template** (one Worker sells both per request and bonded jobs)
 
-1. Copy [`packages/pay-server/examples/bond-seller-worker`](../packages/pay-server/examples/bond-seller-worker) and replace `checkInput()` and `doWork()` with your work.
+1. Copy [`packages/pay-server/examples/bond-seller-worker`](../packages/pay-server/examples/bond-seller-worker) and replace `checkInput()` and `doWork()` with your work. A ready-made example job, CSV in and JSON rows out, is in [`jobs/csv-to-json.ts`](../packages/pay-server/examples/bond-seller-worker/jobs/csv-to-json.ts).
 2. Create a new seller wallet used only for this Worker. Fund it with a little SOL (fees and deal rent, returned when deals close) and USDC for your bonds.
 3. Set your terms in `wrangler.toml` (`PROTOCOL = "2"` for Bond v2, and `X402_PRICE_USD` to also sell per request), then:
 
