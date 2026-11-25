@@ -71,6 +71,9 @@ Set the `RECEIPT_KEY` secret to sign a receipt for every paid response. The rece
 - `GET /` shows its public key as `x402.receiptSigner`. Publish it where buyers can check it (your docs or site).
 - A key that cannot be read only turns receipts off (logged); payments still work.
 
+## For AI agents
+`GET /llms.txt` returns a short plain-text guide built from your `DESCRIPTION` and terms: the quote URL, the protocol, the pay-mcp tools in order, and the per-request x402 route when set. Edit `llmsTxt()` in `index.ts` to describe your job in more detail.
+
 ## How it behaves
 - `POST /open` builds the `open` transaction with you as fee payer and signs it; the deal exists only once the buyer signs and sends it.
 - The cron (every 2 minutes) runs `processOpenJobs()`: for each deal the buyer has opened, it does the work, stores the result and marks delivery. It does **not** wait for the buyer to ask, because a deal nobody marked by `deliverBy + 1 day + LATE_WINDOW` pays your bond and the deposit to the buyer.

@@ -193,6 +193,24 @@ function paidRoute(env: Env) {
   return paid;
 }
 
+// GET /llms.txt: a short plain-text guide for AI agents that find this seller. Edit the wording to describe your job.
+function llmsTxt(env: Env, origin: string, seller: string, v2: boolean, x402: boolean): string {
+  const tools = v2
+    ? 'bond_v2_quote -> bond_v2_start -> bond_v2_result -> bond_v2_accept -> bond_v2_settle'
+    : 'bond_job_quote -> bond_job_start -> bond_job_result -> bond_confirm_and_pay -> bond_settle';
+  return [
+    `# ${env.DESCRIPTION}`,
+    '',
+    `> Seller wallet ${seller}. Sold as an Agent402 Bond${v2 ? ' v2' : ''} job: the seller locks a bond, the buyer locks a deposit.`,
+    '',
+    `- Live terms (price, seller bond, deposit, deadlines): GET ${origin}/quote`,
+    `- Protocol: https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/${v2 ? 'JOB-PROTOCOL-v2.md' : 'JOB-PROTOCOL.md'}`,
+    `- With the MCP server @agent402-dev/pay-mcp: ${tools}. A buyer's wallet refuses this seller until a human adds ${new URL(origin).host} to X402_ALLOWED_DOMAINS and the seller wallet to X402_BOND_SELLERS.`,
+    ...(x402 ? [`- Also per request over x402: POST ${origin}/x402/job, ${env.X402_PRICE_USD} USDC on Solana (x402_quote never pays, then x402_fetch).`] : []),
+    '',
+  ].join('\n');
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const route = await paidRoute(env);
@@ -202,6 +220,10 @@ export default {
     const { seller, jobs } = v2 ? serviceV2(env) : service(env);
     const r = await jobs.handle(req);
     if (r) return r;
+    if (req.method === 'GET' && new URL(req.url).pathname === '/llms.txt') {
+      const origin = env.PUBLIC_ORIGIN || new URL(req.url).origin;
+      return new Response(llmsTxt(env, origin, seller.seller, v2, !!route), { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'max-age=300' } });
+    }
     if (req.method === 'GET' && new URL(req.url).pathname === '/') {
       return Response.json({
         protocol: v2 ? 'agent402-bond-job/2' : 'agent402-bond-job/1', seller: seller.seller, quote: '/quote',
