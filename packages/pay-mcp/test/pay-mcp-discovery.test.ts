@@ -100,3 +100,32 @@ describe('pay-server README: the discovery row names real summary fields and not
     for (const n of names) expect(known.has(n), n).toBe(true);
   });
 });
+
+describe('READMEs: inputMethod is documented where the discovery summary is described', () => {
+  const firstExisting = async (paths: string[]) => {
+    const { existsSync } = await import('node:fs');
+    return paths.map((p) => new URL(p, import.meta.url)).find((u) => existsSync(u));
+  };
+  it('pay-mcp README x402_quote row names inputMethod, a real summary field', async () => {
+    const { readFileSync } = await import('node:fs');
+    const file = await firstExisting(['../packages/pay-mcp/README.md', '../README.md']);
+    expect(file).toBeTruthy();
+    const row = readFileSync(file!, 'utf8').split('\n').find((l) => l.startsWith('| `x402_quote` |'))!;
+    expect(row).toContain('`inputMethod`');
+    expect(Object.keys(discoverySummary({}))).toContain('inputMethod');
+  });
+  it('pay-server README discovery row names inputMethod and a pay-mcp version not newer than this package', async () => {
+    const { readFileSync } = await import('node:fs');
+    const readme = await firstExisting(['../packages/pay-server/README.md', '../../pay-server/README.md']);
+    if (!readme) return; // the pay-mcp package alone has no pay-server README
+    const pkg = await firstExisting(['../packages/pay-mcp/package.json', '../package.json']);
+    const row = readFileSync(readme, 'utf8').split('\n').find((l) => l.startsWith('| `discovery` |'))!;
+    expect(row).toContain('`inputMethod`');
+    const named = /Needs pay-mcp (\d+)\.(\d+)\.(\d+) or later/.exec(row);
+    expect(named).toBeTruthy();
+    const have = (JSON.parse(readFileSync(pkg!, 'utf8')) as { version: string }).version.split('.').map(Number);
+    const want = named!.slice(1).map(Number);
+    const cmp = have[0] - want[0] || have[1] - want[1] || have[2] - want[2];
+    expect(cmp).toBeGreaterThanOrEqual(0);
+  });
+});

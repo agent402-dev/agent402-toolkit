@@ -101,7 +101,7 @@ Before you list your endpoint anywhere, look at it the way a buyer's agent will.
 | `options[].payTo` | Your receiving address, exactly. |
 | `result: "not_required"` + `quoteId` | Your 402 parsed and an option passes the buyer rules above. |
 | `result: "refused"` + `reasons` | Why a buyer's agent would stop before signing (see below). |
-| `discovery` | Shape of your [discovery metadata](#discovery-metadata-optional): `bazaar`, `descriptionLength`, `inputExample`, `schema`, `iconFormat`, and `notes` such as `description_too_long` or `icon_format_not_accepted`. Needs pay-mcp 0.14.3 or later. It never changes the buyer rules. |
+| `discovery` | Shape of your [discovery metadata](#discovery-metadata-optional): `bazaar`, `descriptionLength`, `inputExample`, `inputMethod` (GET = query parameters, POST = body), `schema`, `iconFormat`, and `notes` such as `description_too_long` or `icon_format_not_accepted`. Needs pay-mcp 0.14.4 or later (0.14.3 for the other fields). It never changes the buyer rules. |
 
 Common `reasons` and what they mean for a seller:
 - `domain_not_allowed`: the buyer did not list your host in `X402_ALLOWED_DOMAINS`. Every buyer must add it; say your exact host in your docs.
