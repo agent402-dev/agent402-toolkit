@@ -284,3 +284,13 @@ describe('Cursor plugin line in the root README', () => {
     expect(a.plugins.map((p) => [p.name, p.description])).toEqual(b.plugins.map((p) => [p.name, p.description]));
   });
 });
+
+describe('Cursor line in the getting-started buyer plugin paragraph', () => {
+  it('the paragraph with the pay plugin install names the Cursor manifests and links plugins/README.md', () => {
+    const md = read('../docs/getting-started.md');
+    const para = md.split(/\n\s*\n/).find((p) => p.includes('claude plugin install agent402-pay@agent402'));
+    expect(para).toBeTruthy();
+    expect(para).toContain('Cursor: manifests are in `.cursor-plugin/`; not in the Cursor Marketplace yet, see [`plugins/README.md`](../plugins/README.md) to try one locally.');
+    expect(md.indexOf(para!)).toBeLessThan(md.indexOf('## Seller: get paid by AI agents'));
+  });
+});
