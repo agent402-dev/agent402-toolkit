@@ -229,3 +229,10 @@ describe('getting-started links the bond-seller-mcp install guide', () => {
     expect(() => read('../packages/bond-seller-mcp/llms-install.md')).not.toThrow();
   });
 });
+
+describe('root README and getting-started link the plugins overview', () => {
+  it('both link plugins/README.md (resolved by the public link check)', () => {
+    expect(read(files.root)).toContain('[`plugins/README.md`](plugins/README.md)');
+    expect(read('../docs/getting-started.md')).toContain('[`plugins/README.md`](../plugins/README.md)');
+  });
+});

@@ -22,7 +22,7 @@ claude mcp add a402-try \
 
 (Other MCP clients: command `npx`, args `["-y", "@agent402-dev/pay-mcp"]`, the same `env`.)
 
-Or install pay-mcp with its `buy-bonded-job` skill as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402`. In Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (needs git on PATH). The plugin starts the server with no settings, so every payment is refused.
+Or install pay-mcp with its `buy-bonded-job` skill as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402`. In Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (needs git on PATH). The plugin starts the server with no settings, so every payment is refused. The seller and token-facts plugins are listed in [`plugins/README.md`](../plugins/README.md).
 
 Then ask your agent:
 
