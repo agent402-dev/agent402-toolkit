@@ -22,6 +22,8 @@ claude mcp add a402-try \
 
 (Other MCP clients: command `npx`, args `["-y", "@agent402-dev/pay-mcp"]`, the same `env`.)
 
+Or install pay-mcp with its `buy-bonded-job` skill as a Claude Code plugin: `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-pay@agent402`. The plugin starts the server with no settings, so every payment is refused.
+
 Then ask your agent:
 
 1. **"Run bond_find_sellers."** It reads the open seller directory and each seller's live terms: price, seller bond, deposit, delivery time, review window, and which of your settings would refuse the deal.

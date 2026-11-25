@@ -126,3 +126,16 @@ describe('links to the seller 402 self-check', () => {
     expect(md).toMatch(/`x402_quote` with `POST https:\/\/<your-worker>\/x402\/job` and no body/);
   });
 });
+
+describe('Claude Code plugin install lines', () => {
+  it.each([
+    ['getting-started', '../docs/getting-started.md', 'agent402-pay'],
+    ['pay-mcp', '../packages/pay-mcp/README.md', 'agent402-pay'],
+    ['bond-seller-mcp', '../packages/bond-seller-mcp/README.md', 'agent402-sell'],
+    ['check-mcp', '../packages/check-mcp/README.md', 'agent402-check'],
+  ])('%s: marketplace add + install %s@agent402, the plugin is listed in the root README', (_n, path, plugin) => {
+    const md = read(path);
+    expect(md).toContain('`claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install ' + plugin + '@agent402`');
+    expect(read(files.root)).toContain(plugin + '@agent402');
+  });
+});

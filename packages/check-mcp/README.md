@@ -34,6 +34,8 @@ Claude Desktop (`claude_desktop_config.json`):
 ```json
 { "mcpServers": { "a402-check": { "command": "npx", "args": ["-y", "@agent402-dev/check-mcp"], "env": { "A402_CHECK_RPC_URL": "<your mainnet RPC>" } } } }
 ```
+Claude Code plugin (the server plus the `token-facts` skill, no RPC set, so `token_check_summary` works and `token_check` asks for an RPC): `claude plugin marketplace add agent402-dev/agent402-toolkit`, then `claude plugin install agent402-check@agent402`.
+
 Items 5–8 use `getTokenLargestAccounts` and `getProgramAccounts`, which keyless public RPC endpoints often refuse; for these, use an RPC with an API key. Without `A402_CHECK_RPC_URL`, `token_check` explains how to set it and `token_check_summary` still works. The RPC address is never printed or sent to the hosted API.
 
 | Variable | Meaning | Default |
