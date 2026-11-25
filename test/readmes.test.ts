@@ -1,5 +1,7 @@
 // Shared rules for the public READMEs (root + packages): disclaimer, the 4 things it does not do, unrelated to similar names, no rating or recommendation wording, units for token (PREQ, A402) amounts, English only
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const files = {
@@ -157,5 +159,32 @@ describe('bond-seller-mcp llms-install.md (install guide for agents)', () => {
     expect(guide).toContain('Internal review only, not independently audited.');
     expect(guide).not.toMatch(/\b(safe|risky|rug|scam)\b/i);
     expect(guide).not.toMatch(/[가-힣]/);
+  });
+});
+
+// Relative links in the public docs point at files and headings that exist. Runs on the exported public tree only
+// (the private tree keeps some of these files elsewhere), so pub-verify is where it counts.
+const PUB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const isPublic = existsSync(join(PUB_ROOT, '.claude-plugin', 'marketplace.json')) && existsSync(join(PUB_ROOT, 'README.md'));
+describe.skipIf(!isPublic)('public docs: relative links resolve', () => {
+  const slug = (h: string) => h.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+  const anchorsOf = (f: string) => new Set((readFileSync(f, 'utf8').replace(/```[\s\S]*?```/g, '').match(/^#{1,6} .+$/gm) ?? []).map((h) => slug(h.replace(/^#+ /, ''))));
+  const sub = (d: string, f: string) => (existsSync(join(PUB_ROOT, d)) ? readdirSync(join(PUB_ROOT, d)).map((n) => join(d, n, f)) : []);
+  const docs = ['README.md', 'docs/getting-started.md', ...sub('packages', 'README.md'), ...sub('packages', 'llms-install.md'), ...sub('plugins', 'README.md')]
+    .filter((f) => existsSync(join(PUB_ROOT, f)));
+  it('finds the docs to check', () => expect(docs.length).toBeGreaterThan(8));
+  it.each(docs)('%s', (f) => {
+    const file = join(PUB_ROOT, f);
+    const md = readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '');
+    const broken: string[] = [];
+    for (const m of md.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const link = m[1];
+      if (/^[a-z]+:/i.test(link)) continue;
+      const [path, anchor] = link.split('#');
+      const target = path ? resolve(dirname(file), decodeURIComponent(path)) : file;
+      if (!target.startsWith(PUB_ROOT) || !existsSync(target)) { broken.push(link); continue; }
+      if (anchor && statSync(target).isFile() && target.endsWith('.md') && !anchorsOf(target).has(anchor)) broken.push(link);
+    }
+    expect(broken).toEqual([]);
   });
 });
