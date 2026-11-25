@@ -142,6 +142,26 @@ describe('Claude Code plugin install lines', () => {
   });
 });
 
+describe('Codex plugin install lines', () => {
+  const codexMarket = ['../claude-plugins/.agents/plugins/marketplace.json', '../.agents/plugins/marketplace.json']
+    .map((p) => new URL(p, import.meta.url)).find((u) => existsSync(u));
+  it('root README and getting-started: marketplace add + codex plugin add, git noted', () => {
+    expect(read(files.root)).toContain('`codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402`, `agent402-sell@agent402` or `agent402-check@agent402`. Needs git on PATH.');
+    expect(read('../docs/getting-started.md')).toContain('`codex plugin marketplace add agent402-dev/agent402-toolkit`, then `codex plugin add agent402-pay@agent402` (needs git on PATH)');
+  });
+  it('every name@marketplace in those lines exists in the Codex marketplace file', () => {
+    expect(codexMarket).toBeTruthy();
+    const m = JSON.parse(readFileSync(codexMarket!, 'utf8')) as { name: string; plugins: { name: string }[] };
+    const text = read(files.root) + read('../docs/getting-started.md');
+    const named = [...text.matchAll(/codex plugin add ([a-z0-9-]+)@([a-z0-9-]+)`(?:, `([a-z0-9-]+)@[a-z0-9-]+` or `([a-z0-9-]+)@[a-z0-9-]+`)?/g)];
+    expect(named.length).toBe(2);
+    for (const n of named) {
+      expect(n[2]).toBe(m.name);
+      for (const p of n.slice(1).filter((x, i) => i !== 1 && x)) expect(m.plugins.map((x) => x.name)).toContain(p);
+    }
+  });
+});
+
 describe('bond-seller-mcp llms-install.md (install guide for agents)', () => {
   const guide = read('../packages/bond-seller-mcp/llms-install.md');
   const src = ['config.ts', 'tools.ts'].map((f) => read(`../packages/bond-seller-mcp/src/${f}`)).join('\n');
