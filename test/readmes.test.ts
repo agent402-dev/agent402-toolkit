@@ -294,3 +294,13 @@ describe('Cursor line in the getting-started buyer plugin paragraph', () => {
     expect(md.indexOf(para!)).toBeLessThan(md.indexOf('## Seller: get paid by AI agents'));
   });
 });
+
+describe('pay-mcp README tools table marks the v1 Bond tools as legacy', () => {
+  it('each v1 Bond row starts with Legacy Bond v1, no v2 row does', () => {
+    const md = read(files['pay-mcp']);
+    for (const n of ['bond_deal_status', 'bond_open', 'bond_confirm_and_pay', 'bond_settle', 'bond_job_quote', 'bond_job_start', 'bond_job_result'])
+      expect(md, n).toContain('| `' + n + '` | Legacy Bond v1 (new deals use `bond_v2_*`). ');
+    for (const n of ['bond_v2_quote', 'bond_v2_start', 'bond_v2_result', 'bond_v2_accept', 'bond_v2_settle'])
+      expect(md, n).not.toContain('| `' + n + '` | Legacy');
+  });
+});
