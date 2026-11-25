@@ -14,3 +14,5 @@ Step-by-step setup for an agent: [`llms-install.md`](https://github.com/agent402
 > Factual information from public on-chain data. Not investment advice.
 
 Not affiliated with agent402.tools.
+
+All three Agent402 plugins: [overview](../README.md).
