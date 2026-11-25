@@ -22,6 +22,9 @@ claude mcp add a402-check -- npx -y @agent402-dev/check-mcp
 ```
 Then ask your agent: **"Run token_check_summary on EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"** (the USDC mint). It answers from the hosted API with the mint, freeze and metadata authorities and their addresses, and the evidence accounts. `token_check` (the full report) asks for your own RPC first, as below.
 
+## Skill: token-facts (Skills over MCP)
+The server also publishes one skill through the [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview) (`io.modelcontextprotocol/skills`): `skill://token-facts/SKILL.md`, how to use the two tools in order and report facts with their evidence addresses, without judging the token. Hosts that support the extension can load it when needed; other clients see it as a plain resource.
+
 ## Connect
 Claude Code:
 ```bash

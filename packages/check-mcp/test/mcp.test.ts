@@ -114,3 +114,24 @@ describe('token_check (runs locally with your RPC, no payment)', () => {
     expect(JSON.stringify(r.body)).not.toContain('SECRET123');
   });
 });
+
+describe('Skills over MCP: token-facts', async () => {
+  const { z } = await import('zod');
+  const { createHash } = await import('node:crypto');
+  it('lists the skill with a manifest matching the served bytes, names only real tools and keeps the wording rules', async () => {
+    const c = await connect({ apiBase: 'https://api.test', fetch: async () => jsonRes(200, {}), reader: null });
+    expect((c.getServerCapabilities() as { extensions?: Record<string, unknown> }).extensions).toHaveProperty(['io.modelcontextprotocol/skills']);
+    const list = await c.request({ method: 'skills/list', params: {} } as never, z.object({ skills: z.array(z.any()) }).passthrough());
+    const s = list.skills[0];
+    expect(s.uri).toBe('skill://token-facts/SKILL.md');
+    const text = ((await c.readResource({ uri: s.uri })).contents[0] as { text: string }).text;
+    const bytes = Buffer.from(text, 'utf8');
+    expect(s.resources).toEqual([{ uri: s.uri, digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`, size: bytes.length }]);
+    expect(guardrailViolations({ text })).toEqual([]);
+    expect(text).not.toMatch(/\b(safe|risky|rug|scam)\b/i);
+    const names = new Set((await c.listTools()).tools.map((t) => t.name));
+    const mentioned = [...new Set((text.match(/`(token_[a-z_]+)`/g) ?? []).map((m) => m.slice(1, -1)))];
+    expect(mentioned.sort()).toEqual(['token_check', 'token_check_summary']);
+    expect(mentioned.filter((n) => !names.has(n))).toEqual([]);
+  });
+});
