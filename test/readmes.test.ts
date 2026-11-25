@@ -236,3 +236,21 @@ describe('root README and getting-started link the plugins overview', () => {
     expect(read('../docs/getting-started.md')).toContain('[`plugins/README.md`](../plugins/README.md)');
   });
 });
+
+// Bond wording in the public docs follows TERMS-v2: the bond protects the buyer only when delivery is not marked in
+// time. No "escrow that holds the payment until accepted", no guarantee or money-back promise. Public tree only.
+describe.skipIf(!isPublic)('public docs: Bond wording matches TERMS-v2', () => {
+  const sub = (d: string, f: string) => (existsSync(join(PUB_ROOT, d)) ? readdirSync(join(PUB_ROOT, d)).map((n) => join(d, n, f)) : []);
+  const blog = existsSync(join(PUB_ROOT, 'docs/blog')) ? readdirSync(join(PUB_ROOT, 'docs/blog')).filter((n) => n.endsWith('.md')).map((n) => join('docs/blog', n)) : [];
+  const docs = ['README.md', 'docs/getting-started.md', ...sub('packages', 'README.md'), ...sub('packages', 'llms-install.md'), ...sub('plugins', 'README.md'), 'plugins/README.md', ...blog]
+    .filter((f) => existsSync(join(PUB_ROOT, f)));
+  it('TERMS-v2 keeps the sentence the wording is checked against', () => {
+    expect(readFileSync(join(PUB_ROOT, 'docs/bond/TERMS-v2.md'), 'utf8')).toContain('The bond protects the buyer only when the seller does not mark delivery in time.');
+    expect(docs.length).toBeGreaterThan(10);
+  });
+  it.each(docs)('%s', (f) => {
+    const md = readFileSync(join(PUB_ROOT, f), 'utf8').replace(/```[\s\S]*?```/g, '');
+    expect(md).not.toMatch(/\b(held|kept|holds|keeps)\b[^.\n]{0,40}\buntil\b[^.\n]{0,30}\baccept/i);
+    expect(md).not.toMatch(/\bguarantee[ds]?\b|\bmoney-back\b|\bescrow service\b/i);
+  });
+});
