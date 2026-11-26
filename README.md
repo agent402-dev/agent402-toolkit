@@ -10,6 +10,10 @@ Open-source tools for [x402](https://github.com/coinbase/x402) payments in USDC 
 
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
 
+![30-second demo on Base Sepolia testnet: a seller prices a route with pay-server and checks its own 402; a buyer agent with pay-mcp quotes it within its limits and pays 0.001 test USDC](docs/assets/demo-30s.svg)
+
+*Recorded on Base Sepolia testnet with test USDC; addresses shortened.*
+
 ## Get paid for your API
 [`@agent402-dev/pay-server`](packages/pay-server) puts an x402 price on a route you already run: it answers with a 402, has a facilitator verify the payment, runs your handler, and settles only if your handler succeeds. USDC on Solana, Base, or both. It takes only your public receiving address.
 
