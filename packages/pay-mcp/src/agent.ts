@@ -6,7 +6,7 @@ import type { PaymentRequired, PaymentRequirements } from '@x402/core/types';
 import type { History, HistoryEntry, PaymentResult } from './history.js';
 import { checkCommitment, type CommitmentResult } from './commitment.js';
 import type { AccountsFetcher } from './locks.js';
-import { A402_DEPRECATION_WARNING, chooseWithReason, domainCheck, evaluate, isEvmRequirement, nearLimits, needsLock, type Evaluated, type PayPolicy } from './policy.js';
+import { A402_DEPRECATION_WARNING, chooseWithReason, domainCheck, evaluate, resolveResourceUrl, isEvmRequirement, nearLimits, needsLock, type Evaluated, type PayPolicy } from './policy.js';
 import type { EvmConfig } from './evm-config.js';
 import { EvmAuthorizationMismatch } from './evm-wallet.js';
 import { checkReceipt, RECEIPT_HEADER } from './receipt.js';
@@ -118,8 +118,11 @@ export function createAgent(d: AgentDeps) {
     let pr: PaymentRequired;
     try { pr = decodePaymentRequiredHeader(h ?? ''); } catch { return { kind: 'refused', refused: 'invalid_payment_required_header' }; }
     // If the 402 points to a resource at another address, that address must also be on the allowlist
+    // A relative resource.url is read against the URL that answered 402 (same host only); the result is checked the same way
     if (pr.resource?.url) {
-      const rc = domainCheck(d.policy, pr.resource.url);
+      const abs = resolveResourceUrl(pr.resource.url, finalUrl);
+      if (!abs.ok) return { kind: 'refused', refused: `resource_on_disallowed_domain: ${abs.reason}` };
+      const rc = domainCheck(d.policy, abs.url);
       if (!rc.ok) return { kind: 'refused', refused: `resource_on_disallowed_domain: ${rc.reason}` };
     }
     const usage = d.history.today(now());

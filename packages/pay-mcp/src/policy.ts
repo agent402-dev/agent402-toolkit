@@ -167,6 +167,22 @@ export function domainCheck(p: PayPolicy, url: string): { ok: true; host: string
   return { ok: true, host };
 }
 
+/**
+ * The 402's resource.url as an absolute URL. An absolute URL is returned unchanged (domainCheck still applies to it).
+ * A relative path (for example "/v1/search") is resolved against the URL that answered 402 and must stay on that host.
+ * Protocol-relative ("//host/x", "\\host\x") and anything that resolves to another host are refused. No other rule changes:
+ * the result still goes through domainCheck (https only, allowed domains).
+ */
+export function resolveResourceUrl(raw: string, requestUrl: string): { ok: true; url: string } | { ok: false; reason: string } {
+  try { return { ok: true, url: new URL(raw).href }; } catch { /* not absolute */ }
+  const t = raw.trim();
+  if (/^[\\/]{2}/.test(t)) return { ok: false, reason: 'resource_url_protocol_relative' };
+  let base: URL, r: URL;
+  try { base = new URL(requestUrl); r = new URL(t, base); } catch { return { ok: false, reason: 'invalid_url' }; }
+  if (r.host.toLowerCase() !== base.host.toLowerCase() || r.protocol !== base.protocol) return { ok: false, reason: 'resource_url_other_host' };
+  return { ok: true, url: r.href };
+}
+
 export interface DayUsage {
   count: number;
   usd: number;

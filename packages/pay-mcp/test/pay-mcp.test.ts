@@ -11,7 +11,7 @@ import { encodePaymentRequiredHeader, encodePaymentResponseHeader } from '@x402/
 import type { PaymentRequirements } from '@x402/core/types';
 import { createAgent, type ConfirmAnswer } from '@agent402-dev/pay-mcp/agent';
 import { jsonlHistory } from '@agent402-dev/pay-mcp/history';
-import { A402_DEPRECATION_WARNING, domainCheck, evaluate, NETWORKS, policyFromEnv, PREQ_MAINNET_MINT as PAY_MCP_PREQ_MINT, symbolOf, type PolicyEnv } from '@agent402-dev/pay-mcp/policy';
+import { A402_DEPRECATION_WARNING, domainCheck, evaluate, resolveResourceUrl, NETWORKS, policyFromEnv, PREQ_MAINNET_MINT as PAY_MCP_PREQ_MINT, symbolOf, type PolicyEnv } from '@agent402-dev/pay-mcp/policy';
 import { createPayServer } from '@agent402-dev/pay-mcp/tools';
 import { csvField, historyToCsv, CSV_COLUMNS } from '@agent402-dev/pay-mcp/csv';
 import { initWallet } from '@agent402-dev/pay-mcp/init';
@@ -253,6 +253,29 @@ describe('5 attack scenarios: rejected before signing (0 signatures, 0 payment h
   it('5b) the 402 resource points to a disallowed domain', async () => {
     const t = agentWith(BASE, { [`${HOST}/paid`]: () => r402([req()], 'https://evil.test/pay') });
     expectRefusedBeforeSigning(t, await t.agent.payAndFetch({ url: `https://${HOST}/paid` }), /resource_on_disallowed_domain/);
+  });
+  it('5c) a relative resource.url is read against the URL that answered 402 (same host) and the payment goes through', async () => {
+    const t = agentWith(BASE, { [`${HOST}/paid`]: (r) => (r.headers.get('payment-signature') ? paidOk() : r402([req()], '/paid')) });
+    const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+    expect(r.reasons ?? []).not.toContainEqual(expect.stringMatching(/resource_on_disallowed_domain/));
+    expect(r.result).toBe('paid');
+  });
+  it('5d) protocol-relative or http resource.url on the same host is still refused before signing', async () => {
+    for (const [res, why] of [[`//evil.test/pay`, /resource_url_protocol_relative/], [`\\\\evil.test\\pay`, /resource_url_protocol_relative/], [`http://${HOST}/paid`, /insecure_url/]] as const) {
+      const t = agentWith(BASE, { [`${HOST}/paid`]: () => r402([req()], res) });
+      expectRefusedBeforeSigning(t, await t.agent.payAndFetch({ url: `https://${HOST}/paid` }), why);
+    }
+  });
+});
+
+describe('resolveResourceUrl', () => {
+  it('absolute unchanged, relative resolved on the same host, other forms refused', () => {
+    expect(resolveResourceUrl('https://a.test/x', 'https://b.test/y')).toEqual({ ok: true, url: 'https://a.test/x' });
+    expect(resolveResourceUrl('/v1/search?q=1', 'https://a.test/v1/search?q=solana')).toEqual({ ok: true, url: 'https://a.test/v1/search?q=1' });
+    expect(resolveResourceUrl('x', 'https://a.test/v1/y')).toEqual({ ok: true, url: 'https://a.test/v1/x' });
+    expect(resolveResourceUrl('//evil.test/x', 'https://a.test/')).toEqual({ ok: false, reason: 'resource_url_protocol_relative' });
+    expect(resolveResourceUrl(' /\\evil.test/x', 'https://a.test/')).toEqual({ ok: false, reason: 'resource_url_protocol_relative' });
+    expect(resolveResourceUrl('/x', 'not a url')).toEqual({ ok: false, reason: 'invalid_url' });
   });
 });
 
