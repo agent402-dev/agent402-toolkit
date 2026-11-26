@@ -296,7 +296,9 @@ export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage, 
   }
   let amount: bigint;
   try { amount = BigInt(r.amount); } catch { amount = -1n; }
-  if (amount <= 0n) reasons.push('invalid_amount');
+  // A zero price is refused as before; the text only says how to look again (some sellers price by input)
+  if (amount === 0n) reasons.push('invalid_amount: price is 0 — if the seller prices by input, quote again with the same body or query you will send');
+  else if (amount < 0n) reasons.push('invalid_amount');
   let usd: number | null = null;
   if (asset === 'USDC' && amount > 0n) {
     usd = Number(amount) / 1e6;

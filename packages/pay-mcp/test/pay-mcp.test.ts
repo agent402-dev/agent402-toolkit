@@ -396,6 +396,15 @@ describe('PREQ switch: empty mint is an error, A402 (v1) only when enabled expli
     // If not allowed, it still starts with an empty mint (USDC only)
     expect(policyFromEnv({}).allowedAssets).toEqual(['USDC']);
   });
+  it('a zero price is still refused, with a hint to quote again with input (queue 175)', () => {
+    const p = policyFromEnv(BASE);
+    const zero = evaluate(p, req({ amount: '0' }), { count: 0, usd: 0, preq: 0n, a402: 0n });
+    expect(zero.ok).toBe(false);
+    expect(zero.reasons).toContain('invalid_amount: price is 0 — if the seller prices by input, quote again with the same body or query you will send');
+    const bad = evaluate(p, req({ amount: 'x' }), { count: 0, usd: 0, preq: 0n, a402: 0n });
+    expect(bad.ok).toBe(false);
+    expect(bad.reasons).toContain('invalid_amount');
+  });
   it('an empty mint matches no payment requirement (an empty asset string is not treated as PREQ)', () => {
     const p = policyFromEnv(BASE);
     expect(symbolOf(p, '')).toBeNull();
