@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { encodePaymentRequiredHeader } from '@x402/core/http';
-import { check402Url, CHECK_HELP, findingsJson, formatFindings, inspect402, type Answer } from '@agent402-dev/pay-server/check402';
+import { check402Url, CHECK_HELP, errorJson, findingsJson, formatFindings, inspect402, parseCheckArgs, type Answer } from '@agent402-dev/pay-server/check402';
 
 const SOL = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -128,5 +128,30 @@ describe('check402Url (local seller)', () => {
     for (const l of lines) for (const f of l.match(/--[a-z-]+/g) ?? []) expect(CHECK_HELP).toContain(f);
     expect(md).toContain('check https://your-endpoint.example.com/paid --json');
     expect(CHECK_HELP).toContain('1 = something to fix');
+  });
+});
+
+describe('check arguments and output (queue 186, 187, 188)', () => {
+  it('--post must be a JSON object or array; usage errors send nothing', () => {
+    expect(parseCheckArgs([URL0])).toEqual({ url: URL0, method: 'GET', body: undefined, json: false });
+    expect(parseCheckArgs([URL0, '--post', '{"a":1}', '--json'])).toEqual({ url: URL0, method: 'POST', body: '{"a":1}', json: true });
+    expect(parseCheckArgs(['--post', '[1]', URL0])).toMatchObject({ url: URL0, method: 'POST', body: '[1]' });
+    for (const bad of [['--post', 'wallet=abc', URL0], [URL0, '--post', '"x"'], [URL0, '--post', 'null'], [URL0, '--post', '--json'], [URL0, '--post']]) expect(parseCheckArgs(bad)).toHaveProperty('error');
+    expect(parseCheckArgs([URL0, '--Post', '{}'])).toEqual({ error: expect.stringContaining('Unknown option --Post') });
+    expect(parseCheckArgs([])).toHaveProperty('error');
+    expect(parseCheckArgs([URL0, URL0])).toHaveProperty('error');
+    expect(CHECK_HELP).toContain('2 = usage error');
+  });
+  it('a failed request with --json still prints JSON: error, fixes null, nothing signed or paid', () => {
+    const j = JSON.parse(errorJson(URL0, 'Request failed: timeout'));
+    expect(j).toEqual({ url: URL0, fixes: null, error: 'Request failed: timeout', findings: [], signedOrPaid: false });
+    expect(CHECK_HELP).toContain('"fixes": null');
+  });
+  it('the text report says what was checked first; the last line is unchanged', () => {
+    const list = inspect402(answer(pr()), URL0);
+    const out = formatFindings(list, { method: 'POST', url: URL0 }).split('\n');
+    expect(out[0]).toBe(`Checked POST ${URL0} without a payment header.`);
+    expect(out.at(-1)).toBe('Nothing to fix found. Nothing was signed or paid.');
+    expect(formatFindings(list).split('\n')[0]).not.toMatch(/^Checked /);
   });
 });

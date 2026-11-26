@@ -163,9 +163,10 @@ export async function check402Url(url: string, o: CheckOptions = {}, fetchImpl: 
 }
 
 /** Text report: one line per finding, "fix" first */
-export function formatFindings(list: Finding[]): string {
+export function formatFindings(list: Finding[], checked?: { method: 'GET' | 'POST'; url: string }): string {
   const order: Level[] = ['fix', 'note', 'ok'];
   const lines = [...list].sort((a, b) => order.indexOf(a.level) - order.indexOf(b.level)).map((x) => `${x.level.padEnd(4)} ${x.message}`);
+  if (checked) lines.unshift(`Checked ${checked.method} ${checked.url} without a payment header.`);
   const fixes = list.filter((x) => x.level === 'fix').length;
   lines.push(fixes ? `${fixes} thing(s) to fix before buyers' agents can pay.` : 'Nothing to fix found. Nothing was signed or paid.');
   return lines.join('\n');
@@ -178,8 +179,36 @@ export function findingsJson(url: string, list: Finding[]): string {
   return JSON.stringify({ url, fixes: list.filter((x) => x.level === 'fix').length, findings, signedOrPaid: false }, null, 2);
 }
 
+/** JSON report when the request itself failed (network error, timeout): no findings, fixes null */
+export function errorJson(url: string, message: string): string {
+  return JSON.stringify({ url, fixes: null, error: message, findings: [], signedOrPaid: false }, null, 2);
+}
+
+export interface CheckArgs { url: string; method: 'GET' | 'POST'; body?: string; json: boolean }
+
+/** Parse the `check` arguments. A usage error comes back as { error } and no request is sent (exit 2) */
+export function parseCheckArgs(args: string[]): CheckArgs | { error: string } {
+  const i = args.indexOf('--post');
+  if (i >= 0 && args[i + 1] === undefined) return { error: '--post needs a JSON body.' };
+  const unknown = args.filter((a, k) => a.startsWith('--') && a !== '--post' && a !== '--json' && !(i >= 0 && k === i + 1));
+  if (unknown.length) return { error: `Unknown option ${unknown[0]}. Options: --post '<json body>', --json.` };
+  const rest = args.filter((a, k) => !a.startsWith('--') && !(i >= 0 && k === i + 1));
+  if (!rest.length) return { error: 'Give the paid URL to check.' };
+  if (rest.length > 1) return { error: 'Give one URL per check.' };
+  let body: string | undefined;
+  if (i >= 0) {
+    body = args[i + 1]!;
+    let v: unknown;
+    try { v = JSON.parse(body); } catch { v = undefined; }
+    if (v === null || typeof v !== 'object') return { error: `--post body is not a JSON object or array. Quote it for the shell, for example --post '{"wallet":"..."}'.` };
+  }
+  return { url: rest[0]!, method: i >= 0 ? 'POST' : 'GET', body, json: args.includes('--json') };
+}
+
 export const CHECK_HELP = `agent402-pay-server check <url> [--post '<json body>'] [--json]
   Sends one request to your paid URL (GET, or POST with --post) without any payment header,
   and reads the 402 answer the way an x402 buyer's agent will. Nothing is signed or paid; no key is read.
   --json prints the findings as JSON (for scripts and CI) instead of text.
-  Exit code 0 = nothing to fix, 1 = something to fix, 2 = usage error.`;
+  --post takes a JSON object or array (the input buyers will send); anything else is a usage error and nothing is sent.
+  If the request itself fails, --json prints {"error": ..., "fixes": null}.
+  Exit code 0 = nothing to fix, 1 = something to fix or the request failed, 2 = usage error.`;
