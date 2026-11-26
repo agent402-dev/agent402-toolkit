@@ -1,6 +1,6 @@
 # Installing @agent402-dev/pay-mcp (for AI agents such as Cline)
 
-pay-mcp is a local MCP server (stdio) that lets an agent pay x402 APIs in USDC on Solana and buy Agent402 Bond jobs, from a wallet on the user's own machine, within limits the user sets. With no configuration it refuses every payment, so it can be installed first and configured after.
+pay-mcp is a local MCP server (stdio) that lets an agent pay x402 APIs in USDC on Solana (Base optional, off by default) and buy Agent402 Bond jobs, from a wallet on the user's own machine, within limits the user sets. With no configuration it refuses every payment, so it can be installed first and configured after.
 
 ## Requirements
 

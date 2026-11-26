@@ -15,7 +15,7 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity",
-      "description": "Let your agent pay x402 APIs in USDC on Solana and buy Agent402 Bond jobs from your own wallet, within allowlists and limits you set. With no configuration every payment is refused. Includes the buy-bonded-job skill."
+      "description": "Let your agent pay x402 APIs in USDC on Solana (Base optional, off by default) and buy Agent402 Bond jobs from your own wallet, within allowlists and limits you set. With no configuration every payment is refused. Includes the buy-bonded-job skill."
     },
     {
       "name": "agent402-sell",
