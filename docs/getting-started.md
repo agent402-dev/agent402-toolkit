@@ -63,7 +63,7 @@ claude mcp add a402-pay \
 
 Other MCP clients: same command and variables ([README](../packages/pay-mcp/README.md#connect)).
 
-**Base (optional, off by default).** Per-request payments can also use USDC on Base: set `X402_ALLOWED_NETWORKS=solana,base` and `X402_EVM_KEY_PATH`; the same domains, recipients and limits apply, shared across networks ([details](../packages/pay-mcp/README.md#base-evm-per-request-payments-off-by-default)). Agent402 Bond stays on Solana.
+**Base (optional, off by default).** Per-request payments can also use USDC on Base: set `X402_ALLOWED_NETWORKS=solana,base` and `X402_EVM_KEY_PATH`; the same domains, recipients and limits apply, shared across networks ([details](../packages/pay-mcp/README.md#base-evm-per-request-payments-off-by-default)). Agent402 Bond stays on Solana. A `claude mcp add` example that starts on the testnets (Solana devnet and Base Sepolia) is in the [pay-mcp README](../packages/pay-mcp/README.md#base-evm-per-request-payments-off-by-default).
 
 **3. Ask your agent**
 
