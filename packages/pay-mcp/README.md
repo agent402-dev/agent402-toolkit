@@ -53,6 +53,21 @@ Per-request x402 payments can also use USDC on Base, next to Solana. **Off by de
 | Network to use when an option passes on both | `X402_PREFER_NETWORK` | `solana` |
 | Base wallet key file (path only; never printed) | `X402_EVM_KEY_PATH` | not set → every Base payment refused |
 
+Example (Claude Code), starting on the testnets: `X402_NETWORK=devnet` pairs Solana devnet with Base Sepolia.
+
+```bash
+claude mcp add a402-pay \
+  -e X402_NETWORK=devnet \
+  -e X402_KEYPAIR_PATH=<Solana key file> \
+  -e X402_ALLOWED_NETWORKS=solana,base \
+  -e X402_EVM_KEY_PATH=<Base key file, one 0x private key> \
+  -e X402_ALLOWED_DOMAINS=<api.example.com> \
+  -e X402_TRUSTED_PAY_TO=<Solana recipient>,<0x recipient> \
+  -- npx -y @agent402-dev/pay-mcp
+```
+
+Start on the testnets and switch to `X402_NETWORK=mainnet` only after a test payment went through. The limits keep their defaults unless you set them.
+
 - `X402_NETWORK=mainnet` pairs with Base (`eip155:8453`), `devnet` with Base Sepolia (`eip155:84532`). A testnet run never pays on a mainnet, and the reverse.
 - Every existing rule applies to Base too: allowed domains, trusted recipients (add the `0x` address to `X402_TRUSTED_PAY_TO`; compared case-insensitively), per-payment, daily and per-recipient limits, the payment count, and human confirmation.
 - **Limits are shared across networks.** USDC spent on Base and on Solana is added up for the USD limits and the payment count.
