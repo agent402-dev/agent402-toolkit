@@ -79,6 +79,11 @@ To see your price, asset and receiving address the way a buyer's agent reads the
 
 Optional discovery metadata: set `X402_DISCOVERY` in `index.ts` (a commented example is there) to add `extensions.bazaar` (example input with its JSON Schema, example result) and a PNG or JPG `iconUrl` to the 402. Keep `DESCRIPTION` at 500 characters or fewer and describe what the job does; text that addresses the reading agent is refused at start. Discovery catalogs list a route only after real paid calls through a facilitator that supports the extension. Unset, the 402 is unchanged.
 
+### List your endpoint in the pay.sh catalog
+The pay.sh catalog of paid APIs is open source in [`solana-foundation/pay-skills`](https://github.com/solana-foundation/pay-skills), and the `pay` CLI (`pay skills search`) searches it. To add your x402 route, open a pull request there with `providers/<operator>/<name>/PAY.md` and an OpenAPI file for `POST /x402/job` committed next to it (this template does not generate one; write it by hand), following its [CONTRIBUTING guide](https://github.com/solana-foundation/pay-skills/blob/main/CONTRIBUTING.md):
+- paid endpoints must return 402 before payment and accept USDC (or USDT) on Solana mainnet;
+- the PR's CI probes the 402, so the example input in your OpenAPI file must pass `checkInput` (a 400 instead of a 402 fails the probe).
+
 ### Signed receipts (optional)
 Set the `RECEIPT_KEY` secret to sign a receipt for every paid response. The receipt (`X-Agent402-Receipt` header) binds the request (method, path, body hash), the response body hash and the payment, so a buyer can later show what was paid for and what came back. `@agent402-dev/pay-mcp` checks it and reports `receipt.verified`.
 - Use a **separate key, not the seller key**: it signs receipts only and never holds funds.
