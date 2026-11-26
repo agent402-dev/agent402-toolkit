@@ -89,6 +89,17 @@ describe('check402Url (local seller)', () => {
       expect(seen).toEqual([undefined, undefined]);
     } finally { await new Promise<void>((r) => server.close(() => r())); }
   });
+  it('a zero price on a GET with no input adds a note to try again with input (queue 173)', async () => {
+    const zero = (async () => new Response('{}', { status: 402, headers: { 'payment-required': encodePaymentRequiredHeader(pr({ accepts: [sol({ amount: '0' })] }) as never) } })) as unknown as typeof fetch;
+    const g = (await check402Url(URL0, {}, zero)).map((x) => `${x.level}:${x.code}`);
+    expect(g).toContain('fix:amount_zero');
+    expect(g).toContain('note:amount_zero_no_input');
+    const p = (await check402Url(URL0, { method: 'POST', body: '{"a":1}' }, zero)).map((x) => `${x.level}:${x.code}`);
+    expect(p).toContain('fix:amount_zero');
+    expect(p).not.toContain('note:amount_zero_no_input');
+    const ok = (async () => new Response('{}', { status: 402, headers: { 'payment-required': encodePaymentRequiredHeader(pr() as never) } })) as unknown as typeof fetch;
+    expect((await check402Url(URL0, {}, ok)).map((x) => x.code)).not.toContain('amount_zero_no_input');
+  });
   it('refuses plain http outside localhost and reports redirects', async () => {
     expect((await check402Url('http://seller.example/paid'))[0].code).toBe('url_http');
     const fake = (async () => new Response(null, { status: 308, headers: { location: 'https://other.example/' } })) as unknown as typeof fetch;

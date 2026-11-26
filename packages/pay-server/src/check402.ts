@@ -147,7 +147,10 @@ export async function check402Url(url: string, o: CheckOptions = {}, fetchImpl: 
   });
   if ([301, 302, 303, 307, 308].includes(res.status)) return [f('fix', 'redirect', `Answered HTTP ${res.status} (redirect to ${res.headers.get('location') ?? '?'}). Buyers check the domain on each hop; list the final URL.`)];
   const body = (await res.text().catch(() => '')).slice(0, 20_000);
-  return inspect402({ status: res.status, header: (n) => res.headers.get(n), body }, url);
+  const list = inspect402({ status: res.status, header: (n) => res.headers.get(n), body }, url);
+  // A zero price on a request with no input is often a price that depends on the input: say how to look again
+  if (method === 'GET' && list.some((x) => x.code === 'amount_zero')) list.push(f('note', 'amount_zero_no_input', 'This request sent no input. If the price depends on the input, run the check again with --post \'<example input>\' (or query parameters) to see the price buyers will get.'));
+  return list;
 }
 
 /** Text report: one line per finding, "fix" first */
