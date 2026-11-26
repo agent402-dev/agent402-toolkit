@@ -22,6 +22,7 @@ Checked on 2026-11-26. Sellers came from the pay.sh catalog (solana-foundation/p
 | api.agents-trust.com | Base, Solana |
 | blockrun.ai | Base |
 | crypto.apitoll.cloud | Base, Solana |
+| Alibaba Cloud Information Query Service (pay.sh gateway) | Solana (read from pay-mcp 0.15.1; its 402 gives `resource.url` as a relative path) |
 
 Options on other networks (for example Polygon or Arbitrum) are shown by `x402_quote` but never paid: pay-mcp pays only on Solana, and on Base when you turn it on.
 
