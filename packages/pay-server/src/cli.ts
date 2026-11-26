@@ -2,7 +2,7 @@
 // @agent402-dev/pay-server command line: register (signed seller registration), check (read your 402 like a buyer, no wallet). The library itself is used from code (createPaymentGate).
 import { writeFileSync } from 'node:fs';
 import { buildRegistration, REGISTER_HELP } from './register.js';
-import { CHECK_HELP, check402Url, formatFindings } from './check402.js';
+import { CHECK_HELP, check402Url, findingsJson, formatFindings } from './check402.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === 'register') {
@@ -25,7 +25,7 @@ if (cmd === 'register') {
   else {
     try {
       const list = await check402Url(url, i >= 0 ? { method: 'POST', body: args[i + 1] } : {});
-      console.log(formatFindings(list));
+      console.log(args.includes('--json') ? findingsJson(url, list) : formatFindings(list));
       process.exitCode = list.some((x) => x.level === 'fix') ? 1 : 0;
     } catch (e) { console.error(`Request failed: ${(e as Error).message}`); process.exitCode = 1; }
   }

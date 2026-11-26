@@ -3,7 +3,7 @@
 import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { encodePaymentRequiredHeader } from '@x402/core/http';
-import { check402Url, formatFindings, inspect402, type Answer } from '@agent402-dev/pay-server/check402';
+import { check402Url, CHECK_HELP, findingsJson, formatFindings, inspect402, type Answer } from '@agent402-dev/pay-server/check402';
 
 const SOL = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -46,6 +46,28 @@ describe('inspect402', () => {
     expect(codes(answer(pr()))).toContain('note:discovery_missing');
     expect(codes(answer(pr({ resource: { url: URL0, description: 'x'.repeat(501), mimeType: 'a' } })))).toContain('fix:description_too_long');
     expect(codes(answer(pr({ extensions: { bazaar: { info: { input: { type: 'http', method: 'GET' } }, schema: {} } } })))).toContain('ok:discovery');
+  });
+});
+
+describe('Permit2 note and JSON output (queue 167, 168)', () => {
+  it('a Base option that asks for Permit2 gets a note, not a fix; EIP-3009 (no assetTransferMethod) gets neither', () => {
+    const c = codes(answer(pr({ accepts: [base({ extra: { name: 'USD Coin', version: '2', assetTransferMethod: 'permit2' } })] })));
+    expect(c).toContain('note:permit2');
+    expect(c.filter((x) => x.startsWith('fix:'))).toEqual([]);
+    expect(codes(answer(pr({ accepts: [base()] })))).not.toContain('note:permit2');
+    expect(codes(answer(pr({ accepts: [sol({ extra: { feePayer: '2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4', assetTransferMethod: 'permit2' } })] })))).not.toContain('note:permit2');
+  });
+  it('findingsJson has the same findings, fix first, and the fix count', () => {
+    const list = inspect402(answer(pr({ accepts: [sol({ amount: '0' }), base()] })), URL0);
+    const j = JSON.parse(findingsJson(URL0, list));
+    expect(j.url).toBe(URL0);
+    expect(j.signedOrPaid).toBe(false);
+    expect(j.fixes).toBe(list.filter((x) => x.level === 'fix').length);
+    expect(j.fixes).toBeGreaterThan(0);
+    expect(j.findings).toHaveLength(list.length);
+    expect(j.findings[0].level).toBe('fix');
+    expect(j.findings.map((x: { level: string }) => x.level).indexOf('ok')).toBeGreaterThan(j.findings.map((x: { level: string }) => x.level).lastIndexOf('fix'));
+    expect(CHECK_HELP).toContain('--json');
   });
 });
 

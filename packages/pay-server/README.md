@@ -85,7 +85,9 @@ npx -y @agent402-dev/pay-server check https://your-endpoint.example.com/paid
 npx -y @agent402-dev/pay-server check https://your-endpoint.example.com/paid --post '{"q":"example"}'
 ```
 
-It checks the `PAYMENT-REQUIRED` header (x402 v2), each option (scheme, CAIP-2 network, USDC on Solana or Base, `amount` in the smallest unit, `payTo` format, Solana `extra.feePayer`, Base `extra.name`/`extra.version`), `resource.url` (full https URL on your host), the description length, and discovery metadata. Exit code 1 means something to fix.
+Add `--json` (pay-server 0.10.0 or later) to get the same findings as JSON, for a script or a CI step after each deploy; the exit code is the same.
+
+It checks the `PAYMENT-REQUIRED` header (x402 v2), each option (scheme, CAIP-2 network, USDC on Solana or Base, `amount` in the smallest unit, `payTo` format, Solana `extra.feePayer`, Base `extra.name`/`extra.version`, a Base option that asks for Permit2 only), `resource.url` (full https URL on your host), the description length, and discovery metadata. Exit code 1 means something to fix.
 
 To see the full buyer view, including the buyer's own rules:
 Before you list your endpoint anywhere, look at it the way a buyer's agent will. [`@agent402-dev/pay-mcp`](https://www.npmjs.com/package/@agent402-dev/pay-mcp) runs without a wallet key: with no `X402_KEYPAIR_PATH` it can only quote, never sign or pay.

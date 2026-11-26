@@ -60,6 +60,7 @@ function checkOption(r: Record<string, unknown>, i: number): Finding[] {
   const extra = isObj(r.extra) ? r.extra : {};
   if (network.startsWith('solana:') && typeof extra.feePayer !== 'string') out.push(f('fix', 'fee_payer', `${p}: extra.feePayer is missing; Solana "exact" buyers need the facilitator's fee payer address.`));
   if (network.startsWith('eip155:') && (typeof extra.name !== 'string' || typeof extra.version !== 'string')) out.push(f('fix', 'eip712_domain', `${p}: extra.name and extra.version (the token's EIP-712 domain, "USD Coin" / "2" for Base USDC) are missing.`));
+  if (network.startsWith('eip155:') && extra.assetTransferMethod === 'permit2') out.push(f('note', 'permit2', `${p}: asks for Permit2 (extra.assetTransferMethod "permit2"). Buyers that sign only EIP-3009 transferWithAuthorization skip this option; USDC on Base supports EIP-3009.`));
   return out;
 }
 
@@ -158,7 +159,15 @@ export function formatFindings(list: Finding[]): string {
   return lines.join('\n');
 }
 
-export const CHECK_HELP = `agent402-pay-server check <url> [--post '<json body>']
+/** JSON report for scripts and CI: the same findings, "fix" first, and the number of fixes */
+export function findingsJson(url: string, list: Finding[]): string {
+  const order: Level[] = ['fix', 'note', 'ok'];
+  const findings = [...list].sort((a, b) => order.indexOf(a.level) - order.indexOf(b.level));
+  return JSON.stringify({ url, fixes: list.filter((x) => x.level === 'fix').length, findings, signedOrPaid: false }, null, 2);
+}
+
+export const CHECK_HELP = `agent402-pay-server check <url> [--post '<json body>'] [--json]
   Sends one request to your paid URL (GET, or POST with --post) without any payment header,
   and reads the 402 answer the way an x402 buyer's agent will. Nothing is signed or paid; no key is read.
+  --json prints the findings as JSON (for scripts and CI) instead of text.
   Exit code 0 = nothing to fix, 1 = something to fix, 2 = usage error.`;

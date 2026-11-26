@@ -134,7 +134,8 @@ In Codex: `codex plugin marketplace add agent402-dev/agent402-toolkit`, then `co
    ```
 
 4. Open `https://<your-worker>/quote` to see what buyers see.
-5. If you set `X402_PRICE_USD`, check the per-request price the way a buyer's agent reads it, with no wallet and nothing paid: `x402_quote` with `POST https://<your-worker>/x402/job` and no body. See [Check your own 402 without a wallet](../packages/pay-server/README.md#check-your-own-402-without-a-wallet).
+5. If you set `X402_PRICE_USD`, check the per-request price the way a buyer's agent reads it, with no wallet and nothing paid: `x402_quote` with `POST https://<your-worker>/x402/job` and no body. See [Check your own 402 without a wallet](../packages/pay-server/README.md#check-your-own-402-without-a-wallet). Or from a terminal: `npx -y @agent402-dev/pay-server check https://<your-worker>/x402/job --post '<example input>'`.
+6. Optional: also take USDC on Base at the same route by setting `X402_BASE_PAY_TO`, `X402_BASE_FACILITATOR_URL` and the `BASE_RPC_URL` secret ([how](../packages/pay-server/examples/bond-seller-worker/README.md#also-take-usdc-on-base-optional)). Unset, nothing changes.
 
 **Get found**
 
