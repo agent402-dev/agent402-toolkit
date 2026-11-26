@@ -1,5 +1,6 @@
 // Seller 402 check (queue 161): `agent402-pay-server check <url>` reads a 402 like a buyer, without a wallet.
 // Shapes taken from the read-only compatibility run (queue 160): relative or http resource.url, v1 body only, MPP, zero amount.
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { encodePaymentRequiredHeader } from '@x402/core/http';
@@ -118,5 +119,14 @@ describe('check402Url (local seller)', () => {
     expect((await check402Url('http://seller.example/paid'))[0].code).toBe('url_http');
     const fake = (async () => new Response(null, { status: 308, headers: { location: 'https://other.example/' } })) as unknown as typeof fetch;
     expect((await check402Url(URL0, {}, fake))[0].code).toBe('redirect');
+  });
+  it('README check commands only use flags the CLI help lists (queue 184)', () => {
+    const u = ['../packages/pay-server/README.md', '../README.md'].map((p) => new URL(p, import.meta.url)).find((x) => existsSync(x));
+    const md = readFileSync(u!, 'utf8');
+    const lines = md.split('\n').filter((l) => /pay-server(@[^\s]+)? check /.test(l));
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    for (const l of lines) for (const f of l.match(/--[a-z-]+/g) ?? []) expect(CHECK_HELP).toContain(f);
+    expect(md).toContain('check https://your-endpoint.example.com/paid --json');
+    expect(CHECK_HELP).toContain('1 = something to fix');
   });
 });
