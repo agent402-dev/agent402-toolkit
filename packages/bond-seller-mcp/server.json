@@ -81,6 +81,27 @@
           "isSecret": false
         },
         {
+          "name": "BOND_SELL_PROTOCOL",
+          "description": "2 = sell over Agent402 Bond v2 (Job Protocol v2); 1 = Bond v1 (default 1)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_GRACE_SECONDS",
+          "description": "v2: time after the delivery deadline during which you may still mark (1 hour to 1 day, default 86400)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "BOND_SELL_REVIEW_SECONDS",
+          "description": "v2: time the buyer has to accept after your mark (1 hour to 7 days, default 86400)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
           "name": "BOND_SELL_DESCRIPTION",
           "description": "Plain text shown in the quote (at most 500 characters)",
           "isRequired": false,
