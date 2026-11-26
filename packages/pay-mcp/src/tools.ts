@@ -134,19 +134,19 @@ export function createPayServer(d: PayServerDeps): McpServer {
 
   server.tool(
     'x402_fetch',
-    'Fetch a URL and, if it answers HTTP 402 (x402), pay from the configured wallet only when every rule passes before signing: allowed domain (X402_ALLOWED_DOMAINS), trusted recipient (X402_TRUSTED_PAY_TO), allowed asset (USDC by default; PREQ only if listed; A402 (v1) is deprecated), per-payment and daily limits, and human confirmation above the configured amount. Signs at most once per call. Pass quoteId from x402_quote to refuse if the requirements changed. The wallet key never leaves this machine. Returns JSON with result: "paid" (with the response, amount and settlement transaction) or "not_required" (the URL did not ask for payment; its response is returned); "refused" (with reasons) means nothing was signed; "failed" means a payment was signed but the paid request did not complete (see payment_history). Use x402_quote first to see the price without paying.',
+    'Fetch a URL and, if it answers HTTP 402 (x402), pay from the configured wallet only when every rule passes before signing: allowed domain (X402_ALLOWED_DOMAINS), trusted recipient (X402_TRUSTED_PAY_TO), allowed asset (USDC by default; PREQ only if listed; A402 (v1) is deprecated), per-payment and daily limits, and human confirmation above the configured amount. Pays on Solana; USDC on Base only when X402_ALLOWED_NETWORKS includes base (off by default), with the same rules and limits shared across networks. Signs at most once per call. Pass quoteId from x402_quote to refuse if the requirements changed. The wallet key never leaves this machine. Returns JSON with result: "paid" (with the response, amount and settlement transaction) or "not_required" (the URL did not ask for payment; its response is returned); "refused" (with reasons) means nothing was signed; "failed" means a payment was signed but the paid request did not complete (see payment_history). Use x402_quote first to see the price without paying.',
     { ...req, quoteId: z.string().optional().describe('quoteId returned by x402_quote. If set, the payment is refused unless amount, asset and recipient still match that quote.') },
     async (a) => { const r = await withSpendLock(() => agent.payAndFetch(a)); return out(withUnits(r), !['paid', 'not_required'].includes(r.result)); },
   );
   server.tool(
     'x402_quote',
-    'Show the x402 payment requirements of a URL and whether each option passes the payment rules. Never signs or pays. Returns JSON with each payment option, the rule checks and a quoteId that x402_fetch can use to pin the amount, asset and recipient, and a discovery summary (shape of the seller discovery metadata: lengths, presence and formats, useful to sellers checking their own 402); result "refused" (an error) means no option passes. Call this before x402_fetch.',
+    'Show the x402 payment requirements of a URL and whether each option passes the payment rules. Never signs or pays. Returns JSON with each payment option, the rule checks and a quoteId that x402_fetch can use to pin the amount, asset and recipient, the network of each option and which chain would be used (choice), and a discovery summary (shape of the seller discovery metadata: lengths, presence and formats, useful to sellers checking their own 402); result "refused" (an error) means no option passes. Call this before x402_fetch.',
     req,
     async (a) => { const r = await agent.quote(a); return out(withUnits(r), r.result === 'refused'); },
   );
   server.tool(
     'wallet_status',
-    'Read only. Payment wallet address, network, USDC and PREQ balances, payments signed today, and the configured limits and allowlists (including Agent402 Bond rules), with warnings when a limit is near. Takes no input; never signs or pays. Call it first to see whether payments are configured and why a payment might be refused. For past payments use payment_history; for totals over a date range use spending_report.',
+    'Read only. Payment wallet address, network, allowed networks (networks: Solana, and Base only if enabled), USDC and PREQ balances, payments signed today, and the configured limits and allowlists (including Agent402 Bond rules), with warnings when a limit is near. Takes no input; never signs or pays. Call it first to see whether payments are configured and why a payment might be refused. For past payments use payment_history; for totals over a date range use spending_report.',
     {},
     async () => {
       const usage = d.history.today(d.now?.());
