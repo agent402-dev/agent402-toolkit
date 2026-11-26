@@ -21,6 +21,8 @@ export interface DiscoverySummary {
   iconFormat: string | null;
   /** The icon URL uses https */
   iconHttps: boolean | null;
+  /** The 402 also carries a sign-in-with-x (SIWX) challenge: the route asks for a wallet sign-in. pay-mcp never signs in; a $0 option here is a sign-in gate and stays refused */
+  signInWithX: boolean;
   /** Things discovery catalogs are known to reject (short codes) */
   notes: string[];
 }
@@ -53,6 +55,7 @@ export function discoverySummary(pr: { resource?: unknown; extensions?: unknown 
     schema: !!bz && isObj(bz.schema),
     iconFormat,
     iconHttps,
+    signInWithX: isObj(pr.extensions) && isObj(pr.extensions['sign-in-with-x']),
     notes: [],
   };
   if (desc.length === 0) s.notes.push('no_description');

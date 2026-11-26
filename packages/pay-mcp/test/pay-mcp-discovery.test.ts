@@ -38,7 +38,7 @@ describe('x402_quote discovery summary', () => {
     const q = await t.agent.quote({ url: `https://${HOST}/paid` });
     expect(q.quoteId).toBeTruthy();
     expect(q.payment).toMatchObject({ amount: '20000', payTo: TRUSTED });
-    expect(q.discovery).toEqual({ bazaar: false, descriptionLength: 12, descriptionWithinLimit: true, inputExample: false, inputMethod: null, outputExample: false, schema: false, iconFormat: null, iconHttps: null, notes: [] });
+    expect(q.discovery).toEqual({ bazaar: false, descriptionLength: 12, descriptionWithinLimit: true, inputExample: false, inputMethod: null, outputExample: false, schema: false, iconFormat: null, iconHttps: null, signInWithX: false, notes: [] });
     expect(t.signed()).toBe(0);
   });
 
@@ -73,6 +73,12 @@ describe('x402_quote discovery summary', () => {
     expect(discoverySummary({}).inputMethod).toBeNull();
   });
 
+  it('flags a sign-in-with-x challenge without changing notes (queue 179)', () => {
+    const s = discoverySummary({ resource: { description: 'd' }, extensions: { 'sign-in-with-x': { info: {} } } });
+    expect(s.signInWithX).toBe(true);
+    expect(s.notes).toEqual([]);
+    expect(discoverySummary({ resource: { description: 'd' }, extensions: { 'sign-in-with-x': 'x' } }).signInWithX).toBe(false);
+  });
   it('notes what catalogs reject: long or missing description, SVG or http icon, bazaar without input or schema', () => {
     expect(DISCOVERY_DESCRIPTION_MAX).toBe(500);
     expect(discoverySummary({ resource: { description: 'x'.repeat(501) } }).notes).toEqual(['description_too_long']);

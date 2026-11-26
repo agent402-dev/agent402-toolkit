@@ -87,6 +87,8 @@ npx -y @agent402-dev/pay-server check https://your-endpoint.example.com/paid --p
 
 Add `--json` (pay-server 0.10.0 or later) to get the same findings as JSON, for a script or a CI step after each deploy; the exit code is the same.
 
+A route that answers with a $0 option and a `sign-in-with-x` challenge (a free route behind a wallet sign-in) is reported as a `note` (`amount_zero_siwx`), not a `fix` (next pay-server release). Buyers that only pay, such as pay-mcp, stop there; list a paid route if you want them to reach it.
+
 It checks the `PAYMENT-REQUIRED` header (x402 v2), each option (scheme, CAIP-2 network, USDC on Solana or Base, `amount` in the smallest unit, `payTo` format, Solana `extra.feePayer`, Base `extra.name`/`extra.version`, a Base option that asks for Permit2 only), `resource.url` (full https URL on your host), the description length, and discovery metadata. Exit code 1 means something to fix.
 
 To see the full buyer view, including the buyer's own rules:

@@ -100,6 +100,20 @@ describe('check402Url (local seller)', () => {
     const ok = (async () => new Response('{}', { status: 402, headers: { 'payment-required': encodePaymentRequiredHeader(pr() as never) } })) as unknown as typeof fetch;
     expect((await check402Url(URL0, {}, ok)).map((x) => x.code)).not.toContain('amount_zero_no_input');
   });
+  it('a zero price next to a sign-in-with-x challenge is a sign-in gate note, not a fix (queue 178)', async () => {
+    const siwx = { 'sign-in-with-x': { info: { domain: 'seller.example' } } };
+    const c = codes(answer(pr({ accepts: [sol({ amount: '0' }), base({ amount: '0' })], extensions: siwx })));
+    expect(c).toContain('note:amount_zero_siwx');
+    expect(c.filter((x) => x === 'note:amount_zero_siwx')).toHaveLength(2);
+    expect(c).not.toContain('fix:amount_zero');
+    // a priced option keeps its price line, and without the challenge a zero price is still a fix
+    expect(codes(answer(pr({ accepts: [sol()], extensions: siwx })))).toContain('ok:price');
+    expect(codes(answer(pr({ accepts: [sol({ amount: '0' })], extensions: { bazaar: {} } })))).toContain('fix:amount_zero');
+    const fake = (async () => new Response('{}', { status: 402, headers: { 'payment-required': encodePaymentRequiredHeader(pr({ accepts: [sol({ amount: '0' })], extensions: siwx }) as never) } })) as unknown as typeof fetch;
+    const g = (await check402Url(URL0, {}, fake)).map((x) => `${x.level}:${x.code}`);
+    expect(g).not.toContain('note:amount_zero_no_input');
+    expect(g.filter((x) => x.startsWith('fix:'))).toEqual([]);
+  });
   it('refuses plain http outside localhost and reports redirects', async () => {
     expect((await check402Url('http://seller.example/paid'))[0].code).toBe('url_http');
     const fake = (async () => new Response(null, { status: 308, headers: { location: 'https://other.example/' } })) as unknown as typeof fetch;

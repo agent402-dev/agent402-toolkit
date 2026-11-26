@@ -90,6 +90,15 @@ export function inspect402(a: Answer, requestUrl: string): Finding[] {
   const accepts = Array.isArray(pr.accepts) ? (pr.accepts as unknown[]).filter(isObj) : [];
   if (!accepts.length) out.push(f('fix', 'accepts_empty', 'accepts is empty: there is nothing a buyer can pay.'));
   accepts.forEach((r, i) => out.push(...checkOption(r, i)));
+  // A $0 option next to a sign-in-with-x challenge is a wallet sign-in gate (a free route that asks who you are), not a price
+  if (isObj(pr.extensions) && isObj(pr.extensions['sign-in-with-x'])) {
+    for (let k = 0; k < out.length; k++) {
+      const x = out[k]!;
+      if (x.code !== 'amount_zero') continue;
+      const p = x.message.split(':')[0];
+      out[k] = f('note', 'amount_zero_siwx', `${p}: amount is 0 with a sign-in-with-x challenge: a wallet sign-in gate, not a price. Buyers that only pay (no SIWX sign-in) stop here; list a paid route if you want them to reach it.`);
+    }
+  }
   // resource
   const res = isObj(pr.resource) ? pr.resource : null;
   const url = res && typeof res.url === 'string' ? res.url : '';

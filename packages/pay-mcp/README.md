@@ -127,7 +127,7 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 | Tool | What it does |
 |---|---|
 | `x402_fetch` | Fetch a URL; pay only if the rules pass |
-| `x402_quote` | Show payment requirements and which rules pass; never signs; returns `quoteId`, and `discovery` (shape of the seller discovery metadata, never its text, including `inputMethod`: the request method its input example declares) |
+| `x402_quote` | Show payment requirements and which rules pass; never signs; returns `quoteId`, and `discovery` (shape of the seller discovery metadata, never its text, including `inputMethod`: the request method its input example declares, and `signInWithX`: the 402 also asks for a wallet sign-in, which pay-mcp never does — a $0 option there stays refused; next pay-mcp release) |
 | `wallet_status` | Address, balances, today's usage (count, USDC, PREQ), limits including both PREQ limits, allowlists |
 | `payment_history` | Local log: time, URL, asset, amount, recipient, result, settlement transaction id (JSON, or CSV with `format: "csv"`) |
 | `spending_report` | Read only. Totals for a date range (UTC, default this month): per asset, by recipient, host and day; results; verified seller receipts; what is left of today's limits |
