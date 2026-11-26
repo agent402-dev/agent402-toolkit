@@ -1,14 +1,26 @@
-# Agent402 toolkit (Solana)
+# Agent402 toolkit
 
 [![CI](https://github.com/agent402-dev/agent402-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/agent402-dev/agent402-toolkit/actions/workflows/ci.yml)
 
 > **A402 (v1) is deprecated.** The token payment option is now **PREQ** (mint `aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX`). Official addresses: https://claude.ai/artifact/S6UafAfViJk3DJeMsDMAja
 
-Open-source tools from Agent402 for Solana: factual token checks, and [x402](https://github.com/coinbase/x402) payments in USDC and PREQ (a Token-2022 token).
+Open-source tools for [x402](https://github.com/coinbase/x402) payments in USDC on Solana and Base, run on your own machine under rules you set: take payments for your API, and let your AI agent pay for APIs within limits and allowlists. Also: bonded jobs and factual token checks on Solana, and PREQ (a Token-2022 token) as an optional Solana payment.
 
 > Factual information from public on-chain data. Not investment advice.
 
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
+
+## Get paid for your API
+[`@agent402-dev/pay-server`](packages/pay-server) puts an x402 price on a route you already run: it answers with a 402, has a facilitator verify the payment, runs your handler, and settles only if your handler succeeds. USDC on Solana, Base, or both. It takes only your public receiving address.
+
+- Start: [Seller guide](docs/getting-started.md#seller-get-paid-by-ai-agents) · [one paid route](packages/pay-server/README.md#one-paid-route-with-input-checks-optional) · [accept USDC on Base](packages/pay-server/README.md#accept-usdc-on-base-optional)
+- Check your own 402 the way a buyer's agent reads it (no wallet, nothing paid): `npx -y @agent402-dev/pay-server check https://your-endpoint.example.com/paid`
+
+## Let your AI agent pay for APIs
+[`@agent402-dev/pay-mcp`](packages/pay-mcp) is an MCP server that pays x402 APIs from your own wallet, in USDC on Solana or Base, only within the per-payment and daily limits, domain allowlist and trusted recipients you set. With no configuration, every payment is refused. Public sellers it reads correctly: [Works with](docs/works-with.md).
+
+## Bonded jobs (Solana)
+For work that takes minutes to hours, [Agent402 Bond](#agent402-bond-solana-program-beta) lets a seller lock a bond and the buyer pay after delivery. Internal review only, not independently audited.
 
 **New here?** [Try it in one minute](docs/getting-started.md#try-it-in-one-minute-no-wallet-nothing-paid) with no wallet (live sellers and prices, nothing paid), then [Getting started](docs/getting-started.md): let your AI agent pay for an API, or get paid by AI agents, in a few minutes.
 
@@ -26,7 +38,7 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 |---|---|
 | [`@agent402-dev/check-engine`](packages/check-engine) | Reads public on-chain data for a token mint and returns facts with evidence addresses (authorities, Token-2022 extensions, holders, liquidity locks, operator locks, early buys) |
 | [`@agent402-dev/check-mcp`](packages/check-mcp) | MCP server for the checks. Free: summary from the hosted API, full report on your machine with your own RPC |
-| [`@agent402-dev/pay-server`](packages/pay-server) | Server helpers to accept x402 payments in USDC and, optionally, PREQ through external facilitators (verify → your handler → settle). Optional `/bond` entry for sellers running Agent402 Bond deals (takes a signer, never a key) |
+| [`@agent402-dev/pay-server`](packages/pay-server) | Server helpers to accept x402 payments in USDC on Solana and Base and, optionally on Solana, PREQ through external facilitators (verify → your handler → settle). Optional `/bond` entry for sellers running Agent402 Bond deals (takes a signer, never a key) |
 | [`@agent402-dev/pay-mcp`](packages/pay-mcp) | MCP server that lets an AI agent pay x402 APIs and take part in Agent402 Bond deals as a buyer, from your own wallet, on your machine, within limits and allowlists you set (with no configuration, every payment is refused) |
 | [`@agent402-dev/bond-seller-mcp`](packages/bond-seller-mcp) | MCP server that lets an AI agent sell jobs backed by Agent402 Bond deals (USDC or PREQ), from your own seller wallet, on your machine: prepare deals, do the work, mark delivery, settle |
 | [`@agent402-dev/bond-client`](packages/bond-client) | Instruction builders and the settlement rules (deadlines, possible actions, settlement preview) for the Agent402 Bond program (beta, below), plus a two-agent example |

@@ -324,3 +324,32 @@ describe('package docs that mention Agent402 Bond', () => {
     for (const f of docs) expect(readFileSync(f, 'utf8'), f).not.toMatch(/\b(safe|safely|risky|rug|scam)\b/i);
   });
 });
+
+describe('root README first screen: seller first, chain-neutral', () => {
+  const md = read(files.root);
+  it('title has no single chain, first paragraph names Solana and Base', () => {
+    expect(md.split('\n')[0]).toBe('# Agent402 toolkit');
+    const first = md.split('\n').find((l) => l.startsWith('Open-source tools'))!;
+    expect(first).toMatch(/Solana and Base/);
+    expect(first.indexOf('take payments for your API')).toBeLessThan(first.indexOf('let your AI agent pay'));
+  });
+  it('sections in order: sellers, buyers, Bond (Solana), then plugins and packages', () => {
+    const at = (s: string) => { const i = md.indexOf(s); expect(i, s).toBeGreaterThan(-1); return i; };
+    const order = ['## Get paid for your API', '## Let your AI agent pay for APIs', '## Bonded jobs (Solana)', '**New here?**', '## Packages', '## Agent402 Bond (Solana program, beta)'];
+    const idx = order.map(at);
+    expect([...idx].sort((a, b) => a - b)).toEqual(idx);
+    expect(md).toContain('[accept USDC on Base](packages/pay-server/README.md#accept-usdc-on-base-optional)');
+    expect(md).toContain('`npx -y @agent402-dev/pay-server check https://your-endpoint.example.com/paid`');
+  });
+  it('the Bond line before the packages keeps the review wording', () => {
+    const bond = md.slice(md.indexOf('## Bonded jobs (Solana)'), md.indexOf('**New here?**'));
+    expect(bond).toContain('Internal review only, not independently audited.');
+  });
+  it('MCP Registry descriptions start with what the server does (no "A/An/The/This/MCP"), 100 characters or fewer', () => {
+    for (const p of ['../packages/pay-mcp/server.json', '../packages/bond-seller-mcp/server.json', '../packages/check-mcp/server.json']) {
+      const d = (JSON.parse(read(p)) as { description: string }).description;
+      expect(d.length, p).toBeLessThanOrEqual(100);
+      expect(d.split(' ')[0], p).not.toMatch(/^(A|An|The|This|MCP)$/);
+    }
+  });
+});
