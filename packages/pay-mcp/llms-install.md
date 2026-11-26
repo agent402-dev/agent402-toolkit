@@ -50,6 +50,7 @@ Add an `env` block. Every value below must come from the user; do not invent rec
 
 - Empty `X402_ALLOWED_DOMAINS` or `X402_TRUSTED_PAY_TO` means every payment is refused.
 - For Agent402 Bond jobs also set `X402_BOND_SELLERS` (seller addresses) and `X402_BOND_MAX_USD`. Deals ask a human before signing by default. The Bond programs had internal review only, not independently audited.
+- Optional: Base (EVM) per-request payments in USDC are off by default. Only if the user asks: `X402_ALLOWED_NETWORKS=solana,base`, `X402_EVM_KEY_PATH` (a key file the user made, one `0x` line), and the `0x` recipient in `X402_TRUSTED_PAY_TO`. Limits are shared across networks; Agent402 Bond stays on Solana.
 - Optional, experimental: `X402_MCP_TASKS=on` adds the read-only `bond_v2_wait_result`, which waits for a Bond v2 delivery as an MCP task (default 30 minutes). Off by default. Clients without MCP Tasks get a normal call that answers within 50 seconds by default; call it again if the result is not final.
 
 ## 4. Verify
@@ -63,6 +64,7 @@ Add an `env` block. Every value below must come from the user; do not invent rec
 
 - `refused` with reasons: a rule did not pass (domain, recipient, asset or limit). Nothing was signed.
 - `no_wallet`: `X402_KEYPAIR_PATH` is not set or the file cannot be read.
+- `evm_key_missing` or `wrong_network: eip155:…`: Base is not allowed or `X402_EVM_KEY_PATH` is not set; Solana payments are unaffected.
 - Public Solana RPCs can rate-limit; the user can set `X402_RPC_URL`.
 
 More: https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/getting-started.md

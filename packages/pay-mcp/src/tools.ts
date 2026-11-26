@@ -10,6 +10,7 @@ import { type BondV2Deps, type BondV2Policy, bondV2Accept, bondV2Quote, bondV2Re
 import { withSpendLock } from './spend-lock.js';
 import { registerBondV2WaitTask, taskServerOptions, type WaitToolDeps } from './bond-v2-task.js';
 import type { History } from './history.js';
+import type { EvmConfig } from './evm-config.js';
 import type { AccountsFetcher } from './locks.js';
 import { historyToCsv } from './csv.js';
 import { reportRange, spendingReport } from './report.js';
@@ -43,6 +44,10 @@ export interface PayServerDeps {
   bondV2Policy?: BondV2Policy;
   /** X402_MCP_TASKS: offer bond_v2_wait_result as an MCP task (experimental). Off by default */
   mcpTasks?: boolean;
+  /** Networks settings (evmConfigFromEnv). Missing = Solana only, as before */
+  evm?: EvmConfig;
+  /** Base wallet (X402_EVM_KEY_PATH); only used when base is in X402_ALLOWED_NETWORKS */
+  evmWallet?: Wallet | null;
   /** Test hooks for bond_v2_wait_result */
   taskWait?: Pick<WaitToolDeps, 'sleep' | 'now' | 'pollIntervalMs' | 'defaultIntervalMs'>;
 }
@@ -66,6 +71,24 @@ function withUnits(o: unknown): unknown {
 const atomicLimit = (v: bigint | null, envName: string, sym: TokenSymbol) =>
   v === null ? `not set (${envName}) — ${sym} payments refused` : v;
 
+/** Which chains payments may use. Shows whether a Base key file is set, never its path or content */
+function networksStatus(evm?: EvmConfig, evmWallet?: Wallet | null) {
+  const allowed = evm?.allowedChains ?? ['solana'];
+  return {
+    allowed,
+    prefer: evm?.prefer ?? 'solana',
+    base: allowed.includes('base') && evm
+      ? {
+        network: evm.evmNetwork,
+        keyFile: evm.evmKeyPath ? 'set' : 'not set',
+        address: evmWallet?.address ?? null,
+        note: evmWallet ? 'USDC only, EIP-3009 authorization (no permit2). Agent402 Bond stays on Solana.' : 'No Base key loaded: Base options are refused (evm_key_missing).',
+      }
+      : 'off (X402_ALLOWED_NETWORKS)',
+    note: 'USD limits and the payment count are shared across networks.',
+  };
+}
+
 /** Token limits in wallet_status (e.g. maxPreqPerPaymentAtomic, maxPreqPerPaymentDisplay …) */
 function tokenLimitFields(p: PayPolicy, t: TokenSymbol): Record<string, unknown> {
   const l = p.tokenLimits[t];
@@ -88,7 +111,7 @@ export function formElicitationSupported(cap: unknown): boolean {
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.14.5' }, d.mcpTasks ? taskServerOptions() : undefined);
+  const server = new McpServer({ name: 'a402-pay', version: '0.15.0' }, d.mcpTasks ? taskServerOptions() : undefined);
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!formElicitationSupported(server.server.getClientCapabilities()?.elicitation)) return 'unsupported';
     try {
@@ -135,6 +158,7 @@ export function createPayServer(d: PayServerDeps): McpServer {
       return out(bigintSafe({
       address: d.wallet?.address ?? null,
       network: d.policy.network,
+      networks: networksStatus(d.evm, d.evmWallet),
       // Balances in token units (e.g. "10 PREQ")
       balances: balances ? Object.fromEntries(Object.entries(balances).map(([k, v]) => [k, /^[\d.]+$/.test(v) ? `${v} ${k}` : v])) : null,
       today: {

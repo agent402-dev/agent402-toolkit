@@ -43,6 +43,26 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 
 Other settings: `X402_KEYPAIR_PATH` (wallet key file, Solana CLI JSON; without it nothing is paid), `X402_NETWORK` (`mainnet` | `devnet`), `X402_RPC_URL`, `X402_PAY_WITH` (`USDC` | `PREQ`), `X402_HISTORY_PATH` (default `~/.agent402/payments.jsonl`).
 
+## Base (EVM) per-request payments (off by default)
+
+Per-request x402 payments can also use USDC on Base, next to Solana. **Off by default**: with none of the settings below, the server pays on Solana only, exactly as before. Agent402 Bond (v1 and v2) stays on Solana.
+
+| Setting | Variable | Default |
+|---|---|---|
+| Networks payments may use (`solana`, `base`) | `X402_ALLOWED_NETWORKS` | `solana` |
+| Network to use when an option passes on both | `X402_PREFER_NETWORK` | `solana` |
+| Base wallet key file (path only; never printed) | `X402_EVM_KEY_PATH` | not set → every Base payment refused |
+
+- `X402_NETWORK=mainnet` pairs with Base (`eip155:8453`), `devnet` with Base Sepolia (`eip155:84532`). A testnet run never pays on a mainnet, and the reverse.
+- Every existing rule applies to Base too: allowed domains, trusted recipients (add the `0x` address to `X402_TRUSTED_PAY_TO`; compared case-insensitively), per-payment, daily and per-recipient limits, the payment count, and human confirmation.
+- **Limits are shared across networks.** USDC spent on Base and on Solana is added up for the USD limits and the payment count.
+- Only USDC with the `exact` scheme and an EIP-3009 authorization is signed. The token's EIP-712 domain (name, version, chain id, contract) must match the known USDC values; `permit2` and other transfer methods are refused. An authorization is valid for at most one hour.
+- After signing and before sending, the signed recipient, amount, deadline and domain are compared with the checked requirement again; if anything differs, nothing is sent.
+- The key file holds one line: a `0x`-prefixed private key of a small, dedicated wallet. Only its address is ever shown; the path and content never appear in results, errors or the payment log. Each Base option names its chain in results (`choice`: chain and reason).
+- Unknown names in `X402_ALLOWED_NETWORKS` or a preferred network that is not allowed stop the server at start.
+- `x402_quote` shows each option's `network`; `wallet_status` shows `networks` (allowed, preferred, Base network, whether a key file is set and the Base address); `spending_report` shows `usdcByNetwork` when Base was used.
+- Internal review only, not independently audited.
+
 ## Require a seller lock (optional)
 For larger payments you can pay only sellers that have locked funds on-chain for a fixed time. A lock is a commitment signal: nobody can confiscate it, so it does not cover losses.
 

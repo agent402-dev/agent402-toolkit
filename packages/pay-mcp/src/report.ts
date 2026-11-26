@@ -4,6 +4,10 @@
 import type { HistoryEntry, PaymentResult } from './history.js';
 import type { PayPolicy } from './policy.js';
 import { formatUnits } from './units.js';
+import { EVM_USDC } from './evm-policy.js';
+
+const EVM_USDC_ADDRESSES = new Set<string>(Object.values(EVM_USDC).map((u) => u.address));
+const isEvmUsdc = (mint?: string) => !!mint && EVM_USDC_ADDRESSES.has(mint.toLowerCase());
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY = 86_400_000;
@@ -34,12 +38,14 @@ const amounts = (a: Acc, showA402: boolean) => ({
 });
 
 export function spendingReport(entries: HistoryEntry[], policy: PayPolicy, range: ReportRange, now: Date) {
-  const sym = (mint?: string): Sym | null => (!mint ? null : mint === policy.mints.USDC ? 'USDC' : mint === policy.mints.PREQ ? 'PREQ' : mint === policy.mints.A402 ? 'A402' : null);
+  // USDC on Base counts as USDC, as the daily limits count it (summed across chains); usdcByNetwork shows the split
+  const sym = (mint?: string): Sym | null => (!mint ? null : mint === policy.mints.USDC || isEvmUsdc(mint) ? 'USDC' : mint === policy.mints.PREQ ? 'PREQ' : mint === policy.mints.A402 ? 'A402' : null);
   const inRange = entries.filter((e) => { const d = e.at.slice(0, 10); return d >= range.from && d <= range.to; });
   const spent = (e: HistoryEntry) => e.signed && !!e.amount && /^\d+$/.test(e.amount) && e.amount !== '0';
   const total = acc(), byRecipient = new Map<string, Acc>(), byHost = new Map<string, Acc>(), byDay = new Map<string, Acc>();
   const results: Partial<Record<PaymentResult, number>> = {};
   let otherAssetPayments = 0, feeOnlySignatures = 0;
+  const usdcByNetwork = { solana: 0n, base: 0n };
   const receipts = { verified: 0, notVerified: 0, none: 0, notVerifiedReasons: {} as Record<string, number> };
   for (const e of inRange) {
     results[e.result] = (results[e.result] ?? 0) + 1;
@@ -52,6 +58,7 @@ export function spendingReport(entries: HistoryEntry[], policy: PayPolicy, range
       const a = m.get(k) ?? acc(); a.payments++; a.atomic[s] += amt; m.set(k, a);
     }
     total.payments++; total.atomic[s] += amt;
+    if (s === 'USDC') usdcByNetwork[isEvmUsdc(e.mint) ? 'base' : 'solana'] += amt;
     if (e.result === 'paid') {
       if (!e.receipt) receipts.none++;
       else if (e.receipt.verified) receipts.verified++;
@@ -74,7 +81,8 @@ export function spendingReport(entries: HistoryEntry[], policy: PayPolicy, range
     result: 'ok' as const,
     range: { ...range, timezone: 'UTC' },
     note: 'Signed payments count as spent whatever their result, as the daily limits count them. Amounts in token units.',
-    totals: { ...amounts(total, showA402), ...(otherAssetPayments ? { otherAssetPayments } : {}), ...(feeOnlySignatures ? { feeOnlySignatures } : {}) },
+    totals: { ...amounts(total, showA402), ...(otherAssetPayments ? { otherAssetPayments } : {}), ...(feeOnlySignatures ? { feeOnlySignatures } : {}),
+      ...(usdcByNetwork.base > 0n ? { usdcByNetwork: { solana: formatUnits(usdcByNetwork.solana, 'USDC'), base: formatUnits(usdcByNetwork.base, 'USDC') } } : {}) },
     results,
     byRecipient: rank(byRecipient).slice(0, 50).map(([payTo, a]) => ({ payTo, ...amounts(a, showA402) })),
     byHost: rank(byHost).slice(0, 50).map(([host, a]) => ({ host, ...amounts(a, showA402) })),

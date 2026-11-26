@@ -6,7 +6,9 @@ import type { PaymentRequired, PaymentRequirements } from '@x402/core/types';
 import type { History, HistoryEntry, PaymentResult } from './history.js';
 import { checkCommitment, type CommitmentResult } from './commitment.js';
 import type { AccountsFetcher } from './locks.js';
-import { A402_DEPRECATION_WARNING, choose, domainCheck, evaluate, nearLimits, needsLock, type Evaluated, type PayPolicy } from './policy.js';
+import { A402_DEPRECATION_WARNING, chooseWithReason, domainCheck, evaluate, isEvmRequirement, nearLimits, needsLock, type Evaluated, type PayPolicy } from './policy.js';
+import type { EvmConfig } from './evm-config.js';
+import { EvmAuthorizationMismatch } from './evm-wallet.js';
 import { checkReceipt, RECEIPT_HEADER } from './receipt.js';
 import { discoverySummary, type DiscoverySummary } from './discovery.js';
 import { withSmallest } from './units.js';
@@ -25,6 +27,10 @@ export interface AgentDeps {
   maxRedirects?: number;
   /** Read-only account reader for seller lock checks (getMultipleAccounts) */
   accounts?: AccountsFetcher;
+  /** Networks settings (evmConfigFromEnv). Missing = Solana only: every Base (eip155) option is refused */
+  evm?: EvmConfig;
+  /** Base wallet (X402_EVM_KEY_PATH), used only for an option on the allowed Base network that passed every rule */
+  evmWallet?: Wallet | null;
 }
 
 export interface RequestSpec { url: string; method?: string; headers?: Record<string, string>; body?: string }
@@ -40,7 +46,7 @@ export interface FetchOutcome {
   payment?: { asset: string | null; mint: string; amount: string; payTo: string; network: string; settlementTx?: string };
   body?: unknown;
   /** Policy evaluation result (the reason for each condition when rejected) */
-  options?: { asset: string | null; mint: string; amount: string; payTo: string; ok: boolean; reasons: string[] }[];
+  options?: { asset: string | null; mint: string; amount: string; payTo: string; network: string; ok: boolean; reasons: string[] }[];
   /** Warnings (e.g. the deprecation notice when trying to pay with A402 (v1)) */
   warnings?: string[];
   /** Seller lock check, when the policy required one */
@@ -49,6 +55,8 @@ export interface FetchOutcome {
   receipt?: { signer: string | null; verified: boolean; reasons: string[]; token: string };
   /** x402_quote only: shape of the seller's discovery metadata (lengths, presence, formats; never its text). Does not affect the rules */
   discovery?: DiscoverySummary;
+  /** Which chain the chosen option is on and why (X402_PREFER_NETWORK, or the only chain with a passing option) */
+  choice?: { chain: 'solana' | 'base'; reason: 'preferred network' | 'only option passing' };
 }
 
 /** Adds the deprecation warning if the chosen asset is A402 (v1) (there is no path that silently pays with A402) */
@@ -90,14 +98,15 @@ export function createAgent(d: AgentDeps) {
     try { return JSON.parse(t); } catch { return t; }
   };
   const readBody = async (res: Response) => parseBody(await res.arrayBuffer());
-  const describe = (e: Evaluated) => ({ asset: e.asset, mint: e.requirement.asset, amount: e.requirement.amount, payTo: e.requirement.payTo, ok: e.ok, reasons: e.reasons });
+  // network (CAIP-2) shows which chain each option is on, e.g. when a seller offers Solana and Base side by side
+  const describe = (e: Evaluated) => ({ asset: e.asset, mint: e.requirement.asset, amount: e.requirement.amount, payTo: e.requirement.payTo, network: e.requirement.network as string, ok: e.ok, reasons: e.reasons });
   const host = (u: string) => { try { return new URL(u).host; } catch { return ''; } };
   const record = (e: Omit<HistoryEntry, 'at'>) => d.history.add({ at: now().toISOString(), ...e });
 
   type Assessment =
     | { kind: 'refused'; refused: string }
     | { kind: 'not_required'; res: Response; finalUrl: string }
-    | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; finalUrl: string; lock?: FetchOutcome['lock'] };
+    | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; choice?: FetchOutcome['choice']; finalUrl: string; lock?: FetchOutcome['lock'] };
 
   /** Receives a 402 and evaluates it with the policy (no signing) */
   async function assess(spec: RequestSpec): Promise<Assessment> {
@@ -114,7 +123,8 @@ export function createAgent(d: AgentDeps) {
       if (!rc.ok) return { kind: 'refused', refused: `resource_on_disallowed_domain: ${rc.reason}` };
     }
     const usage = d.history.today(now());
-    const evs = pr.accepts.map((r) => evaluate(d.policy, r, usage, d.history.recipientToday(r.payTo, now())));
+    const evmNetwork = d.evm?.evmNetwork ?? null;
+    const evs = pr.accepts.map((r) => evaluate(d.policy, r, usage, d.history.recipientToday(r.payTo, now()), evmNetwork));
     // Seller lock check, only for options that need it and passed every other rule (before signing)
     let lock: FetchOutcome['lock'];
     for (const e of evs) {
@@ -123,7 +133,8 @@ export function createAgent(d: AgentDeps) {
       lock = { ok: c.ok, ...c.facts };
       if (!c.ok) { e.ok = false; e.reasons.push(...c.reasons); }
     }
-    return { kind: '402', pr, evs, chosen: choose(d.policy, evs), finalUrl, ...(lock ? { lock } : {}) };
+    const pick = chooseWithReason(d.policy, evs, d.evm?.prefer ?? 'solana');
+    return { kind: '402', pr, evs, chosen: pick?.chosen ?? null, ...(pick ? { choice: { chain: pick.chain, reason: pick.reason } } : {}), finalUrl, ...(lock ? { lock } : {}) };
   }
 
   async function quote(spec: RequestSpec): Promise<FetchOutcome & { quoteId?: string }> {
@@ -136,7 +147,7 @@ export function createAgent(d: AgentDeps) {
     const quoteId = crypto.randomUUID();
     const r = a.chosen.requirement;
     quotes.set(quoteId, { url: spec.url, asset: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, at: now().getTime() });
-    return { result: 'not_required', quoteId, options, ...(a.lock ? { lock: a.lock } : {}), payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [], discovery };
+    return { result: 'not_required', quoteId, options, ...(a.lock ? { lock: a.lock } : {}), payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, ...(a.choice ? { choice: a.choice } : {}), reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [], discovery };
   }
 
   async function payAndFetch(spec: RequestSpec & { quoteId?: string }): Promise<FetchOutcome> {
@@ -164,16 +175,24 @@ export function createAgent(d: AgentDeps) {
       const changed = (['asset', 'amount', 'payTo', 'network'] as const).filter((k) => q[k] !== r[k]);
       if (changed.length) return refuse('refused', [`requirements_changed_since_quote: ${changed.join(',')}`]);
     }
-    if (!d.wallet) return refuse('refused', ['no_wallet: set X402_KEYPAIR_PATH']);
+    const onBase = isEvmRequirement(r);
+    const wallet = onBase ? d.evmWallet ?? null : d.wallet;
+    if (!wallet) return refuse('refused', [onBase ? 'evm_key_missing: set X402_EVM_KEY_PATH' : 'no_wallet: set X402_KEYPAIR_PATH']);
     if (a.chosen.needsConfirmation) {
-      const human = `Pay ${a.chosen.asset === 'USDC' ? `${a.chosen.usd} USDC` : withSmallest(r.amount, a.chosen.asset ?? 'tokens')} to ${r.payTo} for ${spec.url}?${a.chosen.asset === 'A402' ? ` (${A402_DEPRECATION_WARNING})` : ''}`;
+      const human = `Pay ${a.chosen.asset === 'USDC' ? `${a.chosen.usd} USDC${onBase ? ' on Base' : ''}` : withSmallest(r.amount, a.chosen.asset ?? 'tokens')} to ${r.payTo} for ${spec.url}?${a.chosen.asset === 'A402' ? ` (${A402_DEPRECATION_WARNING})` : ''}`;
       const ans = await d.confirm(human).catch(() => 'unsupported' as const);
       if (ans === 'unsupported') return refuse('confirmation_required', ['confirmation_required: this client cannot ask for confirmation (MCP elicitation); payment not made']);
       if (ans === 'decline') return refuse('declined_by_user', ['declined_by_user']);
     }
 
     // Sign (only once per request)
-    const header = await d.wallet.sign(a.pr.resource, r);
+    let header: string;
+    try { header = await wallet.sign(a.pr.resource, r); } catch (e) {
+      if (!(e instanceof EvmAuthorizationMismatch)) throw e;
+      // Signed but the signed values differ from what was checked: nothing is sent
+      record({ ...base, ...pay, result: 'refused', reasons: [e.message], signed: true });
+      return { result: 'refused', reasons: [e.message], options, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network } };
+    }
     const sent = await send({ ...spec, url: a.finalUrl }, { 'payment-signature': header }, false);
     if ('refused' in sent) { record({ ...base, ...pay, result: 'failed', reasons: [sent.refused], signed: true }); return { result: 'failed', reasons: [sent.refused] }; }
     const res = sent.res;
@@ -191,7 +210,7 @@ export function createAgent(d: AgentDeps) {
       const receipt = rc ? { signer: rc.signer, verified: rc.verified, reasons: rc.reasons, token: rc.token } : undefined;
       record({ ...base, ...pay, result: 'paid', httpStatus: res.status, settlementTx: tx, signed: true, ...(receipt ? { receipt } : {}) });
       const near = nearLimits(d.policy, d.history.today(now()));
-      return { result: 'paid', httpStatus: res.status, body, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, settlementTx: tx }, ...(a.lock ? { lock: a.lock } : {}), ...(receipt ? { receipt } : {}), ...(near.length ? { warnings: near } : {}) };
+      return { result: 'paid', httpStatus: res.status, body, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, settlementTx: tx }, ...(a.choice ? { choice: a.choice } : {}), ...(a.lock ? { lock: a.lock } : {}), ...(receipt ? { receipt } : {}), ...(near.length ? { warnings: near } : {}) };
     }
     const reason = typeof body === 'object' && body && 'reason' in body ? String((body as { reason: unknown }).reason) : `http_${res.status}`;
     const result: PaymentResult = res.status === 402 ? 'rejected_by_server' : res.headers.get('x-payment-status') === 'not-settled' || res.status === 409 ? 'failed' : 'unknown';

@@ -3,6 +3,7 @@
 //   X402_KEYPAIR_PATH  payment wallet key file (Solana CLI JSON). Without it, no payments (x402_quote only)
 //   X402_RPC_URL       RPC used to build payment transactions (public RPC if unset)
 //   X402_HISTORY_PATH  payment history JSONL (default ~/.agent402/payments.jsonl)
+//   X402_ALLOWED_NETWORKS / X402_PREFER_NETWORK / X402_EVM_KEY_PATH  Base (EVM) per-request payments, off by default (evm-config.ts)
 // Allowlists (X402_ALLOWED_DOMAINS, X402_TRUSTED_PAY_TO) default to empty = reject everything
 // Commands: init (create a dedicated payment wallet key file), export-csv (payment history as CSV), verify-receipt, help
 import { writeFileSync } from 'node:fs';
@@ -16,6 +17,7 @@ import { rpcClock } from './bond.js';
 import { bondPolicyFromEnv, bondRpc } from './bond-sign.js';
 import { initWallet } from './init.js';
 import { policyFromEnv } from './policy.js';
+import { evmConfigFromEnv } from './evm-config.js';
 import { createPayServer } from './tools.js';
 import { bondV2PolicyFromEnv, resolveV2Program } from './bond-v2.js';
 import { mcpTasksFromEnv } from './bond-v2-task.js';
@@ -30,6 +32,7 @@ function directoryUrlFromEnv(v: string | undefined): string | null | undefined {
   return t;
 }
 import { loadWallet, type Wallet } from './wallet.js';
+import { loadEvmWallet } from './evm-wallet.js';
 
 const DEFAULT_HISTORY = join(homedir(), '.agent402', 'payments.jsonl');
 const HELP = `@agent402-dev/pay-mcp
@@ -102,9 +105,20 @@ if (cmd === 'init') {
   const policy = policyFromEnv(process.env);
   // If A402 (v1) is enabled explicitly, print the deprecation warning (stderr; stdout is for MCP)
   for (const w of policy.warnings) console.error(`[a402-pay] WARNING: ${w}`);
+  // Network settings: unknown names or a preferred network that is not allowed stop the server (nothing starts half-configured)
+  const evm = evmConfigFromEnv(process.env);
+  if (evm.problems.length) throw new Error(`Network settings: ${evm.problems.join('; ')}`);
+  for (const w of evm.warnings) console.error(`[a402-pay] WARNING: ${w}`);
   const wallet: Wallet | null = process.env.X402_KEYPAIR_PATH
     ? await loadWallet(process.env.X402_KEYPAIR_PATH, policy, process.env.X402_RPC_URL).catch((e) => {
       console.error(`[a402-pay] could not load wallet, starting without payments: ${(e as Error).message}`);
+      return null;
+    })
+    : null;
+  // Base wallet only when base is allowed and a key file is set; on any error, Base options are refused (Solana is unaffected)
+  const evmWallet: Wallet | null = evm.evmNetwork && evm.evmKeyPath
+    ? await loadEvmWallet(evm.evmKeyPath, evm.evmNetwork, policy).catch((e) => {
+      console.error(`[a402-pay] could not load the Base key, Base payments are refused: ${(e as Error).message}`);
       return null;
     })
     : null;
@@ -113,5 +127,5 @@ if (cmd === 'init') {
   await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc), clock: rpcClock(rpc), bondPolicy: bondPolicyFromEnv(process.env), bondRpc: bondRpc(rpc),
     bondDirectoryUrl: directoryUrlFromEnv(process.env.X402_BOND_DIRECTORY_URL), readTx: rpcReadTx(rpc),
     bondV2Program: resolveV2Program(process.env, rpc), bondV2Policy: bondV2PolicyFromEnv(process.env),
-    mcpTasks: mcpTasksFromEnv(process.env.X402_MCP_TASKS) }).connect(new StdioServerTransport());
+    mcpTasks: mcpTasksFromEnv(process.env.X402_MCP_TASKS), evm, evmWallet }).connect(new StdioServerTransport());
 }

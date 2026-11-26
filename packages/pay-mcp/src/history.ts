@@ -2,6 +2,7 @@
 // Stored: time, URL, host, asset, amount, receiver, result, reason, settlement tx id (public on-chain record), seller's signed receipt if any
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { EVM_USDC, normalizePayTo } from './evm-policy.js';
 
 export type PaymentResult = 'paid' | 'refused' | 'declined_by_user' | 'confirmation_required' | 'rejected_by_server' | 'failed' | 'unknown';
 
@@ -35,6 +36,8 @@ export interface History {
   recipientToday(payTo: string, now?: Date): { count: number; usd: number; preq: bigint };
 }
 
+const EVM_USDC_ADDRESSES = new Set<string>(Object.values(EVM_USDC).map((u) => u.address));
+
 const FORBIDDEN_KEYS = ['secret', 'privateKey', 'keypair', 'paymentSignature', 'transaction', 'payload'];
 
 export function jsonlHistory(path: string, mints: () => { USDC: string; PREQ: string; A402: string }): History {
@@ -48,7 +51,10 @@ export function jsonlHistory(path: string, mints: () => { USDC: string; PREQ: st
     // Fee-only signatures (amount "0", e.g. settling a bond deal) move no tokens and do not count as payments
     return read().filter((e) => e.signed && e.at.slice(0, 10) === day && e.amount !== '0');
   };
-  const usdOf = (xs: HistoryEntry[], usdc: string) => xs.filter((e) => e.mint === usdc && e.amount).reduce((s, e) => s + Number(e.amount) / 1e6, 0);
+  // USD limits are summed across chains: Solana USDC and USDC on Base (and Base Sepolia, conservatively) all count.
+  // Older entries without a network are read as Solana, exactly as before
+  const isUsdc = (mint: string | undefined, usdc: string) => !!mint && ((!!usdc && mint === usdc) || EVM_USDC_ADDRESSES.has(mint.toLowerCase()));
+  const usdOf = (xs: HistoryEntry[], usdc: string) => xs.filter((e) => isUsdc(e.mint, usdc) && e.amount).reduce((s, e) => s + Number(e.amount) / 1e6, 0);
   const sumOf = (xs: HistoryEntry[], mint: string) => (mint ? xs.filter((e) => e.mint === mint && e.amount && /^\d+$/.test(e.amount)).reduce((s, e) => s + BigInt(e.amount!), 0n) : 0n);
   return {
     add(e) {
@@ -63,7 +69,8 @@ export function jsonlHistory(path: string, mints: () => { USDC: string; PREQ: st
       return { count: xs.length, usd: usdOf(xs, m.USDC), preq: sumOf(xs, m.PREQ), a402: sumOf(xs, m.A402) };
     },
     recipientToday(payTo, now = new Date()) {
-      const xs = signedOn(now).filter((e) => e.payTo === payTo);
+      // 0x recipients compare case-insensitively (same address on Base); Solana addresses exactly as before
+      const xs = signedOn(now).filter((e) => !!e.payTo && normalizePayTo(e.payTo) === normalizePayTo(payTo));
       const m = mints();
       return { count: xs.length, usd: usdOf(xs, m.USDC), preq: sumOf(xs, m.PREQ) };
     },

@@ -2,6 +2,8 @@
 // Assets: USDC (default), PREQ (must be enabled explicitly), A402 (v1, deprecated; must be enabled explicitly and prints a warning)
 import type { PaymentRequirements } from '@x402/core/types';
 import { formatUnits } from './units.js';
+import { checkEvmRequirement, EVM_MAX_VALIDITY_SECONDS, type EvmNetwork } from './evm-policy.js';
+import { chooseChain, type ChainName } from './evm-config.js';
 
 export const NETWORKS = {
   mainnet: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
@@ -233,15 +235,49 @@ export function symbolOf(p: PayPolicy, mint: string): AssetSymbol | null {
 const usedToday = (usage: DayUsage, t: TokenSymbol) => (t === 'PREQ' ? usage.preq : usage.a402);
 
 /** Evaluates one payment requirement against the policy (before signing) */
-export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage, recipient: RecipientUsage = NO_RECIPIENT_USAGE): Evaluated {
+/** CAIP-2 eip155:* = an EVM (Base) requirement */
+export const isEvmRequirement = (r: { network: unknown }) => typeof r.network === 'string' && r.network.startsWith('eip155:');
+export const chainOf = (r: { network: unknown }): ChainName => (isEvmRequirement(r) ? 'base' : 'solana');
+
+/** Base (EVM) checks before signing (evm-policy.ts), written as reasons. When the network itself is not allowed, only that is reported */
+function evmReasons(p: PayPolicy, r: PaymentRequirements, evmNetwork: EvmNetwork | null): { reasons: string[]; asset: AssetSymbol | null } {
+  const ev = checkEvmRequirement(r, { allowedNetwork: evmNetwork, trustedPayTo: p.trustedPayTo });
   const reasons: string[] = [];
-  const asset = symbolOf(p, r.asset);
-  if (r.scheme !== 'exact') reasons.push(`unsupported_scheme: ${r.scheme}`);
-  if (r.network !== p.network) reasons.push(`wrong_network: ${r.network}`);
-  if (!asset) reasons.push(`asset_not_allowed: unknown mint ${r.asset}`);
-  else if (!p.allowedAssets.includes(asset)) reasons.push(`asset_not_allowed: ${asset} (X402_ALLOWED_ASSETS)${asset === 'A402' ? ' — A402 (v1) is deprecated; use PREQ' : ''}`);
+  if (ev.includes('wrong_network')) reasons.push(`wrong_network: ${r.network}${evmNetwork ? '' : ' (Base payments are off: X402_ALLOWED_NETWORKS)'}`);
+  else {
+    if (ev.includes('asset_not_allowed')) reasons.push(`asset_not_allowed: unknown token ${r.asset} on ${r.network} (USDC only)`);
+    if (ev.includes('unsupported_transfer_method')) reasons.push(`unsupported_transfer_method: ${String((r.extra as Record<string, unknown> | undefined)?.assetTransferMethod)} (EIP-3009 only)`);
+    if (ev.includes('eip712_domain_mismatch')) reasons.push('eip712_domain_mismatch: extra.name/version are not the USDC values');
+    if (ev.includes('timeout_too_long')) reasons.push(`timeout_too_long: maxTimeoutSeconds ${r.maxTimeoutSeconds} (1..${EVM_MAX_VALIDITY_SECONDS})`);
+  }
   if (!p.trustedPayTo.length) reasons.push('pay_to_not_trusted: trusted recipient list is empty (X402_TRUSTED_PAY_TO)');
-  else if (!p.trustedPayTo.includes(r.payTo)) reasons.push(`pay_to_not_trusted: ${r.payTo}`);
+  else if (ev.includes('pay_to_not_trusted')) reasons.push(`pay_to_not_trusted: ${r.payTo}`);
+  const asset: AssetSymbol | null = ev.includes('wrong_network') || ev.includes('asset_not_allowed') ? null : 'USDC';
+  if (asset && !p.allowedAssets.includes('USDC')) reasons.push('asset_not_allowed: USDC (X402_ALLOWED_ASSETS)');
+  return { reasons, asset };
+}
+
+/**
+ * Evaluates one payment requirement against the policy (before signing).
+ * evmNetwork: the one Base network allowed (evm-config), or null = every Base (eip155) requirement is refused (the default).
+ * USD limits, the payment count and confirmation are the same for both chains and use the shared daily totals.
+ */
+export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage, recipient: RecipientUsage = NO_RECIPIENT_USAGE, evmNetwork: EvmNetwork | null = null): Evaluated {
+  const reasons: string[] = [];
+  let asset: AssetSymbol | null;
+  if (isEvmRequirement(r)) {
+    const e = evmReasons(p, r, evmNetwork);
+    reasons.push(...e.reasons);
+    asset = e.asset;
+  } else {
+    asset = symbolOf(p, r.asset);
+    if (r.scheme !== 'exact') reasons.push(`unsupported_scheme: ${r.scheme}`);
+    if (r.network !== p.network) reasons.push(`wrong_network: ${r.network}`);
+    if (!asset) reasons.push(`asset_not_allowed: unknown mint ${r.asset}`);
+    else if (!p.allowedAssets.includes(asset)) reasons.push(`asset_not_allowed: ${asset} (X402_ALLOWED_ASSETS)${asset === 'A402' ? ' — A402 (v1) is deprecated; use PREQ' : ''}`);
+    if (!p.trustedPayTo.length) reasons.push('pay_to_not_trusted: trusted recipient list is empty (X402_TRUSTED_PAY_TO)');
+    else if (!p.trustedPayTo.includes(r.payTo)) reasons.push(`pay_to_not_trusted: ${r.payTo}`);
+  }
   let amount: bigint;
   try { amount = BigInt(r.amount); } catch { amount = -1n; }
   if (amount <= 0n) reasons.push('invalid_amount');
@@ -276,9 +312,18 @@ export function evaluate(p: PayPolicy, r: PaymentRequirements, usage: DayUsage, 
 }
 
 /** Requirement to choose after evaluation (preferred asset first) */
-export function choose(p: PayPolicy, evs: Evaluated[]): Evaluated | null {
+export function choose(p: PayPolicy, evs: Evaluated[], preferChain: ChainName = 'solana'): Evaluated | null {
+  return chooseWithReason(p, evs, preferChain)?.chosen ?? null;
+}
+
+/** Picks the chain first (X402_PREFER_NETWORK among chains with a passing option), then the preferred asset on that chain */
+export function chooseWithReason(p: PayPolicy, evs: Evaluated[], preferChain: ChainName = 'solana'): { chosen: Evaluated; chain: ChainName; reason: 'preferred network' | 'only option passing' } | null {
   const ok = evs.filter((e) => e.ok);
-  return ok.find((e) => e.asset === p.prefer) ?? ok[0] ?? null;
+  const pick = chooseChain([...new Set(ok.map((e) => chainOf(e.requirement)))], preferChain);
+  if (!pick) return null;
+  const on = ok.filter((e) => chainOf(e.requirement) === pick.chain);
+  const chosen = on.find((e) => e.asset === p.prefer) ?? on[0];
+  return chosen ? { chosen, chain: pick.chain, reason: pick.reason } : null;
 }
 
 /** Warnings when today's usage has reached a share (default 80%) of a daily cap. Informational only; the caps themselves are enforced by evaluate() */

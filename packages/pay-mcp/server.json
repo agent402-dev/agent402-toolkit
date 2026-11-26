@@ -7,12 +7,12 @@
     "source": "github",
     "subfolder": "packages/pay-mcp"
   },
-  "version": "0.14.5",
+  "version": "0.15.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agent402-dev/pay-mcp",
-      "version": "0.14.5",
+      "version": "0.15.0",
       "transport": {
         "type": "stdio"
       },
@@ -230,6 +230,27 @@
         {
           "name": "X402_PREQ_MINT",
           "description": "PREQ mint override (only needed before the PREQ mint is built into this version, or for devnet rehearsal)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_ALLOWED_NETWORKS",
+          "description": "Networks payments may use: solana (default) or solana,base. Base (EVM) per-request payments are off by default",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_PREFER_NETWORK",
+          "description": "Network to use when an option passes on both: solana (default) or base",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_EVM_KEY_PATH",
+          "description": "Base wallet key file (one line, 0x private key). Without it every Base payment is refused",
           "isRequired": false,
           "format": "string",
           "isSecret": false
