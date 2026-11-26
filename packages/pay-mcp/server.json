@@ -207,6 +207,27 @@
           "isSecret": false
         },
         {
+          "name": "X402_BOND_V2_ALLOW_SHARE",
+          "description": "Agent402 Bond v2: 1 = accept deals where a stated share of your deposit goes to the seller if you do not accept. Default: refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_BOND_V2_ARBITERS",
+          "description": "Agent402 Bond v2: arbiter addresses you accept, comma-separated. Default: deals with an arbiter refused.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_MCP_TASKS",
+          "description": "on = add bond_v2_wait_result as an MCP task (experimental, read-only). Default off.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
           "name": "X402_NETWORK",
           "description": "mainnet or devnet",
           "isRequired": false,
