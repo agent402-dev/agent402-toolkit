@@ -5,6 +5,7 @@
 // Routes: GET /quote, POST /open, POST /deliver (protocol) and GET / (info).
 // Optional: set X402_PRICE_USD to also sell the same work per request over x402 at POST /x402/job (USDC, no bond),
 // and the RECEIPT_KEY secret to sign a receipt for each paid response (X-Agent402-Receipt).
+// With X402_PRICE_USD set, X402_BASE_PAY_TO (+ BASE_RPC_URL, X402_BASE_FACILITATOR_URL) also takes USDC on Base there (base.ts).
 // Cron:   every 2 minutes, does the work and marks delivery for deals buyers have opened (never wait for the buyer),
 //         settles and claims deals whose outcome is fixed, retries failed jobs, drops deals never opened.
 //
@@ -18,9 +19,10 @@ import { BOND_V2_DEPLOYED } from '@agent402-dev/bond-client/v2';
 import nacl from 'tweetnacl';
 import { receiptSignerFromBytes, type LedgerEntry, type ReceiptSigner } from '@agent402-dev/pay-server';
 import { paidRouteHandler, storageLedger } from '@agent402-dev/pay-server/route';
+import { baseOption, type BaseEnv } from './base.js';
 import type { DiscoveryConfig } from '@agent402-dev/pay-server/discovery';
 
-interface Env {
+interface Env extends BaseEnv {
   /** Secret: the seller key, as the Solana CLI JSON array ([12,34,...]). `wrangler secret put SELLER_KEY` */
   SELLER_KEY: string;
   /** Secret: Solana mainnet RPC URL (with your provider key). `wrangler secret put RPC_URL` */
@@ -178,6 +180,7 @@ function paidRoute(env: Env) {
       try { receiptSigner = await receiptSignerFromBytes(Uint8Array.from(JSON.parse(env.RECEIPT_KEY) as number[])); }
       catch (e) { console.error(`RECEIPT_KEY unusable, receipts off: ${(e as Error).message}`); }
     }
+    const base = baseOption(env);
     const handle = paidRouteHandler({
       path: '/x402/job',
       priceUsd: Number(env.X402_PRICE_USD),
@@ -194,6 +197,7 @@ function paidRoute(env: Env) {
         put: (k, e) => doStub(env).ledgerPut(k, e),
         delete: (k) => doStub(env).ledgerDelete(k),
       }),
+      ...(base ? { base } : {}),
       ...(receiptSigner ? { gate: { receipts: { signer: receiptSigner } } } : {}),
     }));
     return { handle, receiptSigner };
@@ -214,7 +218,7 @@ function llmsTxt(env: Env, origin: string, seller: string, v2: boolean, x402: bo
     `- Live terms (price, seller bond, deposit, deadlines): GET ${origin}/quote`,
     `- Protocol: https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/${v2 ? 'JOB-PROTOCOL-v2.md' : 'JOB-PROTOCOL.md'}`,
     `- With the MCP server @agent402-dev/pay-mcp: ${tools}. A buyer's wallet refuses this seller until a human adds ${new URL(origin).host} to X402_ALLOWED_DOMAINS and the seller wallet to X402_BOND_SELLERS.`,
-    ...(x402 ? [`- Also per request over x402: POST ${origin}/x402/job, ${env.X402_PRICE_USD} USDC on Solana (x402_quote never pays, then x402_fetch).`] : []),
+    ...(x402 ? [`- Also per request over x402: POST ${origin}/x402/job, ${env.X402_PRICE_USD} USDC on ${env.X402_BASE_PAY_TO ? 'Solana or Base' : 'Solana'} (x402_quote never pays, then x402_fetch).`] : []),
     '',
   ].join('\n');
 }
@@ -236,7 +240,7 @@ export default {
       return Response.json({
         protocol: v2 ? 'agent402-bond-job/2' : 'agent402-bond-job/1', seller: seller.seller, quote: '/quote',
         spec: `https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/${v2 ? 'JOB-PROTOCOL-v2.md' : 'JOB-PROTOCOL.md'}`,
-        ...(route ? { x402: { path: '/x402/job', method: 'POST', priceUsd: Number(env.X402_PRICE_USD), asset: 'USDC (Solana)',
+        ...(route ? { x402: { path: '/x402/job', method: 'POST', priceUsd: Number(env.X402_PRICE_USD), asset: env.X402_BASE_PAY_TO ? 'USDC (Solana or Base)' : 'USDC (Solana)',
           ...(route.receiptSigner ? { receiptSigner: route.receiptSigner.publicKey, receipts: 'Paid responses carry an X-Agent402-Receipt signed by receiptSigner (not the seller wallet key).' } : {}) } } : {}),
       });
     }

@@ -165,6 +165,24 @@ describe('pay-server evm gate (Base, EIP-3009)', () => {
     expect(s.f.calls.settle).toBe(2);
   });
 
+  it('a facilitator that advertises permit2 for Base does not change the 402: it still asks for EIP-3009 (name/version, no assetTransferMethod)', async () => {
+    // Shape seen in a public /supported on 2026-11-26: the exact eip155:8453 kind carries extra.assetTransferMethod = 'permit2'.
+    const client: FacilitatorClient = {
+      async getSupported() {
+        return { kinds: [{ x402Version: 2, scheme: 'exact', network: BASE_MAINNET, extra: { name: 'USD Coin', version: '2', assetTransferMethod: 'permit2' } }], extensions: [], signers: {} } as SupportedResponse;
+      },
+      async verify() { throw new Error('not called'); },
+      async settle() { throw new Error('not called'); },
+    };
+    const gate = createEvmPaymentGate({ network: BASE_MAINNET, payTo: PAY_TO, priceUsd: 0.01, facilitators: [{ name: 'permit2-hint', client }], chain: fakeChain().chain, now: () => NOW, resource: { description: 'csv' } });
+    const h = gate.withPayment(async () => Response.json({ ok: true }));
+    const a = await accepted(h);
+    expect(a.extra).toEqual({ name: 'USD Coin', version: '2' });
+    expect(a.extra).not.toHaveProperty('assetTransferMethod');
+    const { header } = pay(a, { permit2: true });
+    expect((await h(get({ 'payment-signature': header }))).status).toBe(402);
+  });
+
   it('config errors: mainnet needs facilitators, payTo must be 0x, a chain reader is needed', () => {
     const chain = fakeChain().chain;
     expect(() => createEvmPaymentGate({ network: BASE_MAINNET, payTo: PAY_TO, priceUsd: 0.01, chain })).toThrow(/facilitators/);

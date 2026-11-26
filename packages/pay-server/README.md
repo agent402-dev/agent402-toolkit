@@ -198,6 +198,7 @@ const handle = paidRouteHandler(route, () => ({
 - Before verify, the gate checks that the authorization pays your address the exact price and has not expired. Same order as Solana: verify → your handler → settle only on success.
 - After settlement it reads USDC `authorizationState(from, nonce)` through your RPC. If a settlement fails or its result is unknown, the chain decides: used → paid; still unused after the authorization expires → not paid.
 - There is no default facilitator for Base mainnet. For tests, `network: 'eip155:84532'` (Base Sepolia) defaults to the public x402.org testnet facilitator.
+  - Example: on 2026-11-26 the public `https://facilitator.payai.network/supported` listed `exact` on `eip155:8453` with an EIP-3009 rate (its fees and terms are its own). Check `/supported` yourself before you rely on one; a facilitator that lists only Permit2 for Base will not work with this gate.
 - Lower level: `createEvmPaymentGate()` from `@agent402-dev/pay-server/evm`. Signed receipts are Solana-only for now. Bond is Solana-only.
 
 ## Discovery metadata (optional)
