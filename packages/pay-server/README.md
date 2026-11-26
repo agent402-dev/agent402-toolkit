@@ -2,9 +2,9 @@
 
 > **A402 (v1) is deprecated.** The token payment option is now **PREQ** (mint `aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX`). Official addresses: https://claude.ai/artifact/S6UafAfViJk3DJeMsDMAja
 
-Server helpers for [x402](https://github.com/coinbase/x402) payments on Solana that accept **USDC** and, optionally, **PREQ** (a Token-2022 token) through standard x402 facilitators.
+Server helpers for [x402](https://github.com/coinbase/x402) payments that accept **USDC on Solana and Base** and, optionally on Solana, **PREQ** (a Token-2022 token) through standard x402 facilitators. Base is off unless you turn it on ([below](#accept-usdc-on-base-optional)).
 
-Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit) (Solana).
+Part of the [Agent402 toolkit](https://github.com/agent402-dev/agent402-toolkit) (Solana and Base).
 Not related to `agent402.tools`, `@agents402` or other similarly named sites, accounts or projects, including projects named "a402" on other chains.
 
 > This package moves no funds itself and gives no opinion on any token. Rates and amounts are facts computed from public on-chain data, not investment advice.
@@ -178,6 +178,27 @@ const handle = paidRouteHandler({
 - `storageLedger()` keeps the payment ledger in your own key-value storage (for example a Durable Object), so a payment cannot be used twice across instances. Without it, the gate's in-memory ledger protects one process only.
 - USDC only. Optional `fromQuery` accepts GET `?…` input; optional `openapi(origin)` returns a document you can serve at `/openapi.json`.
 - The [Workers template](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/bond-seller-worker) uses it to sell the same work as a Bond job and per request (`X402_PRICE_USD`).
+
+## Accept USDC on Base (optional)
+`paidRouteHandler` can also take USDC on Base (`eip155:8453`), beside Solana or on its own. Off unless you pass `base`; the Solana 402 and its checks do not change.
+
+```ts
+const handle = paidRouteHandler(route, () => ({
+  payTo: 'YOUR_SOLANA_ADDRESS', rpcUrl: SOLANA_RPC_URL,        // omit both to sell on Base only
+  base: {
+    payTo: '0xYOUR_BASE_ADDRESS',                             // public address only; no key
+    rpcUrl: BASE_RPC_URL,                                     // read-only on-chain recheck
+    facilitators: [{ name: 'your-facilitator', url: FACILITATOR_URL }], // one you have checked supports eip155:8453
+  },
+  ledger: storageLedger(yourStorage),
+}));
+```
+- With both, the 402 lists the Solana option first and the Base option second. A payment goes to the network it chose.
+- Base payments use the official `@x402/evm` `exact` scheme with EIP-3009 (`transferWithAuthorization`): the buyer signs, the facilitator pays gas. Permit2 payloads are refused.
+- Before verify, the gate checks that the authorization pays your address the exact price and has not expired. Same order as Solana: verify → your handler → settle only on success.
+- After settlement it reads USDC `authorizationState(from, nonce)` through your RPC. If a settlement fails or its result is unknown, the chain decides: used → paid; still unused after the authorization expires → not paid.
+- There is no default facilitator for Base mainnet. For tests, `network: 'eip155:84532'` (Base Sepolia) defaults to the public x402.org testnet facilitator.
+- Lower level: `createEvmPaymentGate()` from `@agent402-dev/pay-server/evm`. Signed receipts are Solana-only for now. Bond is Solana-only.
 
 ## Discovery metadata (optional)
 `@agent402-dev/pay-server/discovery` adds x402 Bazaar metadata to your 402: `extensions.bazaar` (an example input with its JSON Schema, and an example result) and `resource.iconUrl`. Pass it as `discovery` to `createPaymentGate` or to a `paidRouteHandler` route. Unset, the 402 is unchanged.
