@@ -78,6 +78,16 @@ export default {
 Rate stores: `memoryRateStore()` (default, tests), `fileRateStore(path)` from `@agent402-dev/pay-server/rates-file` (Node), or your own `RateStore` (for example a Cloudflare Durable Object; see the [Workers example](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/cloudflare-worker)). A Node example is in [`examples/node-server`](https://github.com/agent402-dev/agent402-toolkit/tree/main/packages/pay-server/examples/node-server).
 
 ## Check your own 402 without a wallet
+Quick check from the command line (pay-server 0.9.0 or later). It sends one request to your paid URL without any payment header and prints one line per finding: `fix` (a buyer's agent will stop here), `note`, or `ok`. Nothing is signed or paid and no key is read.
+
+```sh
+npx -y @agent402-dev/pay-server check https://your-endpoint.example.com/paid
+npx -y @agent402-dev/pay-server check https://your-endpoint.example.com/paid --post '{"q":"example"}'
+```
+
+It checks the `PAYMENT-REQUIRED` header (x402 v2), each option (scheme, CAIP-2 network, USDC on Solana or Base, `amount` in the smallest unit, `payTo` format, Solana `extra.feePayer`, Base `extra.name`/`extra.version`), `resource.url` (full https URL on your host), the description length, and discovery metadata. Exit code 1 means something to fix.
+
+To see the full buyer view, including the buyer's own rules:
 Before you list your endpoint anywhere, look at it the way a buyer's agent will. [`@agent402-dev/pay-mcp`](https://www.npmjs.com/package/@agent402-dev/pay-mcp) runs without a wallet key: with no `X402_KEYPAIR_PATH` it can only quote, never sign or pay.
 
 1. Add pay-mcp to an MCP client with only these settings (no key file):
