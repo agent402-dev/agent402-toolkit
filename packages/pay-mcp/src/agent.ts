@@ -196,10 +196,21 @@ export function createAgent(d: AgentDeps) {
       record({ ...base, ...pay, result: 'refused', reasons: [e.message], signed: true });
       return { result: 'refused', reasons: [e.message], options, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network } };
     }
-    const sent = await send({ ...spec, url: a.finalUrl }, { 'payment-signature': header }, false);
-    if ('refused' in sent) { record({ ...base, ...pay, result: 'failed', reasons: [sent.refused], signed: true }); return { result: 'failed', reasons: [sent.refused] }; }
-    const res = sent.res;
-    const buf = await res.arrayBuffer();
+    // After signing, a dropped connection or a broken response body must still be recorded as a signed payment,
+    // so it counts toward the daily and per-recipient caps and the agent is told not to pay for this request again blindly
+    let res: Response;
+    let buf: ArrayBuffer;
+    try {
+      const sent = await send({ ...spec, url: a.finalUrl }, { 'payment-signature': header }, false);
+      if ('refused' in sent) { record({ ...base, ...pay, result: 'failed', reasons: [sent.refused], signed: true }); return { result: 'failed', reasons: [sent.refused] }; }
+      res = sent.res;
+      buf = await res.arrayBuffer();
+    } catch (e) {
+      const msg = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+      const reasons = [`network_error_after_signing: ${msg}; the payment may have settled, check the seller or the chain before paying for this request again`];
+      record({ ...base, ...pay, result: 'unknown', reasons, signed: true });
+      return { result: 'unknown', reasons, payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network } };
+    }
     const body = parseBody(buf);
     if (res.ok) {
       const pr = res.headers.get('payment-response');

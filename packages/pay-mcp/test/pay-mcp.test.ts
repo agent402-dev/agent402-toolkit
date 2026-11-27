@@ -125,6 +125,22 @@ describe('normal payment and history', () => {
     expect(second.reasons!.join()).toContain('over_daily_usd_limit');
     expect(t.wallet.n).toBe(1);
   });
+  it('connection drops after signing (paid request throws, or the body breaks) → signed "unknown" in history, counts toward the daily cap, no second signature', async () => {
+    const broken = () => new Response(new ReadableStream({ start(c) { c.error(new Error('socket reset')); } }), { status: 200 });
+    for (const paid of [() => { throw new TypeError('fetch failed'); }, broken]) {
+      const t = agentWith({ ...BASE, X402_MAX_USD_PER_DAY: '0.03' }, { [`${HOST}/paid`]: (r) => (r.headers.get('payment-signature') ? paid() : r402([req()])) });
+      const r = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+      expect(r).toMatchObject({ result: 'unknown', payment: { amount: '20000', payTo: TRUSTED } });
+      expect(r.reasons!.join(' ')).toContain('network_error_after_signing');
+      expect(t.wallet.n).toBe(1);
+      expect(t.history.list()[0]).toMatchObject({ result: 'unknown', signed: true, amount: '20000', payTo: TRUSTED });
+      expect(t.history.today()).toEqual({ count: 1, usd: 0.02, preq: 0n, a402: 0n });
+      const again = await t.agent.payAndFetch({ url: `https://${HOST}/paid` });
+      expect(again.result).toBe('refused');
+      expect(again.reasons!.join()).toContain('over_daily_usd_limit');
+      expect(t.wallet.n).toBe(1);
+    }
+  });
 });
 
 describe('PREQ limits (per payment and daily total; PREQ rejected if not set)', () => {
