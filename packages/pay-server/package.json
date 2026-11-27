@@ -1,6 +1,6 @@
 {
   "name": "@agent402-dev/pay-server",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "description": "Server-side helpers for x402 on Solana and Base: accept USDC (and PREQ on Solana) via standard facilitators, with a median daily rate and liquidity guards for tokens.",
   "author": "Agent402",
