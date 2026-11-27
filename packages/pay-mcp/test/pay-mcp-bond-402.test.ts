@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseBondClaim, verifyBondClaim, bondPreferPolicy, unbondedNeedsConfirm, SOLANA_MAINNET_CAIP2 } from '@agent402-dev/pay-mcp/bond-402';
+import { parseBondClaim, verifyBondClaim, bondPreferPolicy, unbondedNeedsConfirm, SOLANA_MAINNET_CAIP2, BOND_READ_COMMITMENT } from '@agent402-dev/pay-mcp/bond-402';
 import { bondExtension } from '@agent402-dev/pay-server/bond-ext';
 
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -60,11 +60,25 @@ describe('pay-mcp: 402 extensions.bond check (B1-b)', () => {
     const c = (parseBondClaim(ext()) as { claim: any }).claim;
     const at = (value: unknown, slot: unknown) => (async () => new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { context: { slot }, value } }))) as unknown as typeof fetch;
     const ok = await verifyBondClaim(deps(at(acct(), 412345678)), c);
-    expect(ok).toEqual({ verified: true, reasons: [], balance: '7000000', coverUsd: 5, readAtSlot: 412345678, reservedForThisPayment: false });
+    expect(ok).toEqual({ verified: true, reasons: [], balance: '7000000', coverUsd: 5, readAtSlot: 412345678, readCommitment: 'confirmed', reservedForThisPayment: false });
     expect((await verifyBondClaim(deps(at(null, 7)), c)).readAtSlot).toBe(7);
     expect((await verifyBondClaim(deps(at(acct({ amount: '1' }), 9)), c))).toMatchObject({ verified: false, readAtSlot: 9 });
     for (const bad of [undefined, -1, 1.5, '123', null]) expect('readAtSlot' in (await verifyBondClaim(deps(at(acct(), bad)), c))).toBe(false);
     expect('readAtSlot' in (await verifyBondClaim(deps(rpc(acct())), c))).toBe(false);
+  });
+
+  it('the slot comes with the commitment it was read at, and only with it', async () => {
+    const c = (parseBondClaim(ext()) as { claim: any }).claim;
+    let sent: any;
+    const at = (slot: unknown) => (async (_u: unknown, init: RequestInit) => { sent = JSON.parse(String(init.body)); return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { context: { slot }, value: acct() } })); }) as unknown as typeof fetch;
+    const r = await verifyBondClaim(deps(at(5)), c);
+    expect(sent.params[1].commitment).toBe(BOND_READ_COMMITMENT);
+    expect(r).toMatchObject({ readAtSlot: 5, readCommitment: 'confirmed' });
+    for (const bad of [undefined, -1, 'x']) {
+      const b = await verifyBondClaim(deps(at(bad)), c);
+      expect('readCommitment' in b).toBe(false);
+    }
+    expect('readCommitment' in (await verifyBondClaim(deps(rpc(acct())), c))).toBe(false);
   });
 
   it('a non-USDC bond is never given a USD value', async () => {

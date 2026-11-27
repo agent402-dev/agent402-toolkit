@@ -43,6 +43,8 @@ export interface BondCheck {
   coverUsd: number | null;
   /** slot the RPC answered at (`context.slot`), when it returned one: the moment this check describes */
   readAtSlot?: number;
+  /** commitment level the read was made at; present exactly when readAtSlot is, so the coordinate says both where and how final */
+  readCommitment?: typeof BOND_READ_COMMITMENT;
   /**
    * Always false. A balance read is not a reservation: the same balance can pass for many concurrent quotes.
    * Cover is locked for one buyer only when a Bond v2 deal opens (`open` moves seller_bond into that deal's vault
@@ -50,6 +52,9 @@ export interface BondCheck {
    */
   reservedForThisPayment: false;
 }
+
+/** Commitment level used for the bond account read. */
+export const BOND_READ_COMMITMENT = 'confirmed' as const;
 
 export interface BondCheckDeps { fetch: typeof fetch; rpcUrl: string; v2Program: string; usdcMint: string }
 
@@ -62,13 +67,13 @@ async function readBondClaim(d: BondCheckDeps, c: BondClaim): Promise<Omit<BondC
   const reasons: string[] = [];
   if (c.program !== d.v2Program) reasons.push('bond program is not the Agent402 Bond v2 program');
   let info: any;
-  let at: { readAtSlot?: number } = {};
+  let at: { readAtSlot?: number; readCommitment?: typeof BOND_READ_COMMITMENT } = {};
   try {
-    const r = await d.fetch(d.rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAccountInfo', params: [c.bondAccount, { encoding: 'jsonParsed', commitment: 'confirmed' }] }), signal: AbortSignal.timeout(15_000) });
+    const r = await d.fetch(d.rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAccountInfo', params: [c.bondAccount, { encoding: 'jsonParsed', commitment: BOND_READ_COMMITMENT }] }), signal: AbortSignal.timeout(15_000) });
     const j = (await r.json()) as { result?: { value: any; context?: { slot?: unknown } } };
     info = j?.result?.value ?? null;
     const slot = j?.result?.context?.slot;
-    if (typeof slot === 'number' && Number.isSafeInteger(slot) && slot >= 0) at = { readAtSlot: slot };
+    if (typeof slot === 'number' && Number.isSafeInteger(slot) && slot >= 0) at = { readAtSlot: slot, readCommitment: BOND_READ_COMMITMENT };
   } catch (e) {
     return { verified: false, reasons: [...reasons, `bond account could not be read: ${(e as Error).message}`], coverUsd: null };
   }
