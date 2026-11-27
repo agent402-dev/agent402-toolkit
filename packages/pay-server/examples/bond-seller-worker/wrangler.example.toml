@@ -38,6 +38,8 @@ DESCRIPTION = "Counts the words in a text"
 # Optional, with X402_PRICE_USD: also take USDC on Base at the same route (off unless X402_BASE_PAY_TO is set; see README.md).
 # X402_BASE_PAY_TO = "0xYOUR_BASE_ADDRESS"                     # public address only; no key
 # X402_BASE_FACILITATOR_URL = "https://your-facilitator.example" # one whose /supported lists exact on eip155:8453
+# Optional, with X402_PRICE_USD: also take PREQ on Solana at the same USD price (off unless "on"; needs your seller wallet's PREQ token account; see README.md).
+# X402_PREQ = "on"
 # BASE_RPC_URL: set with `wrangler secret put BASE_RPC_URL` if it carries a provider key (read-only recheck after settle)
 # Signed receipts for x402 responses: set the RECEIPT_KEY secret (a separate key, not the seller key). See README.md.
 # Optional: the address buyers use, if it differs from what the Worker sees (e.g. behind another proxy)

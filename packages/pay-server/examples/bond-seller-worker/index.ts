@@ -5,7 +5,8 @@
 // Routes: GET /quote, POST /open, POST /deliver (protocol) and GET / (info).
 // Optional: set X402_PRICE_USD to also sell the same work per request over x402 at POST /x402/job (USDC, no bond),
 // and the RECEIPT_KEY secret to sign a receipt for each paid response (X-Agent402-Receipt).
-// With X402_PRICE_USD set, X402_BASE_PAY_TO (+ BASE_RPC_URL, X402_BASE_FACILITATOR_URL) also takes USDC on Base there (base.ts).
+// With X402_PRICE_USD set, X402_BASE_PAY_TO (+ BASE_RPC_URL, X402_BASE_FACILITATOR_URL) also takes USDC on Base there (base.ts),
+// and X402_PREQ = "on" also takes PREQ on Solana at the same USD price (preq.ts).
 // Cron:   every 2 minutes, does the work and marks delivery for deals buyers have opened (never wait for the buyer),
 //         settles and claims deals whose outcome is fixed, retries failed jobs, drops deals never opened.
 //
@@ -17,12 +18,13 @@ import { type BondJob, type BondJobStore, bondJobService, createBondSeller } fro
 import { bondJobServiceV2, createBondSellerV2 } from '@agent402-dev/pay-server/bond-v2';
 import { BOND_V2_DEPLOYED } from '@agent402-dev/bond-client/v2';
 import nacl from 'tweetnacl';
-import { receiptSignerFromBytes, type LedgerEntry, type ReceiptSigner } from '@agent402-dev/pay-server';
+import { receiptSignerFromBytes, rpcChain, type DailyRate, type LedgerEntry, type PriceSample, type ReceiptSigner } from '@agent402-dev/pay-server';
 import { paidRouteHandler, storageLedger } from '@agent402-dev/pay-server/route';
 import { baseOption, type BaseEnv } from './base.js';
+import { expiredRateKeys, preqGate, preqOn, preqRateBook, rateSampleDue, type PreqEnv } from './preq.js';
 import type { DiscoveryConfig } from '@agent402-dev/pay-server/discovery';
 
-interface Env extends BaseEnv {
+interface Env extends BaseEnv, PreqEnv {
   /** Secret: the seller key, as the Solana CLI JSON array ([12,34,...]). `wrangler secret put SELLER_KEY` */
   SELLER_KEY: string;
   /** Secret: Solana mainnet RPC URL (with your provider key). `wrangler secret put RPC_URL` */
@@ -91,8 +93,23 @@ export class JobStoreDO extends DurableObject<Env> {
   async ledgerGet(key: string) { return (await this.ctx.storage.get<LedgerEntry>(key)) ?? undefined; }
   async ledgerPut(key: string, e: LedgerEntry) { await this.ctx.storage.put(key, e); }
   async ledgerDelete(key: string) { await this.ctx.storage.delete(key); }
+  /** PREQ rate (only with X402_PREQ = "on"): hourly samples and daily rates; old ones are dropped */
+  async rateAddSample(s: PriceSample) {
+    await this.ctx.storage.put(`rate:s:${s.at}`, s);
+    const old = expiredRateKeys([...(await this.ctx.storage.list({ prefix: 'rate:' })).keys()], Date.now());
+    if (old.length) await this.ctx.storage.delete(old);
+  }
+  async rateSamples(day: string) { return [...(await this.ctx.storage.list<PriceSample>({ prefix: `rate:s:${day}` })).values()]; }
+  async rateGet(date: string) { return (await this.ctx.storage.get<DailyRate>(`rate:r:${date}`)) ?? null; }
+  async ratePut(r: DailyRate) { await this.ctx.storage.put(`rate:r:${r.date}`, r); }
+  async rateSampleDue(nowMs: number) {
+    if (!rateSampleDue(await this.ctx.storage.get<number>('rate:last'), nowMs)) return false;
+    await this.ctx.storage.put('rate:last', nowMs);
+    return true;
+  }
 }
 const doStub = (env: Env) => env.JOBS.get(env.JOBS.idFromName('jobs'));
+const rateBook = (env: Env) => preqRateBook(() => doStub(env) as never, rpcChain(env.RPC_URL).accounts);
 function jobStore(env: Env): BondJobStore {
   const stub = env.JOBS.get(env.JOBS.idFromName('jobs'));
   return {
@@ -181,6 +198,8 @@ function paidRoute(env: Env) {
       catch (e) { console.error(`RECEIPT_KEY unusable, receipts off: ${(e as Error).message}`); }
     }
     const base = baseOption(env);
+    // With X402_PREQ unset the gate settings are the USDC-only ones
+    const gate = { ...preqGate(preqOn(env), () => rateBook(env)), ...(receiptSigner ? { receipts: { signer: receiptSigner } } : {}) };
     const handle = paidRouteHandler({
       path: '/x402/job',
       priceUsd: Number(env.X402_PRICE_USD),
@@ -198,7 +217,7 @@ function paidRoute(env: Env) {
         delete: (k) => doStub(env).ledgerDelete(k),
       }),
       ...(base ? { base } : {}),
-      ...(receiptSigner ? { gate: { receipts: { signer: receiptSigner } } } : {}),
+      ...(Object.keys(gate).length ? { gate } : {}),
     }));
     return { handle, receiptSigner };
   })();
@@ -218,7 +237,7 @@ function llmsTxt(env: Env, origin: string, seller: string, v2: boolean, x402: bo
     `- Live terms (price, seller bond, deposit, deadlines): GET ${origin}/quote`,
     `- Protocol: https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/${v2 ? 'JOB-PROTOCOL-v2.md' : 'JOB-PROTOCOL.md'}`,
     `- With the MCP server @agent402-dev/pay-mcp: ${tools}. A buyer's wallet refuses this seller until a human adds ${new URL(origin).host} to X402_ALLOWED_DOMAINS and the seller wallet to X402_BOND_SELLERS.`,
-    ...(x402 ? [`- Also per request over x402: POST ${origin}/x402/job, ${env.X402_PRICE_USD} USDC on ${env.X402_BASE_PAY_TO ? 'Solana or Base' : 'Solana'} (x402_quote never pays, then x402_fetch).`] : []),
+    ...(x402 ? [`- Also per request over x402: POST ${origin}/x402/job, ${env.X402_PRICE_USD} ${preqOn(env) ? `USD in USDC on ${env.X402_BASE_PAY_TO ? 'Solana or Base' : 'Solana'}, or PREQ on Solana (amount from the daily rate)` : `USDC on ${env.X402_BASE_PAY_TO ? 'Solana or Base' : 'Solana'}`} (x402_quote never pays, then x402_fetch).`] : []),
     '',
   ].join('\n');
 }
@@ -240,7 +259,7 @@ export default {
       return Response.json({
         protocol: v2 ? 'agent402-bond-job/2' : 'agent402-bond-job/1', seller: seller.seller, quote: '/quote',
         spec: `https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/${v2 ? 'JOB-PROTOCOL-v2.md' : 'JOB-PROTOCOL.md'}`,
-        ...(route ? { x402: { path: '/x402/job', method: 'POST', priceUsd: Number(env.X402_PRICE_USD), asset: env.X402_BASE_PAY_TO ? 'USDC (Solana or Base)' : 'USDC (Solana)',
+        ...(route ? { x402: { path: '/x402/job', method: 'POST', priceUsd: Number(env.X402_PRICE_USD), asset: `${env.X402_BASE_PAY_TO ? 'USDC (Solana or Base)' : 'USDC (Solana)'}${preqOn(env) ? ' or PREQ (Solana)' : ''}`,
           ...(route.receiptSigner ? { receiptSigner: route.receiptSigner.publicKey, receipts: 'Paid responses carry an X-Agent402-Receipt signed by receiptSigner (not the seller wallet key).' } : {}) } } : {}),
       });
     }
@@ -248,6 +267,11 @@ export default {
   },
 
   async scheduled(_c: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    // PREQ rate: one sample per hour, only with X402_PRICE_USD and X402_PREQ = "on". Never affects the jobs
+    if (env.X402_PRICE_USD && preqOn(env)) ctx.waitUntil((async () => {
+      try { if (await doStub(env).rateSampleDue(Date.now())) await rateBook(env).record(); }
+      catch (e) { console.warn(`PREQ rate sample skipped: ${(e as Error).message}`); }
+    })());
     if (env.PROTOCOL === '2') {
       const { jobs } = serviceV2(env);
       ctx.waitUntil((async () => {
