@@ -63,6 +63,10 @@ The extension is a claim. With `X402_BOND_PREFER=on`, pay-mcp reads the bond acc
 claimed mint, belong to the wallet being paid, and hold at least `maxCover`. Only a USDC bond gets a USD value. Above
 `X402_UNBONDED_CONFIRM_ABOVE_USD` it asks a human before paying a seller without a checked bond. It never raises a limit or skips a
 check. The balance is funds available for per-deal bonds; a bond is locked only when a deal opens.
+A passing check is a read at one moment, not a reservation: the same balance can pass for several concurrent
+quotes. Bond v2 `open` moves the seller bond into that deal's vault in the same transaction (and fails if the
+seller cannot fund it), so bonds of deals already open are no longer in the balance, and the only lock for you is
+your own deal opening.
 
 ## Optional: sample check for data jobs
 

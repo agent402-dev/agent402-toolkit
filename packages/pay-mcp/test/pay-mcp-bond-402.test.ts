@@ -28,7 +28,7 @@ describe('pay-mcp: 402 extensions.bond check (B1-b)', () => {
   it('verifies only when the account matches mint, seller and balance on chain', async () => {
     const c = (parseBondClaim(ext()) as { claim: any }).claim;
     const ok = await verifyBondClaim(deps(rpc(acct())), c);
-    expect(ok).toEqual({ verified: true, reasons: [], balance: '7000000', coverUsd: 5 });
+    expect(ok).toEqual({ verified: true, reasons: [], balance: '7000000', coverUsd: 5, reservedForThisPayment: false });
     for (const [a, why] of [
       [acct({ amount: '4999999' }), 'below the claimed maxCover'],
       [acct({ mint: ACCT }), 'different mint'],
@@ -48,6 +48,14 @@ describe('pay-mcp: 402 extensions.bond check (B1-b)', () => {
     expect(broken.verified).toBe(false);
   });
 
+  it('a passing check is a read, not a reservation: two concurrent quotes both pass on one balance, neither is reserved', async () => {
+    const c = (parseBondClaim(ext()) as { claim: any }).claim;
+    const [a, b] = await Promise.all([verifyBondClaim(deps(rpc(acct())), c), verifyBondClaim(deps(rpc(acct())), c)]);
+    expect(a.verified && b.verified).toBe(true);
+    expect([a.reservedForThisPayment, b.reservedForThisPayment]).toEqual([false, false]);
+    expect((await verifyBondClaim(deps(rpc(null)), c)).reservedForThisPayment).toBe(false);
+  });
+
   it('a non-USDC bond is never given a USD value', async () => {
     const PREQ = 'aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX';
     const c = (parseBondClaim({ bond: bondExtension({ seller: SELLER, bondAccount: ACCT, asset: 'PREQ', mint: PREQ, maxCover: '5000000' }) }) as { claim: any }).claim;
@@ -62,8 +70,8 @@ describe('pay-mcp: 402 extensions.bond check (B1-b)', () => {
     const p = bondPreferPolicy({ X402_BOND_PREFER: 'on', X402_UNBONDED_CONFIRM_ABOVE_USD: '0.5' });
     expect(p).toEqual({ prefer: true, unbondedConfirmAboveUsd: 0.5 });
     expect(bondPreferPolicy({ X402_BOND_PREFER: 'on' }).unbondedConfirmAboveUsd).toBe(0.05);
-    const verified = { verified: true, reasons: [], coverUsd: 5 };
-    const unverified = { verified: false, reasons: ['x'], coverUsd: null };
+    const verified = { verified: true, reasons: [], coverUsd: 5, reservedForThisPayment: false as const };
+    const unverified = { verified: false, reasons: ['x'], coverUsd: null, reservedForThisPayment: false as const };
     expect(unbondedNeedsConfirm(bondPreferPolicy({}), 100, null)).toBe(false);
     expect(unbondedNeedsConfirm(p, 0.49, null)).toBe(false);
     expect(unbondedNeedsConfirm(p, 0.5, null)).toBe(true);

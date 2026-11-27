@@ -41,12 +41,22 @@ export interface BondCheck {
   balance?: string;
   /** USD value of the claimed cover: USDC only (6 decimals); null for any other asset */
   coverUsd: number | null;
+  /**
+   * Always false. A balance read is not a reservation: the same balance can pass for many concurrent quotes.
+   * Cover is locked for one buyer only when a Bond v2 deal opens (`open` moves seller_bond into that deal's vault
+   * in the same transaction, and fails if the seller cannot fund it). Bonds of deals already open have left this account.
+   */
+  reservedForThisPayment: false;
 }
 
 export interface BondCheckDeps { fetch: typeof fetch; rpcUrl: string; v2Program: string; usdcMint: string }
 
 /** Read the bond token account on chain and compare it with the claim. Never signs anything. */
 export async function verifyBondClaim(d: BondCheckDeps, c: BondClaim): Promise<BondCheck> {
+  return { ...(await readBondClaim(d, c)), reservedForThisPayment: false };
+}
+
+async function readBondClaim(d: BondCheckDeps, c: BondClaim): Promise<Omit<BondCheck, 'reservedForThisPayment'>> {
   const reasons: string[] = [];
   if (c.program !== d.v2Program) reasons.push('bond program is not the Agent402 Bond v2 program');
   let info: any;

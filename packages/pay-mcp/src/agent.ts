@@ -155,11 +155,11 @@ export function createAgent(d: AgentDeps) {
     let bond: FetchOutcome['bond'];
     if (d.bond402?.prefer.prefer) {
       const parsed = parseBondClaim((pr as { extensions?: unknown }).extensions);
-      if (parsed && 'invalid' in parsed) bond = { claimed: true, verified: false, reasons: parsed.invalid, coverUsd: null };
+      if (parsed && 'invalid' in parsed) bond = { claimed: true, verified: false, reasons: parsed.invalid, coverUsd: null, reservedForThisPayment: false };
       else if (parsed) {
-        const c = d.bond402.check ? await verifyBondClaim(d.bond402.check, parsed.claim) : { verified: false, reasons: ['no RPC to check the bond'], coverUsd: null };
+        const c = d.bond402.check ? await verifyBondClaim(d.bond402.check, parsed.claim) : { verified: false, reasons: ['no RPC to check the bond'], coverUsd: null, reservedForThisPayment: false as const };
         // The bond must belong to the wallet this payment goes to, or a seller could point at someone else's bond
-        if (c.verified && pick?.chosen && pick.chosen.requirement.payTo !== parsed.claim.seller) bond = { claimed: true, verified: false, reasons: ['bond seller is not the payment receiver'], coverUsd: null, ...(c.balance ? { balance: c.balance } : {}) };
+        if (c.verified && pick?.chosen && pick.chosen.requirement.payTo !== parsed.claim.seller) bond = { claimed: true, verified: false, reasons: ['bond seller is not the payment receiver'], coverUsd: null, reservedForThisPayment: false, ...(c.balance ? { balance: c.balance } : {}) };
         else bond = { claimed: true, ...c };
       }
       if (pick?.chosen && unbondedNeedsConfirm(d.bond402.prefer, pick.chosen.usd, bond ?? null)) pick.chosen.needsConfirmation = true;
