@@ -110,3 +110,65 @@ export function countReasonsWithEvidence(items: readonly { code: unknown; eviden
   const sampleProven = items.filter((i) => normalizeReason(i.code) === 'data_incorrect' && i.evidence === SAMPLE_EVIDENCE && i.immutable === true).length;
   return { ...base, sampleProven, machineWithSamples: base.machine + sampleProven };
 }
+
+// ---------------- reputation (8004-style feedback; builds data only, sends nothing) ----------------
+
+export interface JobFeedbackInput {
+  /** Bond v2 program and deal account (base58) */
+  program: string; deal: string;
+  /** Final 8183-style status; Funded / Submitted are not final and are refused */
+  status: JobStatus;
+  /** Job amount in the asset's smallest units, its decimals and symbol */
+  amount: bigint; decimals: number; asset: string;
+  /** Reject reason code (client metadata); a missing or unknown one becomes `other` */
+  reason?: unknown;
+  /** Settlement transaction signature, if known */
+  settleTx?: string;
+  /** Endpoint the job was bought from (https, at most 250 bytes) */
+  endpoint?: string;
+  /** Where the feedback file will be published (https, at most 250 bytes) */
+  feedbackUri?: string;
+}
+
+const utf8Len = (s: string) => new TextEncoder().encode(s).length;
+const decimalOf = (v: bigint, d: number) => {
+  const neg = v < 0n; const a = neg ? -v : v; const p = 10n ** BigInt(d);
+  const frac = d ? (a % p).toString().padStart(d, '0').replace(/0+$/, '') : '';
+  return `${neg ? '-' : ''}${a / p}${frac ? '.' + frac : ''}`;
+};
+
+/**
+ * Feedback for a finished job in the shape of the Solana 8004 registry's giveFeedback parameters (value, score, tag1,
+ * tag2, endpoint, feedbackUri, feedbackFileHash), plus the JSON feedback file whose SHA-256 is the file hash.
+ * value = the job amount (money at stake). score: Completed 100, Expired 0 (deadline missed), Rejected with a
+ * machine-checkable reason 0, Rejected for any other reason no score (nobody has decided who was right).
+ * Builds data only: writing it on mainnet is a separate, approved step.
+ */
+export async function jobFeedback(i: JobFeedbackInput) {
+  if (i.status !== 'Completed' && i.status !== 'Rejected' && i.status !== 'Expired') throw new Error(`jobFeedback: status ${i.status} is not final`);
+  if (!Number.isInteger(i.decimals) || i.decimals < 0 || i.decimals > 18) throw new Error('jobFeedback: decimals must be 0-18');
+  if (i.amount < 0n) throw new Error('jobFeedback: amount must not be negative');
+  for (const [k, v] of [['endpoint', i.endpoint], ['feedbackUri', i.feedbackUri]] as const) {
+    if (v !== undefined && (!/^https:\/\/\S+$/.test(v) || utf8Len(v) > 250)) throw new Error(`jobFeedback: ${k} must be an https URL of at most 250 bytes`);
+  }
+  const reason = i.status === 'Rejected' ? normalizeReason(i.reason) : null;
+  const score = i.status === 'Completed' ? 100 : i.status === 'Expired' ? 0 : isMachineReason(reason!) ? 0 : undefined;
+  const tag2 = reason ? `rejected:${reason}` : i.status.toLowerCase();
+  const file = {
+    type: 'agent402.job-feedback', v: 1, program: i.program, deal: i.deal, status: i.status,
+    ...(reason ? { reason, machineCheckable: isMachineReason(reason) } : {}),
+    amount: i.amount.toString(), decimals: i.decimals, asset: i.asset,
+    ...(i.settleTx ? { settleTx: i.settleTx } : {}),
+  };
+  const fileJson = JSON.stringify(file);
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fileJson)));
+  const params = {
+    value: decimalOf(i.amount, i.decimals),
+    ...(score !== undefined ? { score } : {}),
+    tag1: 'agent402-job', tag2,
+    ...(i.endpoint ? { endpoint: i.endpoint } : {}),
+    ...(i.feedbackUri ? { feedbackUri: i.feedbackUri } : {}),
+    feedbackFileHash: hash,
+  };
+  return { params, file, fileJson };
+}
