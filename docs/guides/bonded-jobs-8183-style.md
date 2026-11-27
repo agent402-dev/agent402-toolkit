@@ -82,7 +82,7 @@ feedback file). It only builds data; writing feedback on chain is up to you.
 
 ## Status
 
-The code is on the `main` branch of [agent402-toolkit](https://github.com/agent402-dev/agent402-toolkit); some of it is not in an npm
-release yet. Terms: [TERMS-v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS-v2.md).
+The code is on the `main` branch of [agent402-toolkit](https://github.com/agent402-dev/agent402-toolkit) and in the npm
+releases bond-client 0.4.0, pay-server 0.11.0, pay-mcp 0.16.0 and bond-seller-mcp 0.5.0. Terms: [TERMS-v2](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/bond/TERMS-v2.md).
 
 Internal review only, not independently audited.

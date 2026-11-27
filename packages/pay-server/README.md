@@ -94,7 +94,7 @@ For example, as a GitHub Actions step after your deploy step (the job fails when
   run: npx -y @agent402-dev/pay-server@^0.10.0 check https://your-endpoint.example.com/paid --json
 ```
 
-A route that answers with a $0 option and a `sign-in-with-x` challenge (a free route behind a wallet sign-in) is reported as a `note` (`amount_zero_siwx`), not a `fix` (next pay-server release). Buyers that only pay, such as pay-mcp, stop there; list a paid route if you want them to reach it.
+A route that answers with a $0 option and a `sign-in-with-x` challenge (a free route behind a wallet sign-in) is reported as a `note` (`amount_zero_siwx`), not a `fix` (pay-server 0.11.0 or later). Buyers that only pay, such as pay-mcp, stop there; list a paid route if you want them to reach it.
 
 It checks the `PAYMENT-REQUIRED` header (x402 v2), each option (scheme, CAIP-2 network, USDC on Solana or Base, `amount` in the smallest unit, `payTo` format, Solana `extra.feePayer`, Base `extra.name`/`extra.version`, a Base option that asks for Permit2 only), `resource.url` (full https URL on your host), the description length, and discovery metadata. Exit code 1 means something to fix.
 
