@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { t2 } from '@agent402-dev/bond-client/rules';
 import { markDeadlineV2 } from '@agent402-dev/bond-client/v2';
+import { jobStatus, REASON_CODES, isMachineReason, normalizeReason } from '@agent402-dev/bond-client/job-8183';
 import type { SellerConfig } from './config.js';
 import type { BuiltSeller } from './seller.js';
 import { registerSkills } from './skills.js';
@@ -141,12 +142,31 @@ export function createSellerServer(d: SellerServerDeps, run = d.built ? serialRu
 
   server.tool('sell_decline',
     'Give up on a job from sell_jobs (cannot be done, or should not be). Delivers a failure notice and marks delivery, so the deal ends neutral: your bond comes back and the buyer gets its deposit back. Returns result "declined" with the mark transaction, or "refused" (an error). Use sell_submit instead when you have the work.',
-    { deal: z.string().describe('Deal address (base58) from sell_jobs.'), reason: z.string().max(300).optional().describe('Short reason shown to the buyer (at most 300 characters).') },
-    async ({ deal, reason }) => {
+    { deal: z.string().describe('Deal address (base58) from sell_jobs.'), reason: z.string().max(300).optional().describe('Short reason shown to the buyer (at most 300 characters).'),
+      code: z.enum(REASON_CODES).optional().describe('Reason code for your own records (default other); not sent to the buyer and not stored on chain.') },
+    async ({ deal, reason, code }) => {
       if (!d.built) return off();
       const r = await d.built.service.decline(deal, reason);
       if ('error' in r) return out({ result: 'refused', httpStatus: r.status, error: r.error }, true);
-      return out({ result: 'declined', deal, markTx: r.markTx });
+      const c = normalizeReason(code);
+      return out({ result: 'declined', deal, markTx: r.markTx, reasonCode: c, machineCheckable: isMachineReason(c) });
+    });
+
+  server.tool('sell_job_status',
+    'Read one Bond v2 deal as an 8183-style job (compatible mapping on Bond v2, not the ERC-8183 standard itself), from the provider side. Read-only, never signs. Returns status Funded, Submitted, Completed, Rejected or Expired, the Bond v2 outcome, whether time has fixed it (settleable), whether you can still submit, and submitBy / completeBy / settleAfter (ISO times). A buyer who does not accept shows as Rejected once the review window ends; the buyer reason code, if any, stays on the buyer side.',
+    { deal: z.string().describe('Deal address (base58) from sell_jobs or sell_prepare.') },
+    async ({ deal }) => {
+      if (!d.built) return off();
+      const b = d.built;
+      if (b.protocol !== 2) return out({ result: 'refused', error: 'job status is available for Bond v2 deals only' }, true);
+      const dl = (await b.seller.readDeals([deal])).get(deal);
+      if (!dl) return out({ result: 'refused', error: 'not an Agent402 Bond v2 deal (or already closed)' }, true);
+      const s = jobStatus(dl, await b.seller.chainNow());
+      return out({
+        result: 'ok', deal, role: 'provider', status: s.status, outcome: s.outcome, settleable: s.settleable, canSubmit: s.canSubmit,
+        submitBy: iso(s.submitBy), completeBy: s.completeBy === null ? null : iso(s.completeBy), settleAfter: iso(s.settleAfter),
+        mapping: '8183-style (compatible mapping on Bond v2)',
+      });
     });
 
   registerSkills(server); // Skills over MCP: the selling workflow as a skill (hosts without the extension ignore it)

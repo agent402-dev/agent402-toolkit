@@ -326,7 +326,7 @@ describe('MCP server (tools, elicitation)', () => {
     const client = new Client({ name: 't', version: '0' });
     await client.connect(b);
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(19);
+    expect(tools.length).toBe(21);
     const missing = tools.flatMap((t) => Object.entries((t.inputSchema.properties ?? {}) as Record<string, { description?: string }>)
       .filter(([, v]) => !v.description).map(([k]) => `${t.name}.${k}`));
     expect(missing).toEqual([]);

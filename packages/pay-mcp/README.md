@@ -145,6 +145,8 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 | `bond_v2_start` | Bond v2: send the job input, recompute the job hash, rebuild the `open` instruction and sign only if it matches byte for byte (human confirmation). Locks your deposit |
 | `bond_v2_result` | Bond v2: fetch the delivered work and verify it against the output hash the seller stored on chain and the seller's signature; never pays |
 | `bond_v2_accept` | Bond v2: verify the delivery again, then accept and pay the balance in one step (human confirmation) |
+| `bond_v2_job_status` | Bond v2 read as an 8183-style job (compatible mapping, not the standard): Funded, Submitted, Completed, Rejected or Expired, your role and the deadlines. Read-only |
+| `bond_v2_reject` | Bond v2: record that you will not accept, with a reason code (default `other`). Signs nothing; after the review window `bond_v2_settle` returns your deposit |
 | `bond_v2_settle` | Bond v2: settle once the outcome is fixed and claim both shares to the recorded payout accounts (network fee only) |
 
 The log never stores keys or signed payment payloads.

@@ -1,4 +1,4 @@
-// @agent402-dev/pay-mcp's tools: x402_fetch, x402_quote, wallet_status, payment_history, spending_report, verify_receipt, and Agent402 Bond: bond_deal_status (read-only), bond_open, bond_confirm_and_pay, bond_settle, bond_find_sellers (read-only), the Bond Job Protocol: bond_job_quote (read-only), bond_job_start, bond_job_result, and Bond v2 (when a v2 program is configured): bond_v2_quote (read-only), bond_v2_start, bond_v2_result, bond_v2_accept, bond_v2_settle
+// @agent402-dev/pay-mcp's tools: x402_fetch, x402_quote, wallet_status, payment_history, spending_report, verify_receipt, and Agent402 Bond: bond_deal_status (read-only), bond_open, bond_confirm_and_pay, bond_settle, bond_find_sellers (read-only), the Bond Job Protocol: bond_job_quote (read-only), bond_job_start, bond_job_result, and Bond v2 (when a v2 program is configured): bond_v2_quote (read-only), bond_v2_start, bond_v2_result, bond_v2_accept, bond_v2_job_status (read-only), bond_v2_reject (no signing), bond_v2_settle
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createAgent, type ConfirmAnswer } from './agent.js';
@@ -7,6 +7,8 @@ import { bondConfirmAndPay, bondOpen, type BondPolicy, bondPolicyFromEnv, type B
 import { bondFindSellers } from './bond-directory.js';
 import { type BondJobDeps, bondJobQuote, bondJobResult, bondJobStart } from './bond-job.js';
 import { type BondV2Deps, type BondV2Policy, bondV2Accept, bondV2Quote, bondV2Result, bondV2Settle, bondV2Start } from './bond-v2.js';
+import { bondV2JobStatus, bondV2Reject } from './bond-v2-job.js';
+import { REASON_CODES } from '@agent402-dev/bond-client/job-8183-core';
 import { withSpendLock } from './spend-lock.js';
 import { registerBondV2WaitTask, taskServerOptions, type WaitToolDeps } from './bond-v2-task.js';
 import type { History } from './history.js';
@@ -358,6 +360,18 @@ export function createPayServer(d: PayServerDeps): McpServer {
       'Agent402 Bond v2, buyer side. Fetch and verify the delivery again, then accept and pay the balance to the seller in one instruction (before the accept deadline, within the daily cap, with human confirmation). Refuses if the result does not match what the seller committed to on chain. The program does not judge quality: accept only work you checked. Returns result "accepted" with the transaction; "refused" means nothing was signed and "failed" means the transaction did not land (see payment_history). Then call bond_v2_settle to claim and close.',
       { url: JOB_URL, deal: DEAL_V2 },
       async ({ url, deal }) => { const b = v2Deps(); if (!b) return noBond(); const r = await withSpendLock(() => bondV2Accept(b, url, deal)); return out(r, r.result !== 'accepted'); },
+    );
+    server.tool(
+      'bond_v2_job_status',
+      'Agent402 Bond v2 read as an 8183-style job (compatible mapping on Bond v2, not the ERC-8183 standard itself). Read-only, never signs. Returns status Funded, Submitted, Completed, Rejected or Expired, this wallet\'s role (client, provider, evaluator or observer), the Bond v2 outcome, whether time has fixed it (settleable), and submitBy / completeBy / settleAfter on the Solana clock (unix seconds).',
+      { deal: DEAL_V2 },
+      async ({ deal }) => { const b = v2Deps(); if (!b) return noBond(); const r = await bondV2JobStatus(b, deal); return out(r, r.result !== 'ok'); },
+    );
+    server.tool(
+      'bond_v2_reject',
+      'Agent402 Bond v2, buyer side (the buyer is the evaluator). Record that you will not accept this job, with a reason code. Signs nothing and moves nothing: Bond v2 has no single-party refund, so after the review window anyone settles with bond_v2_settle (you get your deposit back, less any agreed seller share; the seller keeps its bond). If the seller never submitted, the deadline decides instead and you also get the seller bond. Reason codes: deadline_missed, not_delivered, receipt_mismatch, schema_mismatch (machine-checkable), data_incorrect, quality_below_brief, scope_dispute, originality, offchain_unfulfilled, other (default). The record stays in this wallet\'s payment history only.',
+      { deal: DEAL_V2, reason: z.enum(REASON_CODES).optional().describe('Why you reject (default other).'), note: z.string().max(280).optional().describe('Optional short note kept with the record (at most 280 characters).') },
+      async ({ deal, reason, note }) => { const b = v2Deps(); if (!b) return noBond(); const r = await bondV2Reject(b, deal, reason, note); return out(r, r.result !== 'rejected'); },
     );
     server.tool(
       'bond_v2_settle',

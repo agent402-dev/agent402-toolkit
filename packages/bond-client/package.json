@@ -8,7 +8,8 @@
     "./job": "./src/job.ts",
     "./v2": "./src/v2.ts",
     "./job-v2": "./src/job-v2.ts",
-    "./job-8183": "./src/job-8183.ts"
+    "./job-8183": "./src/job-8183.ts",
+    "./job-8183-core": "./src/job-8183-core.ts"
   },
   "description": "Instruction builders for the Agent402 Bond Solana program (beta).",
   "author": "Agent402",

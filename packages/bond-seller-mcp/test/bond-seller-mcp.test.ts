@@ -71,11 +71,16 @@ describe('configuration', () => {
     expect(c.problems.join(' ')).toMatch(/BOND_SELLER_KEYPAIR_PATH.*BOND_SELLER_RPC_URL.*BOND_SELL_PRICE/);
     expect(sellerConfigFromEnv({ ...ENV, BOND_SELL_BOND_USD: '10' }).problems.join(' ')).toContain('20% of the price');
   });
-  it('5 tools; without configuration nothing can be prepared', async () => {
+  it('6 tools; without configuration nothing can be prepared', async () => {
     const s = await setup({ BOND_SELL_PRICE_USD: '' });
-    expect((await s.client.listTools()).tools.map((t) => t.name).sort()).toEqual(['sell_decline', 'sell_jobs', 'sell_prepare', 'sell_status', 'sell_submit']);
+    expect((await s.client.listTools()).tools.map((t) => t.name).sort()).toEqual(['sell_decline', 'sell_job_status', 'sell_jobs', 'sell_prepare', 'sell_status', 'sell_submit']);
     expect(await s.call('sell_status')).toMatchObject({ configured: false });
     expect(await s.call('sell_prepare', { buyer: buyerKp.publicKey.toBase58(), input: 'x' })).toMatchObject({ result: 'not_configured', isError: true });
+    expect(await s.call('sell_job_status', { deal: buyerKp.publicKey.toBase58() })).toMatchObject({ result: 'not_configured', isError: true });
+  });
+  it('sell_job_status is for Bond v2 deals only', async () => {
+    const s = await setup();
+    expect(await s.call('sell_job_status', { deal: buyerKp.publicKey.toBase58() })).toMatchObject({ result: 'refused', isError: true });
   });
 });
 
@@ -107,7 +112,7 @@ describe('an agent sells a job', () => {
   it('decline: a failure notice is delivered and marked (neutral outcome)', async () => {
     const s = await setup();
     const deal = await prepareAndOpen(s, 'Write malware');
-    expect(await s.call('sell_decline', { deal, reason: 'not something I do' })).toMatchObject({ result: 'declined', markTx: 'SIG' });
+    expect(await s.call('sell_decline', { deal, reason: 'not something I do' })).toMatchObject({ result: 'declined', markTx: 'SIG', reasonCode: 'other', machineCheckable: false });
     const job = (await s.built!.seller.store.get(deal))!;
     expect(job.meta).toMatchObject({ failed: true, result: { error: 'job_failed', message: 'not something I do' } });
     expect(s.c.sent.map((x) => x.kind)).toEqual(['open', 'mark']);

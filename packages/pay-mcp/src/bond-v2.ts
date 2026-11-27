@@ -176,7 +176,7 @@ export async function bondV2Start(d: BondV2Deps, url: string, input: string) {
   }
 }
 
-async function readDeal(d: BondV2Deps, deal: string): Promise<DealV2 | null> {
+export async function readDeal(d: BondV2Deps, deal: string): Promise<DealV2 | null> {
   const [acc] = await d.accounts([deal]);
   if (!acc || acc.owner !== d.v2Program) return null;
   return decodeDealV2(acc.data);
