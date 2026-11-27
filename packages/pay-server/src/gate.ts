@@ -17,6 +17,7 @@ import {
   type Asset, type NamedFacilitator, type Offer, type ProcessDeps, type X402Config, type X402Ledger,
 } from './x402.js';
 import { discoveryProblems, type DiscoveryConfig } from './discovery.js';
+import { extensionsOf, type BondExtensionConfig } from './bond-ext.js';
 
 /** A402 is deprecated (v1) */
 export type AssetSymbol = 'USDC' | 'PREQ' | 'A402';
@@ -101,6 +102,8 @@ export interface GateConfig {
     * Describes the route only; prices, limits and payment checks are unchanged
    */
   discovery?: DiscoveryConfig;
+  /** Optional `extensions.bond` (see @agent402-dev/pay-server/bond-ext). Unset = 402 unchanged; a claim only, payment checks unchanged */
+  bond?: BondExtensionConfig;
 }
 
 export interface ReceivingAccount { asset: AssetSymbol; mint: string; tokenAccount: string; exists: boolean }
@@ -214,13 +217,14 @@ export function createPaymentGate(c: GateConfig): PaymentGate {
     return { accepts, notOffered, facilitator: fac.name };
   }
 
+  const ext = extensionsOf(c.discovery?.bazaar, c.bond);
   function paymentRequired(resourceUrl: string, q: NonNullable<Awaited<ReturnType<typeof quote>>>, extra: Record<string, unknown> = {}, error?: string) {
     const pr = {
       x402Version: 2,
       ...(error ? { error } : {}),
       resource: { url: resourceUrl, description: c.resource?.description ?? '', mimeType: c.resource?.mimeType ?? 'application/json', ...(c.resource?.serviceName ? { serviceName: c.resource.serviceName } : {}), ...(c.discovery?.iconUrl ? { iconUrl: c.discovery.iconUrl } : {}) },
       accepts: q.accepts,
-      ...(c.discovery ? { extensions: { bazaar: c.discovery.bazaar } } : {}),
+      ...(ext ? { extensions: ext } : {}),
     };
     return json(402, { ...pr, ...(q.notOffered.length ? { notOffered: q.notOffered } : {}), ...extra }, {
       'payment-required': encodePaymentRequiredHeader(pr as Parameters<typeof encodePaymentRequiredHeader>[0]),

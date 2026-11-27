@@ -7,6 +7,7 @@ import { createPaymentGate, KNOWN_FACILITATORS, SOLANA_MAINNET, USDC_MAINNET, ty
 import { ledgerClaim, type LedgerEntry, type X402Ledger } from './x402.js';
 import { rpcChain, type ChainReader } from './chain.js';
 import type { DiscoveryConfig } from './discovery.js';
+import type { BondExtensionConfig } from './bond-ext.js';
 import { decodePaymentRequiredHeader, decodePaymentSignatureHeader, encodePaymentRequiredHeader } from '@x402/core/http';
 import { BASE_MAINNET, createEvmPaymentGate, type BaseNetwork, type EvmChainReader, type EvmFacilitatorSpec, type EvmPaymentGate } from './evm.js';
 
@@ -31,6 +32,8 @@ export interface PaidRoute {
   run(input: string): Promise<unknown>;
   /** Optional x402 Bazaar discovery metadata (see @agent402-dev/pay-server/discovery). Unset = 402 unchanged */
   discovery?: DiscoveryConfig;
+  /** Optional `extensions.bond` in the 402 (see @agent402-dev/pay-server/bond-ext). Unset = 402 unchanged */
+  bond?: BondExtensionConfig;
   /** Optional OpenAPI document, for serving at GET /openapi.json (origin = your public origin) */
   openapi?(origin: string): unknown;
 }
@@ -103,6 +106,7 @@ export function paidRouteHandler(route: PaidRoute, options: () => PaidRouteOptio
       chain: o.chain ?? rpcChain(o.rpcUrl!), ledger: o.ledger,
       resource: { description: route.description, mimeType: 'application/json', ...(o.serviceName ? { serviceName: o.serviceName } : {}) },
       ...(route.discovery ? { discovery: route.discovery } : {}),
+      ...(route.bond ? { bond: route.bond } : {}),
       ...o.gate,
     });
     const evm = !o.base ? null : createEvmPaymentGate({
@@ -110,6 +114,7 @@ export function paidRouteHandler(route: PaidRoute, options: () => PaidRouteOptio
       facilitators: o.base.facilitators, rpcUrl: o.base.rpcUrl, chain: o.base.chain, ledger: o.ledger,
       resource: { description: route.description, mimeType: 'application/json', ...(o.serviceName ? { serviceName: o.serviceName } : {}) },
       ...(route.discovery ? { discovery: route.discovery } : {}),
+      ...(route.bond ? { bond: route.bond } : {}),
       ...(o.gate?.handlerTimeoutMs !== undefined ? { handlerTimeoutMs: o.gate.handlerTimeoutMs } : {}),
       ...(o.gate?.confirmDelaysMs !== undefined ? { confirmDelaysMs: o.gate.confirmDelaysMs } : {}),
       ...(o.gate?.now ? { now: o.gate.now } : {}),

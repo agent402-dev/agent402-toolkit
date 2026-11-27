@@ -14,6 +14,7 @@ import type { Network, PaymentPayload, PaymentRequirements, SettleResponse } fro
 import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { memoryX402Ledger, sha256Hex, type X402Ledger } from './x402.js';
 import { discoveryProblems, type DiscoveryConfig } from './discovery.js';
+import { extensionsOf, type BondExtensionConfig } from './bond-ext.js';
 import type { PaymentInfo } from './gate.js';
 import { definiteVerifyRejection, settleFailureReason } from './core.js';
 
@@ -76,6 +77,8 @@ export interface EvmGateConfig {
   maxTimeoutSeconds?: number;
   resource?: { description?: string; mimeType?: string; serviceName?: string };
   discovery?: DiscoveryConfig;
+  /** Optional `extensions.bond` (see @agent402-dev/pay-server/bond-ext). Unset = 402 unchanged; a claim only, payment checks unchanged */
+  bond?: BondExtensionConfig;
   now?: () => number;
   /** Retry intervals for the on-chain recheck (default 1, 2, 4 s) */
   confirmDelaysMs?: number[];
@@ -152,13 +155,14 @@ export function createEvmPaymentGate(c: EvmGateConfig): EvmPaymentGate {
     return { accepts, facilitator: ch.f.name, server: ch.s };
   }
 
+  const ext = extensionsOf(c.discovery?.bazaar, c.bond);
   function paymentRequired(resourceUrl: string, accepts: PaymentRequirements[], extra: Record<string, unknown> = {}, error?: string) {
     const pr = {
       x402Version: 2,
       ...(error ? { error } : {}),
       resource: { url: resourceUrl, description: c.resource?.description ?? '', mimeType: c.resource?.mimeType ?? 'application/json', ...(c.resource?.serviceName ? { serviceName: c.resource.serviceName } : {}), ...(c.discovery?.iconUrl ? { iconUrl: c.discovery.iconUrl } : {}) },
       accepts,
-      ...(c.discovery ? { extensions: { bazaar: c.discovery.bazaar } } : {}),
+      ...(ext ? { extensions: ext } : {}),
     };
     return json(402, { ...pr, ...extra }, {
       'payment-required': encodePaymentRequiredHeader(pr as Parameters<typeof encodePaymentRequiredHeader>[0]),
