@@ -147,6 +147,17 @@ const gate = createPaymentGate({ /* ... */ receipts: { signer } });
 - If signing fails, the paid resource is still delivered, without a receipt.
 - Optional data origin: if your handler's response sets `X-Agent402-Source` to JSON `{"url":"https://…","fetchedAt":"<ISO time>","sha256":"<hex of the bytes you fetched>","immutable":true|false}`, a valid value is signed into the receipt as `source`, so a buyer can re-fetch a sample and compare. Mark `immutable: true` only for data that cannot change later (a past block, a fixed document). Without the header the receipt is unchanged.
 
+
+## Bond info in the 402 (optional)
+If you run Agent402 Bond v2 deals, the gate can say so in the 402 as `extensions.bond`: the program, your seller wallet, a bond token account buyers can read, the asset, `maxCover` (the most a buyer can recover per call, smallest units) and `autoPayout: ["deadline_missed"]`.
+
+```ts
+const gate = createPaymentGate({ /* ... */ bond: { seller, bondAccount, asset: 'USDC', mint: usdcMint, maxCover: '50000' } });
+```
+
+- Off when unset: the 402 stays byte for byte the same. A bad setting throws when the gate is created.
+- It is a claim, not a promise: buyers should read `bondAccount` on chain (`@agent402-dev/pay-mcp` does with `X402_BOND_PREFER=on`). Prices, accepted assets and payment checks do not change.
+- Guide: [Bonded jobs on Solana](https://github.com/agent402-dev/agent402-toolkit/blob/main/docs/guides/bonded-jobs-8183-style.md). Internal review only, not independently audited.
 ## Seller registration and locks (optional)
 Buyers using `@agent402-dev/pay-mcp` can require sellers to have an on-chain lock. To be eligible, lock tokens (PREQ, USDC or wrapped SOL) with [Jupiter Lock](https://lock.jup.ag/) to your own address with **no cancel and no recipient-change permission**, then serve a signed registration at `https://<your host>/.well-known/agent402.json`:
 
