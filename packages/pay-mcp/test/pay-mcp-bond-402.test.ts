@@ -56,6 +56,17 @@ describe('pay-mcp: 402 extensions.bond check (B1-b)', () => {
     expect((await verifyBondClaim(deps(rpc(null)), c)).reservedForThisPayment).toBe(false);
   });
 
+  it('the check names the moment it describes: readAtSlot = the RPC context.slot, omitted when absent or malformed', async () => {
+    const c = (parseBondClaim(ext()) as { claim: any }).claim;
+    const at = (value: unknown, slot: unknown) => (async () => new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { context: { slot }, value } }))) as unknown as typeof fetch;
+    const ok = await verifyBondClaim(deps(at(acct(), 412345678)), c);
+    expect(ok).toEqual({ verified: true, reasons: [], balance: '7000000', coverUsd: 5, readAtSlot: 412345678, reservedForThisPayment: false });
+    expect((await verifyBondClaim(deps(at(null, 7)), c)).readAtSlot).toBe(7);
+    expect((await verifyBondClaim(deps(at(acct({ amount: '1' }), 9)), c))).toMatchObject({ verified: false, readAtSlot: 9 });
+    for (const bad of [undefined, -1, 1.5, '123', null]) expect('readAtSlot' in (await verifyBondClaim(deps(at(acct(), bad)), c))).toBe(false);
+    expect('readAtSlot' in (await verifyBondClaim(deps(rpc(acct())), c))).toBe(false);
+  });
+
   it('a non-USDC bond is never given a USD value', async () => {
     const PREQ = 'aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX';
     const c = (parseBondClaim({ bond: bondExtension({ seller: SELLER, bondAccount: ACCT, asset: 'PREQ', mint: PREQ, maxCover: '5000000' }) }) as { claim: any }).claim;

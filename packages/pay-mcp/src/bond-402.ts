@@ -41,6 +41,8 @@ export interface BondCheck {
   balance?: string;
   /** USD value of the claimed cover: USDC only (6 decimals); null for any other asset */
   coverUsd: number | null;
+  /** slot the RPC answered at (`context.slot`), when it returned one: the moment this check describes */
+  readAtSlot?: number;
   /**
    * Always false. A balance read is not a reservation: the same balance can pass for many concurrent quotes.
    * Cover is locked for one buyer only when a Bond v2 deal opens (`open` moves seller_bond into that deal's vault
@@ -60,17 +62,20 @@ async function readBondClaim(d: BondCheckDeps, c: BondClaim): Promise<Omit<BondC
   const reasons: string[] = [];
   if (c.program !== d.v2Program) reasons.push('bond program is not the Agent402 Bond v2 program');
   let info: any;
+  let at: { readAtSlot?: number } = {};
   try {
     const r = await d.fetch(d.rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAccountInfo', params: [c.bondAccount, { encoding: 'jsonParsed', commitment: 'confirmed' }] }), signal: AbortSignal.timeout(15_000) });
-    const j = (await r.json()) as { result?: { value: any } };
+    const j = (await r.json()) as { result?: { value: any; context?: { slot?: unknown } } };
     info = j?.result?.value ?? null;
+    const slot = j?.result?.context?.slot;
+    if (typeof slot === 'number' && Number.isSafeInteger(slot) && slot >= 0) at = { readAtSlot: slot };
   } catch (e) {
     return { verified: false, reasons: [...reasons, `bond account could not be read: ${(e as Error).message}`], coverUsd: null };
   }
-  if (!info) return { verified: false, reasons: [...reasons, 'bond account does not exist'], coverUsd: null };
+  if (!info) return { verified: false, reasons: [...reasons, 'bond account does not exist'], coverUsd: null, ...at };
   if (!TOKEN_PROGRAMS.has(info.owner)) reasons.push('bond account is not a token account');
   const p = info.data?.parsed?.info;
-  if (!p) return { verified: false, reasons: [...reasons, 'bond account data could not be parsed'], coverUsd: null };
+  if (!p) return { verified: false, reasons: [...reasons, 'bond account data could not be parsed'], coverUsd: null, ...at };
   if (p.mint !== c.asset.mint) reasons.push('bond account holds a different mint than claimed');
   if (p.owner !== c.seller) reasons.push('bond account does not belong to the claimed seller');
   if (p.state && p.state !== 'initialized') reasons.push(`bond account is ${p.state}`);
@@ -78,7 +83,7 @@ async function readBondClaim(d: BondCheckDeps, c: BondClaim): Promise<Omit<BondC
   if (balance === null) reasons.push('bond balance could not be read');
   else if (balance < c.maxCover) reasons.push('bond balance is below the claimed maxCover');
   const isUsdc = c.asset.mint === d.usdcMint;
-  return { verified: reasons.length === 0, reasons, ...(balance !== null ? { balance: balance.toString() } : {}), coverUsd: isUsdc && reasons.length === 0 ? Number(c.maxCover) / 1e6 : null };
+  return { verified: reasons.length === 0, reasons, ...(balance !== null ? { balance: balance.toString() } : {}), coverUsd: isUsdc && reasons.length === 0 ? Number(c.maxCover) / 1e6 : null, ...at };
 }
 
 export interface BondPreferPolicy {

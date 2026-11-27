@@ -66,7 +66,8 @@ check. The balance is funds available for per-deal bonds; a bond is locked only 
 A passing check is a read at one moment, not a reservation: the same balance can pass for several concurrent
 quotes. Bond v2 `open` moves the seller bond into that deal's vault in the same transaction (and fails if the
 seller cannot fund it), so bonds of deals already open are no longer in the balance, and the only lock for you is
-your own deal opening.
+your own deal opening. The check result carries `readAtSlot`, the slot the RPC answered at, so a client can tell
+which moment the check described and whether it came before or after its deal opened.
 
 ## Optional: sample check for data jobs
 
