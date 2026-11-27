@@ -11,7 +11,7 @@ import {
 } from '@agent402-dev/pay-server';
 import { clearSupportedCache, presentSignatures } from '@agent402-dev/pay-server/x402';
 import { ataOf, SPL_TOKEN, TOKEN_2022 } from '@agent402-dev/pay-server/chain';
-import { receiptSignerFromBytes, RECEIPT_HEADER } from '@agent402-dev/pay-server';
+import { receiptSignerFromBytes, RECEIPT_HEADER, SOURCE_HEADER, sourceFromHeader } from '@agent402-dev/pay-server';
 import { checkReceipt } from '@agent402-dev/pay-mcp/receipt';
 import { buildRegistration } from '@agent402-dev/pay-server/register';
 import { verifyRegistration } from '@agent402-dev/pay-mcp/registration';
@@ -407,5 +407,29 @@ describe('register command (seller registration from key files)', () => {
     const tampered = { ...doc, payload: Buffer.from(JSON.stringify(p)).toString('base64url') };
     const v = await verifyRegistration(tampered, 'api.example.com', NOW);
     expect(v.ok && v.signers.size).toBe(0);
+  });
+});
+
+describe('receipt source (optional sample check origin)', () => {
+  const H = 'a'.repeat(64);
+  const SRC = { url: 'https://data.example/block/123', fetchedAt: '2026-11-20T09:59:00Z', sha256: H, immutable: true };
+  const fields = (token: string) => JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString('utf8'));
+  it('a valid X-Agent402-Source from the handler is signed into the receipt; a bad or missing one leaves the receipt as before', async () => {
+    const signer = await receiptSignerFromBytes(Keypair.generate().secretKey);
+    for (const [hdr, want] of [[JSON.stringify(SRC), SRC], ['{"url":"http://x"}', undefined], [null, undefined]] as const) {
+      const s = await setup({ extra: { receipts: { signer } }, handler: async () => new Response('{"ok":true}', { headers: hdr ? { [SOURCE_HEADER]: hdr } : {} }) });
+      const { pr } = await first402(s.h);
+      const ok = await s.h(req({ 'payment-signature': sign(pr.accepts[0]) }));
+      expect(ok.status).toBe(200);
+      const f = fields(ok.headers.get(RECEIPT_HEADER)!);
+      expect(f.source).toEqual(want);
+      expect(Object.keys(f)).toEqual(['v', 'kind', 'issuedAt', 'request', 'response', 'payment', ...(want ? ['source'] : []), 'signer']);
+    }
+  });
+  it('sourceFromHeader keeps only complete, well-formed values', () => {
+    expect(sourceFromHeader(JSON.stringify(SRC))).toEqual(SRC);
+    for (const bad of [null, '', 'x', '[]', JSON.stringify({ ...SRC, url: 'http://a' }), JSON.stringify({ ...SRC, sha256: 'AB' }), JSON.stringify({ ...SRC, fetchedAt: 'no' }), JSON.stringify({ ...SRC, immutable: 'yes' }), JSON.stringify({ ...SRC, extra: 'x'.repeat(2100) })]) {
+      expect(sourceFromHeader(bad)).toBeNull();
+    }
   });
 });

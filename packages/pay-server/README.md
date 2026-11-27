@@ -145,6 +145,7 @@ const gate = createPaymentGate({ /* ... */ receipts: { signer } });
 - Use a key made only for receipts (for example `solana-keygen new -o receipt-key.json`), never the key of your receiving wallet. The gate never needs the receiving wallet's key.
 - Publish the receipt key's public key (`signer.publicKey`) so buyers can tell that receipts come from you.
 - If signing fails, the paid resource is still delivered, without a receipt.
+- Optional data origin: if your handler's response sets `X-Agent402-Source` to JSON `{"url":"https://…","fetchedAt":"<ISO time>","sha256":"<hex of the bytes you fetched>","immutable":true|false}`, a valid value is signed into the receipt as `source`, so a buyer can re-fetch a sample and compare. Mark `immutable: true` only for data that cannot change later (a past block, a fixed document). Without the header the receipt is unchanged.
 
 ## Seller registration and locks (optional)
 Buyers using `@agent402-dev/pay-mcp` can require sellers to have an on-chain lock. To be eligible, lock tokens (PREQ, USDC or wrapped SOL) with [Jupiter Lock](https://lock.jup.ag/) to your own address with **no cancel and no recipient-change permission**, then serve a signed registration at `https://<your host>/.well-known/agent402.json`:

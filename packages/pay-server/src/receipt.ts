@@ -14,8 +14,33 @@ export interface Receipt {
   request: { method: string; path: string; bodySha256: string | null };
   response: { status: number; bodySha256: string };
   payment: { network: string; asset: string; amount: string; payTo: string; transaction: string | null };
+  /** Optional: where the delivered data came from, so a buyer can re-fetch a sample and compare (see sourceFromHeader) */
+  source?: ReceiptSource;
   /** Base58 Ed25519 public key of the receipt key */
   signer: string;
+}
+
+/**
+ * Origin of the delivered data: https URL, when the seller fetched it, SHA-256 hex of the bytes it fetched, and whether
+ * the source cannot change later (a past block, a fixed document). Only an immutable source makes a re-fetch mismatch
+ * machine-checkable; for live data (prices, stock) a different re-fetch is not proof of an error.
+ */
+export interface ReceiptSource { url: string; fetchedAt: string; sha256: string; immutable: boolean }
+/** Response header a paid handler may set (JSON ReceiptSource); the gate copies a valid one into the signed receipt */
+export const SOURCE_HEADER = 'x-agent402-source';
+
+/** A valid ReceiptSource from a header value, or null (bad or missing values are dropped, never guessed) */
+export function sourceFromHeader(v: string | null | undefined): ReceiptSource | null {
+  if (!v || v.length > 2_000) return null;
+  let o: Record<string, unknown>;
+  try { o = JSON.parse(v); } catch { return null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const { url, fetchedAt, sha256, immutable } = o;
+  if (typeof url !== 'string' || !/^https:\/\/\S+$/.test(url)) return null;
+  if (typeof fetchedAt !== 'string' || Number.isNaN(Date.parse(fetchedAt))) return null;
+  if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(sha256)) return null;
+  if (typeof immutable !== 'boolean') return null;
+  return { url, fetchedAt, sha256, immutable };
 }
 
 export interface ReceiptSigner {

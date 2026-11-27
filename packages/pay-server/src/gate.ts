@@ -10,7 +10,7 @@ import { HTTPFacilitatorClient, type FacilitatorClient } from '@x402/core/server
 import type { PaymentRequirements } from '@x402/core/types';
 import { ataOf, type ChainReader } from './chain.js';
 import { tokenAmountFor, type DailyRate } from './pricing.js';
-import { RECEIPT_HEADER, sha256Hex, signReceipt, type ReceiptSigner } from './receipt.js';
+import { RECEIPT_HEADER, SOURCE_HEADER, sha256Hex, signReceipt, sourceFromHeader, type ReceiptSigner } from './receipt.js';
 import { A402_DEPRECATION_WARNING, PREQ_DECIMALS, PREQ_MAINNET_MINT, PREQ_TOKEN_PROGRAM } from './preq.js';
 import {
   buildRequirements, chooseFacilitator, memoryX402Ledger, paymentResponseHeader, settleVerified, verifyPaymentHeader,
@@ -93,7 +93,9 @@ export interface GateConfig {
   confirmDelaysMs?: number[];
   /**
     * Signed receipts (optional): after a settled payment, adds the X-Agent402-Receipt header signed with this key.
-    * Use a key made only for receipts (receiptSignerFromBytes), never the receiving wallet's key
+    * Use a key made only for receipts (receiptSignerFromBytes), never the receiving wallet's key.
+    * If the handler's response has an X-Agent402-Source header (JSON {url, fetchedAt, sha256, immutable}), a valid one is
+    * added to the receipt as `source` so buyers can re-fetch a sample and compare; otherwise the receipt is unchanged
    */
   receipts?: { signer: ReceiptSigner };
   /**
@@ -307,11 +309,13 @@ export function createPaymentGate(c: GateConfig): PaymentGate {
       const body = await res.arrayBuffer();
       try {
         const reqBody = reqCopy ? await reqCopy.arrayBuffer() : null;
+        const source = sourceFromHeader(res.headers.get(SOURCE_HEADER));
         const token = await signReceipt(c.receipts.signer, {
           issuedAt: new Date(now()).toISOString(),
           request: { method: req.method, path: `${url.pathname}${url.search}`, bodySha256: reqBody && reqBody.byteLength ? await sha256Hex(reqBody) : null },
           response: { status: res.status, bodySha256: await sha256Hex(body) },
           payment: { network: info.network, asset: info.asset, amount: info.amount, payTo: info.payTo, transaction: s.settlement.transaction || null },
+          ...(source ? { source } : {}),
         });
         h.set(RECEIPT_HEADER, token);
         h.set('access-control-expose-headers', 'PAYMENT-RESPONSE, X-Payment-Confirmation, X-Agent402-Receipt');

@@ -79,3 +79,34 @@ export function matchesJobSchema(result: string, schema: JobSchema): string[] {
   return schemaProblems(v, schema);
 }
 
+
+// ---------------- sample check (client layer only; moves no funds) ----------------
+
+/** Evidence kind recorded with `data_incorrect` when a re-fetched sample differs from what the seller signed. */
+export const SAMPLE_EVIDENCE = 'sample_mismatch' as const;
+
+/** Data origin a seller signed in its receipt (`source` in the pay-server receipt). */
+export interface SignedSource { url: string; fetchedAt: string; sha256: string; immutable: boolean }
+
+/**
+ * Compares the SHA-256 (hex) of bytes the buyer re-fetched from `source.url` with what the seller signed.
+ * A mismatch becomes `data_incorrect` with evidence `sample_mismatch`; it counts as machine-checkable only when the
+ * seller marked the source immutable (live data may change between fetches). Nothing is signed or moved: the buyer
+ * can only not accept (Bond v2 then settles as Unconfirmed); moving the seller's bond still needs agreement or an arbiter.
+ */
+export function sampleCheck(source: SignedSource, refetchedSha256: string) {
+  const got = refetchedSha256.trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(got)) throw new Error('sampleCheck: refetchedSha256 must be 64 hex characters');
+  if (!/^[0-9a-f]{64}$/.test(source.sha256)) throw new Error('sampleCheck: source.sha256 must be 64 hex characters');
+  const match = got === source.sha256;
+  return match
+    ? { match: true as const }
+    : { match: false as const, code: 'data_incorrect' as ReasonCode, evidence: SAMPLE_EVIDENCE, machineCheckable: source.immutable === true, url: source.url, signedAt: source.fetchedAt };
+}
+
+/** Like countReasons, and also counts `data_incorrect` rejects proven by a sample of an immutable source (sampleProven). */
+export function countReasonsWithEvidence(items: readonly { code: unknown; evidence?: unknown; immutable?: unknown }[]) {
+  const base = countReasons(items.map((i) => i.code));
+  const sampleProven = items.filter((i) => normalizeReason(i.code) === 'data_incorrect' && i.evidence === SAMPLE_EVIDENCE && i.immutable === true).length;
+  return { ...base, sampleProven, machineWithSamples: base.machine + sampleProven };
+}
