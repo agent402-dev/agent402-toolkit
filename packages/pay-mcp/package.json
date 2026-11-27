@@ -1,6 +1,6 @@
 {
   "name": "@agent402-dev/pay-mcp",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "mcpName": "io.github.agent402-dev/a402-pay-mcp",
   "private": true,
   "description": "MCP server that lets an AI agent pay x402 APIs (USDC, PREQ) from the user's own wallet within spend limits and allowlists.",
@@ -14,7 +14,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@agent402-dev/bond-client": "0.4.0",
+    "@agent402-dev/bond-client": "0.4.1",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@solana/kit": "8.6.0",
     "@x402/core": "2.31.0",

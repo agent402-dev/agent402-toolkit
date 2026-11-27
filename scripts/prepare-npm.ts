@@ -94,6 +94,8 @@ make('bond-client', {
     './job': { types: './dist/job.d.ts', default: './dist/job.js' },
     './v2': { types: './dist/v2.d.ts', default: './dist/v2.js' },
     './job-v2': { types: './dist/job-v2.d.ts', default: './dist/job-v2.js' },
+    './job-8183': { types: './dist/job-8183.d.ts', default: './dist/job-8183.js' },
+    './job-8183-core': { types: './dist/job-8183-core.d.ts', default: './dist/job-8183-core.js' },
   },
   peerDependencies: bondPeers,
   // users of ./rules and ./job-v2 only (pay-mcp) do not need web3.js

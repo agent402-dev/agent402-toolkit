@@ -115,7 +115,7 @@ export function formElicitationSupported(cap: unknown): boolean {
 }
 
 export function createPayServer(d: PayServerDeps): McpServer {
-  const server = new McpServer({ name: 'a402-pay', version: '0.16.0' }, d.mcpTasks ? taskServerOptions() : undefined);
+  const server = new McpServer({ name: 'a402-pay', version: '0.16.1' }, d.mcpTasks ? taskServerOptions() : undefined);
   const confirm = async (message: string): Promise<ConfirmAnswer> => {
     if (!formElicitationSupported(server.server.getClientCapabilities()?.elicitation)) return 'unsupported';
     try {
