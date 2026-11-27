@@ -47,6 +47,9 @@ const HELP = `@agent402-dev/pay-mcp
   npx -y @agent402-dev/pay-mcp verify-receipt --receipt <value or @file> [--signer <base58>] [--response-file <file>]
          [--method GET|POST] [--url <url or path>] [--request-body-file <file>] [--rpc <url>|--no-chain]
                                                    check a seller's signed x402 receipt; exit 0 only if every given check passes
+  npx -y @agent402-dev/pay-mcp verify-proof --bundle <file> [--rules-from-env] [--rpc <url>|--no-chain]
+                                                   check a payment proof bundle (rules hash, recipient, host, receipt, payment on chain);
+                                                   --rules-from-env compares with the X402_* rules in this environment
 `;
 
 const [cmd, ...args] = process.argv.slice(2);
@@ -96,6 +99,26 @@ if (cmd === 'init') {
       requestBody: file(opt('--request-body-file')), responseBodySha256, chainTx });
     console.log(JSON.stringify(r, null, 2));
     process.exitCode = r.verified ? 0 : 1;
+  }
+} else if (cmd === 'verify-proof') {
+  const { readFileSync } = await import('node:fs');
+  const { verifyProofBundle } = await import('./proof-bundle.js');
+  const f = opt('--bundle');
+  if (!f) { console.error(`--bundle is required\n\n${HELP}`); process.exitCode = 2; }
+  else {
+    try {
+      const bundle = JSON.parse(readFileSync(f, 'utf8')) as { payment?: { transaction?: unknown } };
+      const policy = args.includes('--rules-from-env') ? policyFromEnv(process.env) : undefined;
+      const rpc = args.includes('--no-chain') ? null : opt('--rpc') ?? process.env.X402_RPC_URL ?? 'https://api.mainnet-beta.solana.com';
+      const tx = bundle?.payment?.transaction;
+      const chainTx: ChainTx | null | undefined = rpc && typeof tx === 'string' ? await rpcReadTx(rpc)(tx).catch(() => undefined) : undefined;
+      const r = await verifyProofBundle(bundle, { ...(policy ? { policy } : {}), ...(chainTx !== undefined ? { chainTx } : {}) });
+      console.log(JSON.stringify(r, null, 2));
+      process.exitCode = r.verified ? 0 : 1;
+    } catch (e) {
+      console.error((e as Error).message);
+      process.exitCode = 2;
+    }
   }
 } else if (cmd === 'help' || cmd === '--help' || cmd === '-h') {
   console.log(HELP);

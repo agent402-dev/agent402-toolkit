@@ -152,6 +152,8 @@ Node 20+. Without `X402_ALLOWED_DOMAINS` and `X402_TRUSTED_PAY_TO` every payment
 | `bond_v2_reject` | Bond v2: record that you will not accept, with a reason code (default `other`). Signs nothing; after the review window `bond_v2_settle` returns your deposit |
 | `bond_v2_settle` | Bond v2: settle once the outcome is fixed and claim both shares to the recorded payout accounts (network fee only) |
 
+Proof bundle (command line only, read only): `npx -y @agent402-dev/pay-mcp verify-proof --bundle proof.json [--rules-from-env]` checks a payment proof bundle from `@agent402-dev/pay-mcp/proof-bundle` (hash of the spending rules, 402 pre-check, payment, seller receipt; the payment on chain through the receipt). It signs nothing.
+
 The log never stores keys or signed payment payloads.
 
 ## Skill: buy-bonded-job (Skills over MCP)
