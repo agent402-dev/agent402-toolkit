@@ -282,6 +282,20 @@
           "isRequired": false,
           "format": "string",
           "isSecret": false
+        },
+        {
+          "name": "X402_BOND_PREFER",
+          "description": "Set to on to read a seller's 402 extensions.bond, check that bond account on chain (mint, owner = payment receiver, balance >= maxCover), and ask before paying a seller without a checked bond. Only adds a confirmation; limits are unchanged. Default off.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "X402_UNBONDED_CONFIRM_ABOVE_USD",
+          "description": "With X402_BOND_PREFER=on: ask before paying a seller without a checked bond at or above this USD amount (non-USDC payments always ask). Default 0.05.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
         }
       ]
     }

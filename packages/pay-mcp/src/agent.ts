@@ -13,6 +13,7 @@ import { checkReceipt, RECEIPT_HEADER } from './receipt.js';
 import { discoverySummary, type DiscoverySummary } from './discovery.js';
 import { MPP_NOT_PAID, mppOption, parseMppChallenges } from './mpp.js';
 import { withSmallest } from './units.js';
+import { parseBondClaim, unbondedNeedsConfirm, verifyBondClaim, type BondCheck, type BondCheckDeps, type BondPreferPolicy } from './bond-402.js';
 import type { Wallet } from './wallet.js';
 
 export type ConfirmAnswer = 'accept' | 'decline' | 'unsupported';
@@ -32,6 +33,8 @@ export interface AgentDeps {
   evm?: EvmConfig;
   /** Base wallet (X402_EVM_KEY_PATH), used only for an option on the allowed Base network that passed every rule */
   evmWallet?: Wallet | null;
+  /** Opt-in (X402_BOND_PREFER=on): read a 402 `extensions.bond` claim, check it on chain, and ask before paying an unbonded seller. Only adds confirmation */
+  bond402?: { prefer: BondPreferPolicy; check: BondCheckDeps | null };
 }
 
 export interface RequestSpec { url: string; method?: string; headers?: Record<string, string>; body?: string }
@@ -60,6 +63,8 @@ export interface FetchOutcome {
   choice?: { chain: 'solana' | 'base'; reason: 'preferred network' | 'only option passing' };
   /** Set when the 402 used MPP (WWW-Authenticate: Payment) instead of x402: read and checked against the rules, never paid */
   protocol?: 'mpp';
+  /** Only with X402_BOND_PREFER=on and a 402 that carries extensions.bond: the on-chain check of the seller's bond claim */
+  bond?: BondCheck & { claimed: true };
 }
 
 /** Adds the deprecation warning if the chosen asset is A402 (v1) (there is no path that silently pays with A402) */
@@ -110,7 +115,7 @@ export function createAgent(d: AgentDeps) {
     | { kind: 'refused'; refused: string }
     | { kind: 'not_required'; res: Response; finalUrl: string }
     | { kind: 'mpp'; options: NonNullable<FetchOutcome['options']>; reasons: string[] }
-    | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; choice?: FetchOutcome['choice']; finalUrl: string; lock?: FetchOutcome['lock'] };
+    | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; choice?: FetchOutcome['choice']; finalUrl: string; lock?: FetchOutcome['lock']; bond?: FetchOutcome['bond'] };
 
   /** Receives a 402 and evaluates it with the policy (no signing) */
   async function assess(spec: RequestSpec): Promise<Assessment> {
@@ -146,7 +151,20 @@ export function createAgent(d: AgentDeps) {
       if (!c.ok) { e.ok = false; e.reasons.push(...c.reasons); }
     }
     const pick = chooseWithReason(d.policy, evs, d.evm?.prefer ?? 'solana');
-    return { kind: '402', pr, evs, chosen: pick?.chosen ?? null, ...(pick ? { choice: { chain: pick.chain, reason: pick.reason } } : {}), finalUrl, ...(lock ? { lock } : {}) };
+    // Opt-in bond preference: check a claimed bond on chain (never trusted as sent); an unbonded seller can only get an extra confirmation
+    let bond: FetchOutcome['bond'];
+    if (d.bond402?.prefer.prefer) {
+      const parsed = parseBondClaim((pr as { extensions?: unknown }).extensions);
+      if (parsed && 'invalid' in parsed) bond = { claimed: true, verified: false, reasons: parsed.invalid, coverUsd: null };
+      else if (parsed) {
+        const c = d.bond402.check ? await verifyBondClaim(d.bond402.check, parsed.claim) : { verified: false, reasons: ['no RPC to check the bond'], coverUsd: null };
+        // The bond must belong to the wallet this payment goes to, or a seller could point at someone else's bond
+        if (c.verified && pick?.chosen && pick.chosen.requirement.payTo !== parsed.claim.seller) bond = { claimed: true, verified: false, reasons: ['bond seller is not the payment receiver'], coverUsd: null, ...(c.balance ? { balance: c.balance } : {}) };
+        else bond = { claimed: true, ...c };
+      }
+      if (pick?.chosen && unbondedNeedsConfirm(d.bond402.prefer, pick.chosen.usd, bond ?? null)) pick.chosen.needsConfirmation = true;
+    }
+    return { kind: '402', pr, evs, chosen: pick?.chosen ?? null, ...(pick ? { choice: { chain: pick.chain, reason: pick.reason } } : {}), finalUrl, ...(lock ? { lock } : {}), ...(bond ? { bond } : {}) };
   }
 
   /** MPP challenges → the same policy evaluation as x402 options (reasons from reading the challenge come first). Never signs */
@@ -169,11 +187,11 @@ export function createAgent(d: AgentDeps) {
     if (a.kind === 'mpp') return { result: 'refused', reasons: a.reasons, options: a.options, protocol: 'mpp' };
     const options = a.evs.map(describe);
     const discovery = discoverySummary(a.pr as { resource?: unknown; extensions?: unknown });
-    if (!a.chosen) return { result: 'refused', reasons: ['no_option_passes_policy'], options, ...(a.lock ? { lock: a.lock } : {}), discovery };
+    if (!a.chosen) return { result: 'refused', reasons: ['no_option_passes_policy'], options, ...(a.lock ? { lock: a.lock } : {}), discovery, ...(a.bond ? { bond: a.bond } : {}) };
     const quoteId = crypto.randomUUID();
     const r = a.chosen.requirement;
     quotes.set(quoteId, { url: spec.url, asset: r.asset, amount: r.amount, payTo: r.payTo, network: r.network, at: now().getTime() });
-    return { result: 'not_required', quoteId, options, ...(a.lock ? { lock: a.lock } : {}), payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, ...(a.choice ? { choice: a.choice } : {}), reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [], discovery };
+    return { result: 'not_required', quoteId, options, ...(a.lock ? { lock: a.lock } : {}), payment: { asset: a.chosen.asset, mint: r.asset, amount: r.amount, payTo: r.payTo, network: r.network }, ...(a.choice ? { choice: a.choice } : {}), reasons: a.chosen.needsConfirmation ? ['will_ask_for_confirmation'] : [], discovery, ...(a.bond ? { bond: a.bond } : {}) };
   }
 
   async function payAndFetch(spec: RequestSpec & { quoteId?: string }): Promise<FetchOutcome> {

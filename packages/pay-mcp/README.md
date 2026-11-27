@@ -26,8 +26,11 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 | Max PREQ per recipient per UTC day (PREQ smallest units; 1 PREQ = 1,000,000) | `X402_MAX_PREQ_PER_RECIPIENT_PER_DAY_ATOMIC` | off (only the overall PREQ daily cap) |
 | Ask a human at or above this USDC amount (USD) | `X402_CONFIRM_ABOVE_USD` | off |
 | Ask a human at or above this PREQ amount (PREQ smallest units) | `X402_CONFIRM_ABOVE_PREQ_ATOMIC` | off |
+| Prefer sellers with a checked bond: read a 402 `extensions.bond`, check that bond account on chain, and ask a human before paying a seller without one | `X402_BOND_PREFER` (`on`) | off |
+| With `X402_BOND_PREFER=on`: ask before paying a seller without a checked bond at or above this USD amount | `X402_UNBONDED_CONFIRM_ABOVE_USD` | `0.05` |
 
 - **PREQ units.** The PREQ variables take the smallest unit (PREQ has 6 decimals). Example: `X402_MAX_PREQ_ATOMIC=200000000000` is 200,000 PREQ per payment. `wallet_status` and `payment_history` also show PREQ amounts in smallest units (`…Atomic` fields).
+- **Bond preference.** A seller's `extensions.bond` is only a claim. With `X402_BOND_PREFER=on`, `x402_quote` shows the on-chain check under `bond`: the bond token account must exist, hold the claimed mint, belong to the wallet you are paying, and hold at least `maxCover`. Only a USDC bond gets a USD value. This setting only adds a confirmation; it never raises a limit, widens an allowlist or skips a check.
 - USD limits apply to USDC only. PREQ has its own two limits, and **both must be set** before any PREQ payment is made.
 - **PREQ mint.** Until the PREQ mainnet mint is filled into this package, listing `PREQ` in `X402_ALLOWED_ASSETS` stops the server at start with an error (you can set `X402_PREQ_MINT` yourself).
 - **A402 (v1) is deprecated.** It is never allowed by default. If you list `A402` in `X402_ALLOWED_ASSETS` (with its own `X402_MAX_A402_ATOMIC` and `X402_MAX_A402_PER_DAY_ATOMIC`, in A402 smallest units; 1 A402 = 1,000,000), the server prints "A402 (v1) is deprecated and no longer supported; use PREQ." at start, and `wallet_status`, `x402_quote` and `x402_fetch` results carry the same warning.

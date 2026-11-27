@@ -4,6 +4,7 @@
 //   X402_RPC_URL       RPC used to build payment transactions (public RPC if unset)
 //   X402_HISTORY_PATH  payment history JSONL (default ~/.agent402/payments.jsonl)
 //   X402_ALLOWED_NETWORKS / X402_PREFER_NETWORK / X402_EVM_KEY_PATH  Base (EVM) per-request payments, off by default (evm-config.ts)
+//   X402_BOND_PREFER / X402_UNBONDED_CONFIRM_ABOVE_USD  check a 402 extensions.bond claim on chain, ask before paying an unbonded seller; off by default (bond-402.ts)
 // Allowlists (X402_ALLOWED_DOMAINS, X402_TRUSTED_PAY_TO) default to empty = reject everything
 // Commands: init (create a dedicated payment wallet key file), export-csv (payment history as CSV), verify-receipt, help
 import { writeFileSync } from 'node:fs';
@@ -20,6 +21,7 @@ import { policyFromEnv } from './policy.js';
 import { evmConfigFromEnv } from './evm-config.js';
 import { createPayServer } from './tools.js';
 import { bondV2PolicyFromEnv, resolveV2Program } from './bond-v2.js';
+import { bondPreferPolicy } from './bond-402.js';
 import { mcpTasksFromEnv } from './bond-v2-task.js';
 import { rpcReadTx, verifyReceipt, type ChainTx } from './verify-receipt.js';
 
@@ -127,5 +129,6 @@ if (cmd === 'init') {
   await createPayServer({ policy, wallet, history, fetch, accounts: rpcAccounts(rpc), clock: rpcClock(rpc), bondPolicy: bondPolicyFromEnv(process.env), bondRpc: bondRpc(rpc),
     bondDirectoryUrl: directoryUrlFromEnv(process.env.X402_BOND_DIRECTORY_URL), readTx: rpcReadTx(rpc),
     bondV2Program: resolveV2Program(process.env, rpc), bondV2Policy: bondV2PolicyFromEnv(process.env),
-    mcpTasks: mcpTasksFromEnv(process.env.X402_MCP_TASKS), evm, evmWallet }).connect(new StdioServerTransport());
+    mcpTasks: mcpTasksFromEnv(process.env.X402_MCP_TASKS), evm, evmWallet,
+    bond402: (() => { const prefer = bondPreferPolicy(process.env); const prog = resolveV2Program(process.env, rpc); return { prefer, check: prefer.prefer && prog && policy.mints.USDC ? { fetch, rpcUrl: rpc, v2Program: prog, usdcMint: policy.mints.USDC } : null }; })() }).connect(new StdioServerTransport());
 }

@@ -52,6 +52,8 @@ export interface PayServerDeps {
   evmWallet?: Wallet | null;
   /** Test hooks for bond_v2_wait_result */
   taskWait?: Pick<WaitToolDeps, 'sleep' | 'now' | 'pollIntervalMs' | 'defaultIntervalMs'>;
+  /** Opt-in bond preference for 402 extensions.bond (X402_BOND_PREFER) */
+  bond402?: import('./agent.js').AgentDeps['bond402'];
 }
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean };
