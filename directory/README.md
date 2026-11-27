@@ -6,6 +6,7 @@
 - Nothing here can make a buyer pay: a buyer's wallet still refuses every seller until a human adds that seller and its domain to the wallet's own settings.
 - Terms, prices and descriptions come from each seller's `/quote`, not from this file.
 - `operator` is optional free text. Sellers run by the toolkit developer say so.
+- The two sellers run by the toolkit developer also accept PREQ on their x402 routes since 2026-11-27 (same USD price, daily rate; mainnet-fork rehearsal only, not yet through a hosted facilitator). PREQ they receive counts as operator holdings, is not sold or transferred, and is burned once a month with each burn transaction published on the [PREQ disclosure page](https://claude.ai/artifact/S6UafAfViJk3DJeMsDMAja).
 
 ## Getting listed
 
