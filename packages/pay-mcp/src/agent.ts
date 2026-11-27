@@ -11,6 +11,7 @@ import type { EvmConfig } from './evm-config.js';
 import { EvmAuthorizationMismatch } from './evm-wallet.js';
 import { checkReceipt, RECEIPT_HEADER } from './receipt.js';
 import { discoverySummary, type DiscoverySummary } from './discovery.js';
+import { MPP_NOT_PAID, mppOption, parseMppChallenges } from './mpp.js';
 import { withSmallest } from './units.js';
 import type { Wallet } from './wallet.js';
 
@@ -57,6 +58,8 @@ export interface FetchOutcome {
   discovery?: DiscoverySummary;
   /** Which chain the chosen option is on and why (X402_PREFER_NETWORK, or the only chain with a passing option) */
   choice?: { chain: 'solana' | 'base'; reason: 'preferred network' | 'only option passing' };
+  /** Set when the 402 used MPP (WWW-Authenticate: Payment) instead of x402: read and checked against the rules, never paid */
+  protocol?: 'mpp';
 }
 
 /** Adds the deprecation warning if the chosen asset is A402 (v1) (there is no path that silently pays with A402) */
@@ -106,6 +109,7 @@ export function createAgent(d: AgentDeps) {
   type Assessment =
     | { kind: 'refused'; refused: string }
     | { kind: 'not_required'; res: Response; finalUrl: string }
+    | { kind: 'mpp'; options: NonNullable<FetchOutcome['options']>; reasons: string[] }
     | { kind: '402'; pr: PaymentRequired; evs: Evaluated[]; chosen: Evaluated | null; choice?: FetchOutcome['choice']; finalUrl: string; lock?: FetchOutcome['lock'] };
 
   /** Receives a 402 and evaluates it with the policy (no signing) */
@@ -115,6 +119,11 @@ export function createAgent(d: AgentDeps) {
     const { res, finalUrl } = sent;
     if (res.status !== 402) return { kind: 'not_required', res, finalUrl };
     const h = res.headers.get('payment-required');
+    // No x402 header but an MPP challenge: read it and run the same rules, never sign (x402 takes precedence when both are sent)
+    if (!h) {
+      const challenges = parseMppChallenges(res.headers.get('www-authenticate'));
+      if (challenges.length) return assessMpp(challenges);
+    }
     let pr: PaymentRequired;
     try { pr = decodePaymentRequiredHeader(h ?? ''); } catch { return { kind: 'refused', refused: 'invalid_payment_required_header' }; }
     // If the 402 points to a resource at another address, that address must also be on the allowlist
@@ -140,10 +149,24 @@ export function createAgent(d: AgentDeps) {
     return { kind: '402', pr, evs, chosen: pick?.chosen ?? null, ...(pick ? { choice: { chain: pick.chain, reason: pick.reason } } : {}), finalUrl, ...(lock ? { lock } : {}) };
   }
 
+  /** MPP challenges → the same policy evaluation as x402 options (reasons from reading the challenge come first). Never signs */
+  function assessMpp(challenges: ReturnType<typeof parseMppChallenges>): Assessment {
+    const usage = d.history.today(now());
+    const options = challenges.slice(0, 8).map((c) => {
+      const m = mppOption(c, now());
+      if (!m.requirement) return { asset: null, mint: '', amount: '', payTo: '', network: '', ok: false, reasons: m.reasons };
+      const e = evaluate(d.policy, m.requirement, usage, d.history.recipientToday(m.requirement.payTo, now()), null);
+      const reasons = [...m.reasons, ...e.reasons];
+      return { ...describe(e), ok: reasons.length === 0, reasons };
+    });
+    return { kind: 'mpp', options, reasons: [MPP_NOT_PAID] };
+  }
+
   async function quote(spec: RequestSpec): Promise<FetchOutcome & { quoteId?: string }> {
     const a = await assess(spec);
     if (a.kind === 'refused') return { result: 'refused', reasons: [a.refused] };
     if (a.kind === 'not_required') return { result: 'not_required', httpStatus: a.res.status };
+    if (a.kind === 'mpp') return { result: 'refused', reasons: a.reasons, options: a.options, protocol: 'mpp' };
     const options = a.evs.map(describe);
     const discovery = discoverySummary(a.pr as { resource?: unknown; extensions?: unknown });
     if (!a.chosen) return { result: 'refused', reasons: ['no_option_passes_policy'], options, ...(a.lock ? { lock: a.lock } : {}), discovery };
@@ -158,6 +181,7 @@ export function createAgent(d: AgentDeps) {
     const a = await assess(spec);
     if (a.kind === 'refused') { record({ ...base, result: 'refused', reasons: [a.refused], signed: false }); return { result: 'refused', reasons: [a.refused] }; }
     if (a.kind === 'not_required') return { result: 'not_required', httpStatus: a.res.status, body: await readBody(a.res) };
+    if (a.kind === 'mpp') { record({ ...base, result: 'refused', reasons: a.reasons, signed: false }); return { result: 'refused', reasons: a.reasons, options: a.options, protocol: 'mpp' }; }
     const options = a.evs.map(describe);
     if (!a.chosen) {
       const reasons = ['no_option_passes_policy', ...a.evs.flatMap((e) => e.reasons)];

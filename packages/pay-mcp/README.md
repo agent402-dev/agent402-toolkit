@@ -35,6 +35,7 @@ Nothing is signed unless every rule passes. **With no configuration, every payme
 - At most one signature per `x402_fetch` call. If the server answers 402 again after payment, it does not sign again.
 - Redirects are followed manually and each hop must be an allowed domain; a disallowed hop is not contacted.
 - Pass `quoteId` from `x402_quote` to `x402_fetch` to refuse if the amount, asset or recipient changed.
+- A 402 that uses the Machine Payments Protocol (`WWW-Authenticate: Payment`, no x402 header) is read, not paid: `x402_quote` and `x402_fetch` return `protocol: "mpp"` with each Solana `charge` challenge checked against the same rules, and the result is always `refused` (`mpp_payment_not_supported`). Nothing is signed. When a seller sends both, x402 is used.
 - If the server sends a signed receipt (`X-Agent402-Receipt`, from `@agent402-dev/pay-server`), `x402_fetch` checks its signature and that it matches the request, the response body and the payment, reports `receipt.verified`, and keeps the receipt in the local log. A receipt shows which key signed it; whether that key belongs to the seller is for the seller to publish.
 - Daily totals count every payment this server signed, whatever the result.
 - Daily limits are counted from the local payment log file (`X402_HISTORY_PATH`). Deleting or moving that file resets the daily totals.
