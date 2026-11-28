@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/agent402-dev/agent402-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/agent402-dev/agent402-toolkit/actions/workflows/ci.yml)
 
+**Open-source tools that make agent payments checkable:** spend limits before your agent signs, signed receipts after it pays, and on-chain bonds for jobs on Solana.
+
 > **A402 (v1) is deprecated.** The token payment option is now **PREQ** (mint `aTbGw3gU5JyJkAdXLj8rYZ3mCXkPbyHjtTAyCX3jQLX`). Official addresses: https://claude.ai/artifact/S6UafAfViJk3DJeMsDMAja
 
 Open-source tools for [x402](https://github.com/coinbase/x402) payments in USDC on Solana and Base, run on your own machine under rules you set: take payments for your API, and let your AI agent pay for APIs within limits and allowlists. Also: bonded jobs and factual token checks on Solana, and PREQ (a Token-2022 token) as an optional Solana payment.
