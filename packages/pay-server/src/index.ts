@@ -6,7 +6,7 @@ export {
 } from './gate.js';
 export { PREQ_MAINNET_MINT, PREQ_MAINNET_POOL, A402_DEPRECATION_WARNING } from './preq.js';
 export { rpcChain, receivedBy, type ChainReader, type ChainTx, type AccountFetcher } from './chain.js';
-export { createRateBook, memoryRateStore, type RateBook, type RateStore } from './rates.js';
+export { createRateBook, intradayCheck, memoryRateStore, type RateBook, type RateStore } from './rates.js';
 export {
   DEFAULT_GUARDS, fixRate, samplePrice, tokenAmountFor, PREQ_POOL_TARGET, A402_POOL_TARGET,
   type DailyRate, type PoolTarget, type PriceSample, type RateGuards,

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createRateBook, memoryRateStore, rpcChain, tokenAmountFor, type PriceSample, type RateStore } from '@agent402-dev/pay-server';
+import { createRateBook, intradayCheck, memoryRateStore, rpcChain, tokenAmountFor, type PriceSample, type RateStore } from '@agent402-dev/pay-server';
 import { fileRateStore } from '@agent402-dev/pay-server/rates-file';
 
 const sample = (at: string, tokenUsd: number, depth = 200): PriceSample => ({
@@ -114,5 +114,47 @@ describe('RateBook: PREQ target', () => {
     const book = createRateBook({ store: memoryRateStore(), fetcher: async () => { called = true; return { slot: 0, accounts: [] }; }, target: { symbol: 'PREQ', mint: '', pool: '', decimals: 6 } });
     await expect(book.record()).rejects.toThrow(/PREQ_MAINNET_MINT is not set/);
     expect(called).toBe(false);
+  });
+});
+describe('RateBook: same-day guard', () => {
+  const now = () => new Date('2026-11-20T05:00:00Z');
+  const fixedDay = async (store: RateStore) => { for (const s of day('2026-11-19', () => 0.000002)) await store.addSample(s); };
+  it('stays on when today\'s samples are deep enough and near the fixed rate (no samples today = as before)', async () => {
+    const store = memoryRateStore();
+    await fixedDay(store);
+    const book = createRateBook({ store, now });
+    const r = await book.today();
+    expect(r).toMatchObject({ status: 'on', tokenUsd: 0.000002 });
+    await store.addSample(sample('2026-11-20T01:05:00.000Z', 0.0000025, 150));
+    expect(await book.today()).toEqual(r);
+  });
+  it('turns off for the day when a sample today shows depth below the minimum, and the stored rate is left as it was', async () => {
+    const store = memoryRateStore();
+    await fixedDay(store);
+    const book = createRateBook({ store, now });
+    expect((await book.today()).status).toBe('on');
+    await store.addSample(sample('2026-11-20T01:05:00.000Z', 0.000002, 3)); // pool drained after the fix
+    const r = await book.today();
+    expect(r).toMatchObject({ status: 'off', date: '2026-11-20', basedOn: '2026-11-19', reason: expect.stringContaining('depth 3 USD') });
+    expect(await store.getRate('2026-11-20')).toMatchObject({ status: 'on' });
+    await store.addSample(sample('2026-11-20T02:05:00.000Z', 0.000002, 500)); // depth back later the same day: still off
+    expect((await book.today()).status).toBe('off');
+  });
+  it('turns off when a price today is more than the range limit away from the fixed rate (either way)', async () => {
+    for (const p of [0.000001, 0.000004]) {
+      const store = memoryRateStore();
+      await fixedDay(store);
+      await store.addSample(sample('2026-11-20T03:05:00.000Z', p));
+      expect(await createRateBook({ store, now }).today()).toMatchObject({ status: 'off', reason: expect.stringContaining('2.00x') });
+    }
+  });
+  it('never turns an off rate on, and ignores other tokens\' samples today', async () => {
+    const off = { status: 'off' as const, date: 'd', basedOn: 'b', reason: 'x', samples: 0 };
+    expect(intradayCheck(off, [sample('2026-11-20T01:05:00.000Z', 0.000002)])).toBe(off);
+    const store = memoryRateStore();
+    await fixedDay(store);
+    const { symbol: _drop, ...old } = sample('2026-11-20T01:05:00.000Z', 0.000002, 1);
+    await store.addSample(old as PriceSample);
+    expect((await createRateBook({ store, now }).today()).status).toBe('on');
   });
 });

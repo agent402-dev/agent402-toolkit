@@ -28,8 +28,31 @@ const prevDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86_400_00
 export interface RateBook {
   /** Records one sample (e.g. from an hourly cron). Throws if outside the oracle quality bounds; nothing is recorded */
   record(): Promise<PriceSample>;
-  /** Today's (UTC) fixed rate. Computed from the previous day's samples on first request and stored */
+  /**
+   * Today's (UTC) fixed rate. Computed from the previous day's samples on first request and stored.
+   * Same-day guard: if any of today's samples so far has a SOL-side depth below the minimum, or a price
+   * that differs from the fixed rate by more than the daily range limit, today's rate is returned as off
+   * (the stored rate is left as it was). This only turns PREQ off; it never turns it on.
+   */
   today(): Promise<DailyRate>;
+}
+
+/** Same-day guard on a fixed rate: off if today's samples show low depth or a price far from the fixed rate */
+export function intradayCheck(rate: DailyRate, todaySamples: PriceSample[], guards = DEFAULT_GUARDS): DailyRate {
+  if (rate.status !== 'on') return rate;
+  const off = (reason: string): DailyRate => ({ status: 'off', date: rate.date, basedOn: rate.basedOn, reason, samples: rate.samples });
+  for (const s of todaySamples) {
+    const depth = Number.isFinite(s.poolSolSideUsd) ? s.poolSolSideUsd : 0;
+    if (depth < guards.minPoolSolSideUsd) {
+      return off(`${rate.date} (today): pool SOL-side depth ${depth.toFixed(0)} USD at ${s.at}, below the minimum of ${guards.minPoolSolSideUsd} USD`);
+    }
+    if (!Number.isFinite(s.tokenUsd) || !(s.tokenUsd > 0)) return off(`${rate.date} (today): invalid (zero, negative or non-finite) price sample at ${s.at}`);
+    const ratio = Math.max(s.tokenUsd / rate.tokenUsd, rate.tokenUsd / s.tokenUsd);
+    if (!Number.isFinite(ratio) || ratio > guards.maxDailyRangeRatio) {
+      return off(`${rate.date} (today): price at ${s.at} differs from the fixed rate by ${ratio.toFixed(2)}x, above the limit of ${guards.maxDailyRangeRatio}`);
+    }
+  }
+  return rate;
 }
 
 export function createRateBook(o: { store: RateStore; fetcher?: AccountFetcher; guards?: RateGuards; now?: () => Date; target?: PoolTarget }): RateBook {
@@ -45,13 +68,15 @@ export function createRateBook(o: { store: RateStore; fetcher?: AccountFetcher; 
     },
     async today() {
       const date = now().toISOString().slice(0, 10);
-      const cached = await o.store.getRate(date);
-      if (cached) return cached;
       // Samples of other tokens (e.g. old A402 samples without symbol) are not mixed in
-      const samples = (await o.store.samples(prevDay(date))).filter((s) => (s.symbol ?? 'A402') === target.symbol);
-      const r = fixRate(date, samples, guards);
-      await o.store.putRate(r);
-      return r;
+      const mine = (xs: PriceSample[]) => xs.filter((s) => (s.symbol ?? 'A402') === target.symbol);
+      let r = await o.store.getRate(date);
+      if (!r) {
+        r = fixRate(date, mine(await o.store.samples(prevDay(date))), guards);
+        await o.store.putRate(r);
+      }
+      if (r.status !== 'on') return r;
+      return intradayCheck(r, mine(await o.store.samples(date)), guards);
     },
   };
 }

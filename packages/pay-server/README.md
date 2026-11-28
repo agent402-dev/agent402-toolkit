@@ -28,7 +28,7 @@ Not related to `agent402.tools`, `@agents402` or other similarly named sites, ac
 PREQ is offered only when all of these hold for the request:
 1. The selected facilitator is configured to accept PREQ.
 2. Your receiving address has a PREQ (Token-2022) token account. `exact` payments do not create the receiving account; create it in advance. The same applies to USDC.
-3. The day's PREQ rate is available. The rate is the median of the previous UTC day's hourly samples (Meteora DAMM v2 PREQ/SOL pool price × Pyth SOL/USD). It is switched off for the day when there are fewer than 12 samples, the pool's SOL-side depth fell below 100 USD, the max/min ratio exceeded 1.5, or any sample has a zero or non-finite price. These thresholds are configurable. Right after trading starts, a single-sided pool holds almost no SOL, so the depth rule keeps PREQ off until the pool has SOL-side depth.
+3. The day's PREQ rate is available. The rate is the median of the previous UTC day's hourly samples (Meteora DAMM v2 PREQ/SOL pool price × Pyth SOL/USD). It is switched off for the day when there are fewer than 12 samples, the pool's SOL-side depth fell below 100 USD, the max/min ratio exceeded 1.5, or any sample has a zero or non-finite price. These thresholds are configurable. Right after trading starts, a single-sided pool holds almost no SOL, so the depth rule keeps PREQ off until the pool has SOL-side depth. The same checks also run during the day: once the day's rate is fixed, if any hourly sample that day shows SOL-side depth below the minimum, or a price more than the range limit away from the fixed rate, PREQ is off for the rest of that UTC day (USDC is unaffected).
 
 When PREQ is not offered, the 402 response lists it under `notOffered` with the reason.
 
